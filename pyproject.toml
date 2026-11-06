@@ -65,9 +65,10 @@ packages = ["src/llm_on_a_stick"]
 "configs" = "llm_on_a_stick/_assets/configs"
 "images" = "llm_on_a_stick/_assets/images"
 "sections" = "llm_on_a_stick/_assets/sections"
+"services" = "llm_on_a_stick/_assets/services"
 
 [tool.hatch.build.targets.sdist]
-include = ["src", "topologies", "configs", "images", "sections", "docs", "tests", "README.md", "LICENSE"]
+include = ["src", "topologies", "configs", "images", "sections", "services", "docs", "tests", "README.md", "LICENSE"]
 
 [tool.ruff]
 line-length = 110

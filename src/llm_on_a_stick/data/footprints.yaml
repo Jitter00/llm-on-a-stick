@@ -24,7 +24,7 @@ topologies:
     nodes: {srlinux: 2, stick-frr: 2, multitool: 2}
 
 services:
-  netbox: {ram_mb: 1536, measured: false}
+  netbox: {ram_mb: 1664, measured: true}    # 1453 MiB: netbox 1046 + worker 257 + postgres 146 + valkey 4
   nautobot: {ram_mb: 2048, measured: false}
   librenms: {ram_mb: 1024, measured: false}
   zabbix: {ram_mb: 1024, measured: false}

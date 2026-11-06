@@ -10,8 +10,10 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from llm_on_a_stick import __version__, doctor, paths, tasks
+from llm_on_a_stick import __version__, doctor, paths, services, tasks
 from llm_on_a_stick.env import containerlab
+from llm_on_a_stick.services import lifecycle
+from llm_on_a_stick.services.seed import RestError
 
 app = typer.Typer(
     name="stick",
@@ -22,9 +24,13 @@ app = typer.Typer(
 env_app = typer.Typer(help="Bring the lab up, down, or inspect it.", no_args_is_help=True)
 image_app = typer.Typer(help="Build the images we ship as source (e.g. stick-frr).", no_args_is_help=True)
 task_app = typer.Typer(help="Work with benchmark tasks.", no_args_is_help=True)
+svc_app = typer.Typer(
+    help="Tool-stack services (NetBox, ...): up, down, status, reset.", no_args_is_help=True
+)
 app.add_typer(env_app, name="env")
 app.add_typer(image_app, name="image")
 app.add_typer(task_app, name="task")
+app.add_typer(svc_app, name="svc")
 
 console = Console()
 err = Console(stderr=True)
@@ -148,3 +154,105 @@ def task_lint(
         err.print(f"[red]{e.path}[/]: {e.message}")
     console.print(f"{len(found)} task file(s) checked, {len(errors)} error(s)")
     raise typer.Exit(1 if errors else 0)
+
+
+ServiceNames = Annotated[
+    list[str], typer.Argument(help="Service names, e.g. netbox. Started one after another.")
+]
+
+
+def _load_services(names: list[str]) -> list[services.ServiceSpec]:
+    try:
+        return [services.load(n) for n in names]
+    except FileNotFoundError as exc:
+        err.print(f"[red]{exc}[/]")
+        raise typer.Exit(1) from exc
+
+
+@svc_app.command("list")
+def svc_list() -> None:
+    """List the services this version knows about."""
+    table = Table("service", "description")
+    for name in services.available():
+        table.add_row(name, services.load(name).description)
+    console.print(table)
+
+
+@svc_app.command("up")
+def svc_up(
+    names: ServiceNames,
+    seed: Annotated[bool, typer.Option(help="Load baseline seed data.")] = True,
+) -> None:
+    """Start services one at a time, seed them and take a baseline snapshot."""
+    for spec in _load_services(names):
+        console.print(f"[bold]{spec.name}[/]")
+        try:
+            lifecycle.up(spec, seed=seed, log=lambda m: console.print(f"  {m}"))
+        except (lifecycle.ServiceError, RestError) as exc:
+            err.print(f"[red]{spec.name}: {exc}[/]")
+            raise typer.Exit(1) from exc
+        for label, url in spec.endpoints.items():
+            console.print(f"  {label}: {url}", soft_wrap=True)
+        for key, value in spec.credentials.items():
+            console.print(f"  {key}: {value}", soft_wrap=True)
+
+
+@svc_app.command("down")
+def svc_down(
+    names: ServiceNames,
+    volumes: Annotated[bool, typer.Option(help="Also delete data volumes (including the snapshot).")] = False,
+) -> None:
+    """Stop services."""
+    for spec in _load_services(names):
+        try:
+            lifecycle.down(spec, volumes=volumes)
+        except lifecycle.ServiceError as exc:
+            err.print(f"[red]{exc}[/]")
+            raise typer.Exit(1) from exc
+        console.print(f"[green]stopped[/] {spec.name}")
+
+
+@svc_app.command("status")
+def svc_status(
+    names: Annotated[list[str] | None, typer.Argument(help="Services (default: all).")] = None,
+) -> None:
+    """Show container state and whether each service answers its health check."""
+    table = Table("service", "container", "state", "health", "api")
+    for spec in _load_services(names or services.available()):
+        try:
+            rows = lifecycle.status(spec)
+        except lifecycle.ServiceError:
+            rows = []
+        api = "[green]ok[/]" if rows and lifecycle.healthy(spec) else "[dim]-[/]"
+        if not rows:
+            table.add_row(spec.name, "-", "[dim]not running[/]", "", api)
+        for i, r in enumerate(rows):
+            table.add_row(
+                spec.name if i == 0 else "", r["service"], r["state"], r["health"], api if i == 0 else ""
+            )
+    console.print(table)
+
+
+@svc_app.command("reset")
+def svc_reset(names: ServiceNames) -> None:
+    """Restore services to their baseline snapshot (what `svc up` seeded)."""
+    for spec in _load_services(names):
+        console.print(f"[bold]{spec.name}[/]")
+        try:
+            lifecycle.restore_snapshot(spec, log=lambda m: console.print(f"  {m}"))
+        except lifecycle.ServiceError as exc:
+            err.print(f"[red]{exc}[/]")
+            raise typer.Exit(1) from exc
+        console.print(f"[green]reset[/] {spec.name}")
+
+
+@svc_app.command("snapshot")
+def svc_snapshot(names: ServiceNames) -> None:
+    """Replace the baseline snapshot with the service's current state."""
+    for spec in _load_services(names):
+        try:
+            lifecycle.take_snapshot(spec)
+        except lifecycle.ServiceError as exc:
+            err.print(f"[red]{exc}[/]")
+            raise typer.Exit(1) from exc
+        console.print(f"[green]snapshot taken[/] {spec.name}")

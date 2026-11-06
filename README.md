@@ -6,8 +6,8 @@ An open-source benchmark for comparing local and frontier LLMs on real NetDevOps
 changing configs, keeping NetBox and DNS in sync, validating changes and troubleshooting across tools. It reports
 **why** a model fails (wrong CLI dialect, invented API fields, collateral changes...), not just a score.
 
-> Status: **pre-alpha, Phase 0**. The lab environment and the `stick` CLI skeleton exist. The tool stack, grader and
-> tasks come next. See [the roadmap](#roadmap).
+> Status: **pre-alpha, Phase 0**. The base lab, the `stick` CLI and the first service (NetBox) work. The rest of the
+> tool stack, the grader and the tasks come next. See [the roadmap](#roadmap).
 
 ## Why
 
@@ -40,8 +40,12 @@ uv run stick doctor            # what can this machine run?
 uv run stick image build frr   # builds stick-frr:dev
 uv run stick env up            # deploys the base lab
 uv run stick env status
+uv run stick svc up netbox     # NetBox on the lab network, seeded, with a baseline snapshot
+uv run stick svc reset netbox  # back to baseline between attempts
 uv run stick env down
 ```
+
+Services are documented in [docs/services.md](docs/services.md).
 
 ## Platforms
 
