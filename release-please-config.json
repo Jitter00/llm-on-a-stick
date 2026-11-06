@@ -7,7 +7,14 @@
   "packages": {
     ".": {
       "package-name": "llm-on-a-stick",
-      "changelog-path": "CHANGELOG.md"
+      "changelog-path": "CHANGELOG.md",
+      "extra-files": [
+        {
+          "type": "toml",
+          "path": "uv.lock",
+          "jsonpath": "$.package[?(@.name.value=='llm-on-a-stick')].version"
+        }
+      ]
     }
   },
   "changelog-sections": [
