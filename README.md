@@ -73,4 +73,4 @@ Commits follow [Conventional Commits](https://www.conventionalcommits.org/). See
 
 ## Licence
 
-Apache-2.0.
+MIT. See [LICENSE](LICENSE).

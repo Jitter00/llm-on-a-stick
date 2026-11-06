@@ -3,7 +3,7 @@ name = "llm-on-a-stick"
 version = "0.0.0"
 description = "One eval harness, many LLMs. Start poking. An agentic NetOps benchmark for local and frontier LLMs."
 readme = "README.md"
-license = "Apache-2.0"
+license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.11"
 keywords = ["llm", "evaluation", "benchmark", "network-automation", "containerlab", "netdevops", "agents"]
@@ -33,8 +33,8 @@ stick = "llm_on_a_stick.cli:app"
 llm-on-a-stick = "llm_on_a_stick.cli:app"
 
 [project.urls]
-Repository = "https://github.com/OWNER/llm-on-a-stick"
-Issues = "https://github.com/OWNER/llm-on-a-stick/issues"
+Repository = "https://github.com/Jitter00/llm-on-a-stick"
+Issues = "https://github.com/Jitter00/llm-on-a-stick/issues"
 
 [dependency-groups]
 dev = [

@@ -5,13 +5,12 @@ Items are roughly in order; dependencies are noted. Tick items off in the PR tha
 
 ## Before the first push
 
-- [ ] Replace the `OWNER` placeholder with the GitHub user/org in `pyproject.toml` (project URLs), `mkdocs.yml` (`repo_url`)
-      and `src/llm_on_a_stick/data/task.schema.json` (`$id`).
+- [x] Replace the `OWNER` placeholder with the GitHub user (`Jitter00`) in `pyproject.toml`, `mkdocs.yml` and the task schema.
 - [ ] Push `main` first, then open a PR from `feat/netbox` (first real run of `ci-pr.yml`, so expect CI fixes).
 - [ ] GitHub settings: branch protection on `main` (PR required; lint, test, integration and build checks required; squash merge only).
 - [ ] Enable GitHub Pages (source: GitHub Actions) and create the `github-pages` environment.
 - [ ] PyPI: add a trusted publisher for `llm-on-a-stick` (workflow `release.yml`, environment `pypi`) before the first Release PR is merged.
-- [ ] Confirm the licence (Apache-2.0 for now).
+- [x] Licence: MIT.
 
 ## Phase 0: environment (one service per PR)
 

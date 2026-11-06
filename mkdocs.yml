@@ -1,6 +1,6 @@
 site_name: llm-on-a-stick
 site_description: One eval harness, many LLMs. Start poking.
-repo_url: https://github.com/OWNER/llm-on-a-stick
+repo_url: https://github.com/Jitter00/llm-on-a-stick
 strict: true
 theme:
   name: material
