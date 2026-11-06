@@ -1,0 +1,109 @@
+# NetBox for llm-on-a-stick. Based on netbox-docker 5.1.1's compose file, slimmed down:
+#   - one Valkey with two databases (tasks + cache) instead of two Valkey containers
+#   - environment set inline (no env files), lab-only credentials, overridable from the shell
+#   - NetBox joins the lab's management network at a fixed address so devices and agents can reach it
+# Start it with `stick svc up netbox`, which also creates the network if the lab isn't running.
+name: stick-netbox
+
+x-netbox-env: &netbox-env
+  DB_HOST: postgres
+  DB_NAME: netbox
+  DB_USER: netbox
+  DB_PASSWORD: ${STICK_NETBOX_DB_PASSWORD:-stick-netbox-db}
+  REDIS_HOST: valkey
+  REDIS_PASSWORD: ${STICK_NETBOX_REDIS_PASSWORD:-stick-netbox-redis}
+  REDIS_DATABASE: "0"
+  REDIS_CACHE_HOST: valkey
+  REDIS_CACHE_PASSWORD: ${STICK_NETBOX_REDIS_PASSWORD:-stick-netbox-redis}
+  REDIS_CACHE_DATABASE: "1"
+  SECRET_KEY: ${STICK_NETBOX_SECRET_KEY:-stick-lab-only-secret-key-change-me-0123456789abcdefghij}
+  SKIP_SUPERUSER: "false"
+  SUPERUSER_NAME: ${STICK_NETBOX_USER:-admin}
+  SUPERUSER_EMAIL: admin@stick.invalid
+  SUPERUSER_PASSWORD: ${STICK_NETBOX_PASSWORD:-admin}
+  # NetBox 4.5+ v2 API token, sent as "Authorization: Bearer nbt_<key>.<token>".
+  # It is only created when the pepper, a 12-char key and a 40-char token are all set.
+  API_TOKEN_PEPPER_1: ${STICK_NETBOX_TOKEN_PEPPER:-stick-lab-only-pepper-0123456789abcdefghijklmnopqrstuvwxyz}
+  SUPERUSER_API_KEY: ${STICK_NETBOX_TOKEN_KEY:-stickadmin01}
+  SUPERUSER_API_TOKEN: ${STICK_NETBOX_TOKEN:-0123456789abcdef0123456789abcdef01234567}
+  METRICS_ENABLED: "false"
+  CORS_ORIGIN_ALLOW_ALL: "true"
+
+services:
+  netbox: &netbox
+    image: docker.io/netboxcommunity/netbox:v4.7.4-5.1.1
+    depends_on:
+      postgres: {condition: service_healthy}
+      valkey: {condition: service_healthy}
+    environment: *netbox-env
+    user: "netbox:root"
+    healthcheck:
+      test: /opt/netbox/health.sh
+      start_period: 300s
+      timeout: 3s
+      interval: 5s
+    ports:
+      - "127.0.0.1:${STICK_NETBOX_PORT:-8081}:8080"
+    networks:
+      default: {}
+      stick-mgmt:
+        ipv4_address: 172.30.30.100
+    volumes:
+      - netbox-media:/opt/netbox/netbox/media:rw
+
+  netbox-worker:
+    <<: *netbox
+    depends_on:
+      netbox: {condition: service_healthy}
+    command: [/opt/netbox/venv/bin/python, /opt/netbox/netbox/manage.py, rqworker]
+    healthcheck:
+      test: ps -aux | grep -v grep | grep -q rqworker || exit 1
+      start_period: 20s
+      timeout: 3s
+      interval: 15s
+    ports: []
+    networks:
+      default: {}
+
+  postgres:
+    image: docker.io/postgres:18.6-alpine
+    environment:
+      POSTGRES_DB: netbox
+      POSTGRES_USER: netbox
+      POSTGRES_PASSWORD: ${STICK_NETBOX_DB_PASSWORD:-stick-netbox-db}
+    healthcheck:
+      test: pg_isready -q -t 2 -d $$POSTGRES_DB -U $$POSTGRES_USER
+      start_period: 20s
+      timeout: 30s
+      interval: 5s
+      retries: 10
+    volumes:
+      - netbox-postgres:/var/lib/postgresql
+      - netbox-snapshots:/snapshots
+
+  valkey:
+    image: docker.io/valkey/valkey:9.1.3-alpine
+    command:
+      - sh
+      - -c
+      - valkey-server --appendonly yes --requirepass "$$REDIS_PASSWORD"
+    environment:
+      REDIS_PASSWORD: ${STICK_NETBOX_REDIS_PASSWORD:-stick-netbox-redis}
+    healthcheck:
+      test: '[ "$$(valkey-cli --pass "$${REDIS_PASSWORD}" --no-auth-warning ping)" = "PONG" ]'
+      start_period: 5s
+      timeout: 3s
+      interval: 2s
+      retries: 10
+    volumes:
+      - netbox-valkey:/data
+
+networks:
+  stick-mgmt:
+    external: true
+
+volumes:
+  netbox-media:
+  netbox-postgres:
+  netbox-valkey:
+  netbox-snapshots:

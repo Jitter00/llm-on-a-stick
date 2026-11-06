@@ -22,11 +22,12 @@ Legend: ✅ verified · ⚠️ partial (see notes) · ❌ doesn't work · ❓ no
 
 ## Tools
 
-To be filled in as each service is added (Phase 0, step 3).
+Filled in as each service is added (Phase 0, step 3).
 
 | Tool | SR Linux | FRR | Notes |
 |---|---|---|---|
-| NetBox / Nautobot | n/a | n/a | Source of truth; device-side checks only if LLDP discovery is used |
+| NetBox 4.7.4 | n/a | n/a | ✅ up, seeded, reachable from `stick-mgmt` at 172.30.30.100:8080; reset verified (`tests/integration/test_netbox.py`) |
+| Nautobot | n/a | n/a | |
 | LibreNMS (SNMP) | ❓ | ❓ | |
 | Zabbix (SNMP) | ❓ | ❓ | |
 | Oxidized | ❓ | ❓ | Check which Oxidized model fits each OS |

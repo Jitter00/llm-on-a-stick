@@ -1,0 +1,48 @@
+# Baseline NetBox objects every task starts from. Deliberately NOT the lab's devices:
+# documenting the lab in NetBox is itself a task. Each entry is created only if
+# `lookup` doesn't find it already, so seeding is idempotent.
+# Foreign keys use NetBox's nested lookups, e.g. manufacturer: {slug: nokia}.
+
+- endpoint: dcim/sites
+  lookup: slug
+  data: {name: stick-lab, slug: stick-lab, status: active, description: llm-on-a-stick base lab}
+
+- endpoint: dcim/manufacturers
+  lookup: slug
+  data: {name: Nokia, slug: nokia}
+- endpoint: dcim/manufacturers
+  lookup: slug
+  data: {name: FRRouting, slug: frrouting}
+- endpoint: dcim/manufacturers
+  lookup: slug
+  data: {name: Generic, slug: generic}
+
+- endpoint: dcim/device-roles
+  lookup: slug
+  data: {name: Spine, slug: spine, color: 2196f3}
+- endpoint: dcim/device-roles
+  lookup: slug
+  data: {name: Leaf, slug: leaf, color: 4caf50}
+- endpoint: dcim/device-roles
+  lookup: slug
+  data: {name: Host, slug: host, color: 9e9e9e}
+
+- endpoint: dcim/platforms
+  lookup: slug
+  data: {name: SR Linux, slug: srlinux, manufacturer: {slug: nokia}}
+- endpoint: dcim/platforms
+  lookup: slug
+  data: {name: FRR, slug: frr, manufacturer: {slug: frrouting}}
+- endpoint: dcim/platforms
+  lookup: slug
+  data: {name: Linux, slug: linux, manufacturer: {slug: generic}}
+
+- endpoint: dcim/device-types
+  lookup: slug
+  data: {model: 7220 IXR-D2L, slug: 7220-ixr-d2l, manufacturer: {slug: nokia}}
+- endpoint: dcim/device-types
+  lookup: slug
+  data: {model: FRR container, slug: frr-container, manufacturer: {slug: frrouting}}
+- endpoint: dcim/device-types
+  lookup: slug
+  data: {model: Linux host, slug: linux-host, manufacturer: {slug: generic}}

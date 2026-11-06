@@ -30,6 +30,10 @@ jobs:
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+          # PRs opened with the default GITHUB_TOKEN don't trigger CI, so the Release PR could never pass
+          # required checks. RELEASE_PLEASE_TOKEN is a fine-grained PAT (Contents + Pull requests: read/write
+          # on this repo only); without it we fall back to GITHUB_TOKEN.
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
 
   build:
     needs: release-please

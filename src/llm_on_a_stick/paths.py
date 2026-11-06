@@ -9,7 +9,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-ASSET_DIRS = ("topologies", "configs", "images", "sections")
+ASSET_DIRS = ("topologies", "configs", "images", "sections", "services")
 _PACKAGE_DIR = Path(__file__).resolve().parent
 
 

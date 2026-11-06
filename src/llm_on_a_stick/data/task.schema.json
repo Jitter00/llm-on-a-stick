@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/OWNER/llm-on-a-stick/schemas/task.schema.json",
+  "$id": "https://github.com/Jitter00/llm-on-a-stick/schemas/task.schema.json",
   "title": "llm-on-a-stick task",
   "description": "One benchmark task. Lives at <section>/<task-id>/task.yaml (built-in or user-provided).",
   "type": "object",

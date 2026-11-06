@@ -1,0 +1,39 @@
+# How `stick svc` drives this service. ${VAR:-default} is expanded from the environment,
+# using the same variables and defaults as compose.yaml.
+name: netbox
+description: NetBox 4.7 source of truth (DCIM/IPAM)
+compose: compose.yaml
+project: stick-netbox
+wait_timeout_s: 420  # first boot runs migrations; measured ~150 s
+
+health:
+  url: http://127.0.0.1:${STICK_NETBOX_PORT:-8081}/api/status/
+  headers:
+    Authorization: Bearer nbt_${STICK_NETBOX_TOKEN_KEY:-stickadmin01}.${STICK_NETBOX_TOKEN:-0123456789abcdef0123456789abcdef01234567}
+
+endpoints:
+  web (host): http://127.0.0.1:${STICK_NETBOX_PORT:-8081}
+  api (lab mgmt network): http://172.30.30.100:8080/api/
+
+credentials:
+  username: ${STICK_NETBOX_USER:-admin}
+  password: ${STICK_NETBOX_PASSWORD:-admin}
+  api_token (Bearer): nbt_${STICK_NETBOX_TOKEN_KEY:-stickadmin01}.${STICK_NETBOX_TOKEN:-0123456789abcdef0123456789abcdef01234567}
+
+seed:
+  kind: netbox-rest
+  file: seed.yaml
+  base_url: http://127.0.0.1:${STICK_NETBOX_PORT:-8081}/api/
+  headers:
+    Authorization: Bearer nbt_${STICK_NETBOX_TOKEN_KEY:-stickadmin01}.${STICK_NETBOX_TOKEN:-0123456789abcdef0123456789abcdef01234567}
+
+snapshot:
+  kind: postgres
+  service: postgres
+  database: netbox
+  user: netbox
+  path: /snapshots/seed.dump
+  stop: [netbox, netbox-worker]
+  after_restore:
+    - service: valkey
+      cmd: [sh, -c, 'valkey-cli --pass "$REDIS_PASSWORD" --no-auth-warning FLUSHALL']
