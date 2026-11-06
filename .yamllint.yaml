@@ -1,0 +1,16 @@
+extends: default
+ignore: |
+  .venv/
+  clab-*/
+rules:
+  line-length:
+    max: 140
+  document-start: disable
+  truthy:
+    allowed-values: ["true", "false", "on"]  # `on:` is the GitHub Actions trigger key
+  comments:
+    min-spaces-from-content: 1
+  brackets:
+    max-spaces-inside: 1
+  braces:
+    max-spaces-inside: 1

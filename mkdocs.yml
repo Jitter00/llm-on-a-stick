@@ -1,0 +1,15 @@
+site_name: llm-on-a-stick
+site_description: One eval harness, many LLMs. Start poking.
+repo_url: https://github.com/OWNER/llm-on-a-stick
+strict: true
+theme:
+  name: material
+  features: [navigation.sections, content.code.copy]
+nav:
+  - Home: index.md
+  - Platforms: platforms.md
+  - Compatibility: compatibility.md
+markdown_extensions:
+  - admonition
+  - tables
+  - pymdownx.superfences

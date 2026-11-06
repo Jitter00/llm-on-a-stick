@@ -1,0 +1,37 @@
+# RAM estimates (MiB) used by `stick doctor` and, later, the scheduler.
+# `measured: true` values come from cgroup memory.current at idle, plus headroom.
+# `measured: false` values are still guesses; replace them as each service is brought up.
+
+images:
+  srlinux:
+    image: ghcr.io/nokia/srlinux:26.7.2
+    ram_mb: 2048          # measured 1870 MiB (cgroup memory.current, ixr-d2l, idle, 2026-11-06)
+    arch: [amd64, arm64]
+    measured: true
+  stick-frr:
+    image: stick-frr:dev
+    ram_mb: 64            # measured 31 MiB (bgpd + zebra + snmpd + sshd + lldpd, idle)
+    arch: [amd64, arm64]
+    measured: true
+  multitool:
+    image: ghcr.io/hellt/network-multitool
+    ram_mb: 16            # measured 1 MiB idle; iperf3/tshark need more while running
+    arch: [amd64, arm64]
+    measured: true
+
+topologies:
+  base:
+    nodes: {srlinux: 2, stick-frr: 2, multitool: 2}
+
+services:
+  netbox: {ram_mb: 1536, measured: false}
+  nautobot: {ram_mb: 2048, measured: false}
+  librenms: {ram_mb: 1024, measured: false}
+  zabbix: {ram_mb: 1024, measured: false}
+  oxidized: {ram_mb: 256, measured: false}
+  batfish: {ram_mb: 2048, measured: false}
+  suzieq: {ram_mb: 512, measured: false}
+  gitea: {ram_mb: 256, measured: false}
+  telemetry: {ram_mb: 512, measured: false}  # gNMIc + Prometheus
+  syslog: {ram_mb: 384, measured: false}     # Loki
+  ddi: {ram_mb: 384, measured: false}        # PowerDNS + Kea

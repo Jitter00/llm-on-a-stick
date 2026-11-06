@@ -1,0 +1,21 @@
+__pycache__/
+*.py[cod]
+.venv/
+build/
+dist/
+*.egg-info/
+.coverage
+coverage.xml
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+site/
+
+# containerlab lab directories (created next to the topology file on deploy)
+clab-*/
+.*.clab.yml.bak
+
+# run outputs
+results/
+.env

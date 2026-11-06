@@ -1,0 +1,22 @@
+# Push to any branch except main: lint -> test (fast unit tests, no Docker).
+name: ci-push
+
+on:
+  push:
+    branches-ignore: [main]
+
+concurrency:
+  group: ci-push-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    uses: ./.github/workflows/_lint.yml
+  test:
+    needs: lint
+    uses: ./.github/workflows/_test.yml
+    with:
+      full-matrix: false

@@ -1,0 +1,133 @@
+# Pull request to main: lint -> test (unit matrix + integration lab) -> build -> release (dry run) -> deploy preview.
+# Nothing is published from a PR; the real release/deploy happens in release.yml after merge.
+name: ci-pr
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, edited, synchronize, reopened]
+
+concurrency:
+  group: ci-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CONTAINERLAB_VERSION: "0.82.0"
+
+jobs:
+  pr-title:
+    name: semantic PR title
+    runs-on: ubuntu-24.04
+    permissions:
+      pull-requests: read
+    steps:
+      # Squash merge uses the PR title as the commit on main, so it must be a Conventional Commit.
+      - uses: amannn/action-semantic-pull-request@2252a14e810aa9b85c2d560bd7070c802206ecf6  # v6.1.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  lint:
+    uses: ./.github/workflows/_lint.yml
+
+  test:
+    needs: lint
+    uses: ./.github/workflows/_test.yml
+    with:
+      full-matrix: true
+
+  integration:
+    name: integration (base lab)
+    needs: lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - name: Install containerlab
+        run: bash -c "$(curl -sL https://get.containerlab.dev)" -- --version "$CONTAINERLAB_VERSION"
+      - name: Build stick-frr
+        run: uv run stick image build frr
+      - name: stick doctor
+        run: uv run stick doctor
+      - name: Deploy base lab and run lab tests
+        # containerlab needs root on the runner; keep the uv environment.
+        run: sudo -E env "PATH=$PATH" uv run pytest -m lab -v
+      - name: Task lint
+        run: uv run stick task lint
+      - name: Dump lab state on failure
+        if: failure()
+        run: |
+          docker ps -a
+          for c in $(docker ps -a --format '{{.Names}}' | grep '^clab-'); do echo "== $c"; docker logs --tail 50 "$c"; done
+
+  build:
+    needs: [test, integration]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
+      - name: Build wheel and sdist
+        run: uv build
+      - name: Check the wheel ships the lab assets
+        run: |
+          unzip -l dist/*.whl | grep -q '_assets/topologies/base.clab.yml'
+          unzip -l dist/*.whl | grep -q '_assets/images/frr/Dockerfile'
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: dist
+          path: dist/
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1  # v4.4.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
+      - name: Build stick-frr (amd64 + arm64, not pushed)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
+        with:
+          context: images/frr
+          platforms: linux/amd64,linux/arm64
+          push: false
+          tags: stick-frr:pr-${{ github.event.pull_request.number }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  release-dry-run:
+    name: release (dry run)
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - name: What would release-please do on main?
+        run: >
+          npx --yes release-please@17.11.2 release-pr
+          --dry-run
+          --token "${{ secrets.GITHUB_TOKEN }}"
+          --repo-url "${{ github.repository }}"
+          --target-branch "${{ github.base_ref }}"
+      - name: Version bump this PR adds
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          # Mirrors release-please-config.json: bump-minor-pre-major=true, so breaking changes bump minor before 1.0.
+          if [[ "$TITLE" =~ ^[a-z]+(\(.+\))?!: ]]; then bump="major (minor while < 1.0)";
+          elif [[ "$TITLE" =~ ^feat ]]; then bump="minor";
+          elif [[ "$TITLE" =~ ^(fix|perf) ]]; then bump="patch";
+          else bump="none (no release)"; fi
+          echo "PR title: $TITLE" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "Expected bump once merged: $bump" | tee -a "$GITHUB_STEP_SUMMARY"
+
+  deploy-preview:
+    name: deploy preview (docs)
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
+      - run: uv sync --locked --group docs
+      - run: uv run mkdocs build --strict
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: docs-preview
+          path: site/

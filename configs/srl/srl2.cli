@@ -1,0 +1,30 @@
+set / interface ethernet-1/1 admin-state enable
+set / interface ethernet-1/1 description "to frr1"
+set / interface ethernet-1/1 subinterface 0 ipv4 admin-state enable
+set / interface ethernet-1/1 subinterface 0 ipv4 address 10.0.2.0/31
+set / interface ethernet-1/2 admin-state enable
+set / interface ethernet-1/2 description "to frr2"
+set / interface ethernet-1/2 subinterface 0 ipv4 admin-state enable
+set / interface ethernet-1/2 subinterface 0 ipv4 address 10.0.2.2/31
+set / interface system0 subinterface 0 ipv4 admin-state enable
+set / interface system0 subinterface 0 ipv4 address 10.255.0.2/32
+
+set / network-instance default interface ethernet-1/1.0
+set / network-instance default interface ethernet-1/2.0
+set / network-instance default interface system0.0
+
+set / routing-policy policy export-all statement local match protocol local
+set / routing-policy policy export-all statement local action policy-result accept
+set / routing-policy policy export-all default-action policy-result accept
+set / routing-policy policy import-all default-action policy-result accept
+
+set / network-instance default protocols bgp admin-state enable
+set / network-instance default protocols bgp autonomous-system 65002
+set / network-instance default protocols bgp router-id 10.255.0.2
+set / network-instance default protocols bgp afi-safi ipv4-unicast admin-state enable
+set / network-instance default protocols bgp group leaves export-policy [ export-all ]
+set / network-instance default protocols bgp group leaves import-policy [ import-all ]
+set / network-instance default protocols bgp neighbor 10.0.2.1 peer-group leaves
+set / network-instance default protocols bgp neighbor 10.0.2.1 peer-as 65101
+set / network-instance default protocols bgp neighbor 10.0.2.3 peer-group leaves
+set / network-instance default protocols bgp neighbor 10.0.2.3 peer-as 65102
