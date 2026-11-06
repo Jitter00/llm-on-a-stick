@@ -3,13 +3,21 @@
 Each item below is meant to be one PR (Conventional Commit title, e.g. `feat(svc): add Nautobot service`).
 Items are roughly in order; dependencies are noted. Tick items off in the PR that completes them.
 
-## Before the first push
+## Repo setup
 
 - [x] Replace the `OWNER` placeholder with the GitHub user (`Jitter00`) in `pyproject.toml`, `mkdocs.yml` and the task schema.
-- [ ] Push `main` first, then open a PR from `feat/netbox` (first real run of `ci-pr.yml`, so expect CI fixes).
-- [ ] GitHub settings: branch protection on `main` (PR required; lint, test, integration and build checks required; squash merge only).
-- [ ] Enable GitHub Pages (source: GitHub Actions) and create the `github-pages` environment.
-- [ ] PyPI: add a trusted publisher for `llm-on-a-stick` (workflow `release.yml`, environment `pypi`) before the first Release PR is merged.
+- [x] Repo created (public): https://github.com/Jitter00/llm-on-a-stick; `main` pushed; PR #2 (`feat/netbox`) opened, CI green.
+- [x] Branch protection on `main`: all 15 CI jobs required by name (a skipped required check counts as passing, so
+      `build` alone isn't enough), up-to-date branches, linear history, conversations resolved, no force pushes. Admins can bypass.
+- [x] Squash merge only (PR title becomes the commit), branches deleted after merge, auto-merge allowed.
+- [x] GitHub Pages enabled (source: GitHub Actions). Actions may create PRs (needed by release-please).
+- [x] `pypi` environment created.
+- [ ] **You:** PyPI pending trusted publisher: project `llm-on-a-stick`, owner `Jitter00`, repo `llm-on-a-stick`,
+      workflow `release.yml`, environment `pypi`. Needed before the first Release PR is merged.
+- [ ] **You:** fine-grained PAT (this repo only; Contents + Pull requests read/write) stored as secret
+      `RELEASE_PLEASE_TOKEN` (`gh secret set RELEASE_PLEASE_TOKEN -R Jitter00/llm-on-a-stick`). Without it, the Release PR
+      opened by `GITHUB_TOKEN` never runs CI and is blocked by branch protection.
+- [ ] When adding or renaming CI jobs, update the required checks in branch protection.
 - [x] Licence: MIT.
 
 ## Phase 0: environment (one service per PR)
