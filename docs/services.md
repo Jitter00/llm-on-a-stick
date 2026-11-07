@@ -38,7 +38,7 @@ what makes repeated runs cheap.
 | API (from the lab) | `http://172.30.30.100:8080/api/` |
 | API token | `Authorization: Bearer nbt_stickadmin01.0123456789abcdef0123456789abcdef01234567` (v2 token) |
 | RAM (measured) | ~1.45 GB: NetBox 1046 MiB, worker 257 MiB, Postgres 146 MiB, Valkey 4 MiB |
-| Timings (measured) | cold first boot ~150 s; `svc reset` ~21 s |
+| Timings (measured) | cold first boot ~150 s on a desktop, 5–6 min on a 4-vCPU CI runner; `svc reset` ~21 s |
 
 Seed data: site `stick-lab`; manufacturers Nokia, FRRouting, Generic; roles spine/leaf/host; platforms srlinux, frr,
 linux; device types 7220 IXR-D2L, FRR container, Linux host. The lab's devices are **not** seeded: documenting the

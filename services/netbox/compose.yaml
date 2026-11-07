@@ -39,7 +39,7 @@ services:
     user: "netbox:root"
     healthcheck:
       test: /opt/netbox/health.sh
-      start_period: 300s
+      start_period: 600s  # cold boot: ~150 s on a desktop, 5-6 min on a 4-vCPU CI runner
       timeout: 3s
       interval: 5s
     ports:

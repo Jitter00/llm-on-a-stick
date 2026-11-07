@@ -11,7 +11,7 @@ from collections.abc import Iterator
 from typing import Any
 
 import pytest
-from labutil import dexec, wait_for
+from labutil import dexec, service_session, wait_for
 
 from llm_on_a_stick import services
 from llm_on_a_stick.services import lifecycle
@@ -43,11 +43,10 @@ def all_backed_up() -> bool:
 
 @pytest.fixture(scope="module")
 def oxidized(lab: None) -> Iterator[None]:
-    spec = services.load("oxidized")
-    lifecycle.up(spec)
-    lifecycle.restore_snapshot(spec)  # start from an empty repo, whatever ran before
-    assert wait_for(all_backed_up, timeout=120, interval=3), f"not all nodes backed up: {statuses()}"
-    yield
+    with service_session("oxidized") as spec:
+        lifecycle.restore_snapshot(spec)  # start from an empty repo, whatever ran before
+        assert wait_for(all_backed_up, timeout=120, interval=3), f"not all nodes backed up: {statuses()}"
+        yield
 
 
 def test_every_device_backed_up(oxidized: None) -> None:

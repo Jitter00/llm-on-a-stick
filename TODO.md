@@ -108,7 +108,7 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
 - `snmpd -c` *adds* a config file to the default search path; use `-C -c` or it binds udp:161 twice and crashes the container.
 - FRR config is mounted read-only under `/etc/stick` and copied in at boot, so `write memory` can't modify the repo (a test enforces this).
 - NetBox 4.5+ only creates a v2 token (`Bearer nbt_<key>.<token>`) when `API_TOKEN_PEPPER_1`, a 12-char `SUPERUSER_API_KEY`
-  and a 40-char `SUPERUSER_API_TOKEN` are all set; `Token <hex>` returns 403. Cold boot is ~150 s, so the health check needs `start_period: 300s`.
+  and a 40-char `SUPERUSER_API_TOKEN` are all set; `Token <hex>` returns 403. Cold boot is ~150 s on a desktop but 5–6 min on a 4-vCPU GitHub runner, so the health check uses `start_period: 600s`.
 - `docker stats` reports 0B for SR Linux containers; read cgroup `memory.current` instead.
 - containerlab reuses an existing `stick-mgmt` network and doesn't delete it on destroy while services are attached.
 - A local credential-guard hook blocks reading or writing `*.env` files; keep service settings inline in `compose.yaml`.

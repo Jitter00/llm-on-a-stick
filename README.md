@@ -141,8 +141,8 @@ to log out. To test traffic across the fabric:
 docker exec -it clab-stick-base-h1 ping -c 3 10.1.2.10
 ```
 
-**5. Start the tools.** NetBox takes about 2.5 minutes the first time (it sets up its database); later starts are
-quick.
+**5. Start the tools.** NetBox takes about 2.5 minutes the first time (it sets up its database; up to ~6 minutes on
+a small machine); later starts are quick.
 
 ```bash
 uv run stick svc up netbox oxidized
@@ -226,9 +226,10 @@ uv run pytest -m lab -v tests/integration/test_netbox.py     # NetBox
 uv run pytest -m lab -v tests/integration/test_oxidized.py   # Oxidized
 ```
 
-> **Note:** the lab tests redeploy the lab from scratch and remove it at the end, and they reset NetBox and Oxidized
-> to their starting state. Don't run them while you're in the middle of using the lab. NetBox and Oxidized are left
-> running afterwards; stop them with `uv run stick svc down netbox oxidized`.
+> **Note:** the lab tests redeploy the lab from scratch and reset NetBox and Oxidized to their starting state, so
+> don't run them while you're in the middle of using the lab. Afterwards they clean up: the lab is removed, and NetBox
+> and Oxidized are stopped again unless they were already running before the tests started. To keep them running
+> after the tests (to look around), use `STICK_KEEP_SERVICES=1 uv run pytest -m lab -v`.
 
 **If a test fails**, the output shows which check failed and why. The container logs usually tell you the rest:
 `docker ps -a` lists the containers, and `docker logs <name>` shows a container's log (for example
@@ -242,7 +243,7 @@ uv run pytest -m lab -v tests/integration/test_oxidized.py   # Oxidized
 | containerlab says it needs root or `sudo` | Run `sudo usermod -aG clab_admins $USER`, then log out and back in. |
 | `stick doctor` shows `fail` for docker | Docker isn't running: `sudo systemctl start docker` (on WSL2, restart WSL). |
 | `address already in use` for port 8081 or 8888 | Something else uses that port. Pick another: `STICK_NETBOX_PORT=9081 uv run stick svc up netbox` (or `STICK_OXIDIZED_PORT` for Oxidized). |
-| NetBox seems stuck on its first start | It's creating its database; this takes about 2.5 minutes. `uv run stick svc status` shows when it's healthy. |
+| NetBox seems stuck on its first start | It's creating its database; this takes about 2.5 minutes (up to ~6 on a small machine). `uv run stick svc status` shows when it's healthy. |
 | `ssh: Could not resolve hostname clab-stick-base-...` | The lab isn't running (`uv run stick env up`), or use the IP from the [cheat sheet](#cheat-sheet). |
 | Not enough memory | `uv run stick doctor` shows your budget. Start only the tools you need. |
 | I want to start completely fresh | `uv run stick svc down netbox oxidized --volumes`, then `uv run stick env down`. |

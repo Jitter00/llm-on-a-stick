@@ -4,7 +4,7 @@ name: netbox
 description: NetBox 4.7 source of truth (DCIM/IPAM)
 compose: compose.yaml
 project: stick-netbox
-wait_timeout_s: 420  # first boot runs migrations; measured ~150 s
+wait_timeout_s: 720  # first boot runs migrations: ~150 s on a desktop, 5-6 min on a 4-vCPU CI runner
 
 health:
   url: http://127.0.0.1:${STICK_NETBOX_PORT:-8081}/api/status/
