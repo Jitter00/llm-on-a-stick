@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.1.0...v0.2.0) (2026-11-07)
+
+
+### Features
+
+* **svc:** add Oxidized with custom SR Linux and FRR models ([#5](https://github.com/Jitter00/llm-on-a-stick/issues/5)) ([719b8fa](https://github.com/Jitter00/llm-on-a-stick/commit/719b8faa22f264bcd140dde33c19ad41a7fca329))
+
 ## 0.1.0 (2026-11-06)
 
 
