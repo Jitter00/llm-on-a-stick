@@ -1,0 +1,28 @@
+# Oxidized for llm-on-a-stick: config backups of the lab devices into a git repo.
+# Custom models for SR Linux and FRR live in ./model (Oxidized ships neither).
+# Start it with `stick svc up oxidized` (the lab should be up, or there's nothing to back up).
+name: stick-oxidized
+
+services:
+  oxidized:
+    image: docker.io/oxidized/oxidized:0.37.0
+    environment:
+      CONFIG_RELOAD_INTERVAL: "86400"  # "0" means reload continuously, not never
+    ports:
+      - "127.0.0.1:${STICK_OXIDIZED_PORT:-8888}:8888"
+    networks:
+      stick-mgmt:
+        ipv4_address: 172.30.30.101
+    volumes:
+      - ./config:/home/oxidized/.config/oxidized/config:ro
+      - ./router.db:/home/oxidized/.config/oxidized/router.db:ro
+      - ./model:/home/oxidized/.config/oxidized/model:ro
+      # Under ~/.config/oxidized so the image's startup chown gives it to the oxidized user.
+      - oxidized-output:/home/oxidized/.config/oxidized/output
+
+networks:
+  stick-mgmt:
+    external: true
+
+volumes:
+  oxidized-output:

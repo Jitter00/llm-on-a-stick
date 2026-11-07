@@ -1,0 +1,25 @@
+# How `stick svc` drives Oxidized. Bring the lab up first: Oxidized backs up every device in
+# router.db when it starts, and again on demand (GET /node/next/<name>).
+name: oxidized
+description: Oxidized 0.37 config backups (custom SR Linux and FRR models)
+compose: compose.yaml
+project: stick-oxidized
+wait_timeout_s: 120
+
+health:
+  url: http://127.0.0.1:${STICK_OXIDIZED_PORT:-8888}/nodes.json
+
+endpoints:
+  web (host): http://127.0.0.1:${STICK_OXIDIZED_PORT:-8888}
+  api (lab mgmt network): http://172.30.30.101:8888/nodes.json
+  fetch a backup: http://127.0.0.1:${STICK_OXIDIZED_PORT:-8888}/node/fetch/<node>
+  back up now: http://127.0.0.1:${STICK_OXIDIZED_PORT:-8888}/node/next/<node>
+
+credentials:
+  devices: SR Linux admin / NokiaSrl1!, FRR admin / admin (see router.db)
+
+# The baseline is an empty backup repo; reset wipes it and Oxidized re-fetches every device on start.
+snapshot:
+  kind: volumes
+  services: [oxidized]
+  volumes: [oxidized-output]

@@ -5,50 +5,10 @@ Run with: uv run pytest -m lab
 
 from __future__ import annotations
 
-import json
-import subprocess
-import time
-from collections.abc import Iterator
-
 import pytest
-
-from llm_on_a_stick.env import containerlab
+from labutil import dexec, frr_established_peers, wait_for
 
 pytestmark = pytest.mark.lab
-
-PREFIX = "clab-stick-base-"
-
-
-def dexec(node: str, *cmd: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["docker", "exec", PREFIX + node, *cmd], capture_output=True, text=True, check=False
-    )
-
-
-def wait_for(predicate, timeout: float = 240, interval: float = 5) -> bool:  # type: ignore[no-untyped-def]
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        if predicate():
-            return True
-        time.sleep(interval)
-    return False
-
-
-@pytest.fixture(scope="module")
-def lab() -> Iterator[None]:
-    containerlab.deploy("base", reconfigure=True)
-    try:
-        yield
-    finally:
-        containerlab.destroy("base")
-
-
-def frr_established_peers(node: str) -> int:
-    res = dexec(node, "vtysh", "-c", "show bgp summary json")
-    if res.returncode != 0:
-        return 0
-    peers = json.loads(res.stdout).get("ipv4Unicast", {}).get("peers", {})
-    return sum(1 for p in peers.values() if p.get("state") == "Established")
 
 
 @pytest.mark.parametrize("leaf", ["frr1", "frr2"])
@@ -63,6 +23,15 @@ def test_host_to_host_ping(lab: None) -> None:
 def test_frr_cli_user_lands_in_vtysh(lab: None) -> None:
     res = dexec("frr1", "getent", "passwd", "admin")
     assert res.stdout.strip().endswith("/usr/bin/vtysh")
+
+
+def test_frr_cli_output_is_clean(lab: None) -> None:
+    """A non-root vtysh session must not print config-file warnings before the real output."""
+    res = dexec("frr1", "su", "-s", "/bin/sh", "admin", "-c", 'vtysh -c "show running-config"')
+    assert res.returncode == 0
+    assert "Can't open" not in res.stdout + res.stderr
+    assert "processing failure" not in res.stdout + res.stderr
+    assert "router bgp 65101" in res.stdout
 
 
 def test_frr_snmp_answers(lab: None) -> None:

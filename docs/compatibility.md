@@ -12,7 +12,7 @@ Legend: ✅ verified · ⚠️ partial (see notes) · ❌ doesn't work · ❓ no
 | eBGP spine/leaf sessions up | ✅ | ✅ | `test_leaf_has_both_spine_sessions` |
 | Host-to-host traffic across the fabric | ✅ | ✅ | `test_host_to_host_ping` |
 | arm64 image available | ✅ | ✅ | registry manifest lists |
-| SSH CLI | ❓ | ✅ (lands in vtysh) | `test_frr_cli_user_lands_in_vtysh` |
+| SSH CLI | ✅ (`admin`/`NokiaSrl1!`; exec mode works) | ✅ (lands in vtysh; clean output) | `test_oxidized.py`, `test_frr_cli_output_is_clean` |
 | SNMPv2c | ❓ | ✅ | `test_frr_snmp_answers` |
 | NETCONF | ❓ | ❌ (FRR has no NETCONF server) | – |
 | gNMI | ❓ | ❌ (no native gNMI) | – |
@@ -30,7 +30,7 @@ Filled in as each service is added (Phase 0, step 3).
 | Nautobot | n/a | n/a | |
 | LibreNMS (SNMP) | ❓ | ❓ | |
 | Zabbix (SNMP) | ❓ | ❓ | |
-| Oxidized | ❓ | ❓ | Check which Oxidized model fits each OS |
+| Oxidized 0.37.0 | ✅ custom model | ✅ custom model | Oxidized ships neither; ours are in `services/oxidized/model/` (`test_oxidized.py`) |
 | Batfish | ❓ (expected ❌) | ❓ (expected ⚠️) | Batfish isn't known to parse SR Linux; FRR support is partial |
 | SuzieQ | ❓ | ❓ | |
 | gNMIc + Prometheus | ❓ | ❌ | FRR telemetry would come over SNMP instead |

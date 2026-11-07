@@ -28,7 +28,7 @@ services:
   nautobot: {ram_mb: 2048, measured: false}
   librenms: {ram_mb: 1024, measured: false}
   zabbix: {ram_mb: 1024, measured: false}
-  oxidized: {ram_mb: 256, measured: false}
+  oxidized: {ram_mb: 96, measured: true}     # 47 MiB idle, 4 devices
   batfish: {ram_mb: 2048, measured: false}
   suzieq: {ram_mb: 512, measured: false}
   gitea: {ram_mb: 256, measured: false}

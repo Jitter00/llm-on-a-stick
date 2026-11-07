@@ -6,8 +6,8 @@ An open-source benchmark for comparing local and frontier LLMs on real NetDevOps
 changing configs, keeping NetBox and DNS in sync, validating changes and troubleshooting across tools. It reports
 **why** a model fails (wrong CLI dialect, invented API fields, collateral changes...), not just a score.
 
-> Status: **pre-alpha, Phase 0**. The base lab, the `stick` CLI and the first service (NetBox) work. The rest of the
-> tool stack, the grader and the tasks come next. See [the roadmap](#roadmap).
+> Status: **pre-alpha**. The base lab, the `stick` CLI, NetBox and Oxidized work. Next: the grader and the first
+> tasks (config retrieval), then the rest of the tool stack. See [the roadmap](#roadmap) and `TODO.md`.
 
 ## Why
 

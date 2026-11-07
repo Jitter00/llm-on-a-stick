@@ -49,3 +49,25 @@ lab in NetBox is a benchmark task.
     `API_TOKEN_PEPPER_1`, a 12-character `SUPERUSER_API_KEY` and a 40-character `SUPERUSER_API_TOKEN` are all set.
     Older guides that use `Authorization: Token <40 hex>` won't work against this version, which is itself a useful
     test of whether a model's NetBox knowledge is current.
+
+## Oxidized
+
+| | |
+|---|---|
+| Version | Oxidized 0.37.0 (`oxidized/oxidized:0.37.0`) |
+| Web UI / API (host) | <http://127.0.0.1:8888> (`STICK_OXIDIZED_PORT`) |
+| API (from the lab) | `http://172.30.30.101:8888/nodes.json` |
+| Useful endpoints | `/nodes.json` (status per device), `/node/fetch/<node>` (latest backup), `/node/next/<node>` (back up now), `/node/version.json?node_full=<node>` (history) |
+| Inventory | `services/oxidized/router.db`: srl1, srl2, frr1, frr2 (hosts aren't backed up); a test keeps it in sync with the topology |
+| RAM (measured) | ~47 MiB |
+| Timings (measured) | start ~5 s; all four devices backed up within ~5 s; `svc reset` ~1 s |
+
+Bring the lab up first: Oxidized backs up every device when it starts. Backups go into a git repo, so each change is a
+new version. Reset deletes that repo and Oxidized re-fetches every device: the baseline is "one backup per device, of
+whatever the device runs now".
+
+!!! note "Custom models"
+    Oxidized 0.37 has no model for SR Linux or FRR (upstream PRs ytti/oxidized#2927, #2036 and #2572 were never
+    merged). `services/oxidized/model/` adds both. They use SSH **exec** mode, so no prompt matching is needed:
+    SR Linux runs `info flat`, and FRR's `admin` user has vtysh as its login shell, so the exec becomes
+    `vtysh -c "show running-config"`.

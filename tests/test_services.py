@@ -32,13 +32,6 @@ def test_every_service_has_a_footprint() -> None:
         assert name in fp.services, f"{name} missing from footprints.yaml"
 
 
-def test_netbox_compose_matches_lab_network() -> None:
-    compose = yaml.safe_load(services.load("netbox", env={}).compose_file.read_text(encoding="utf-8"))
-    assert compose["networks"][lab.MGMT_NETWORK]["external"] is True
-    ip = compose["services"]["netbox"]["networks"][lab.MGMT_NETWORK]["ipv4_address"]
-    assert ip == lab.SERVICE_IPS["netbox"]
-
-
 def test_lab_constants_match_topology() -> None:
     topo = yaml.safe_load(paths.topology_path("base").read_text(encoding="utf-8"))
     assert topo["mgmt"]["network"] == lab.MGMT_NETWORK
@@ -89,3 +82,68 @@ def test_seed_file_has_unique_lookups() -> None:
     assert spec.seed_file is not None
     keys = [(e.endpoint, e.data[e.lookup]) for e in seed.load_entries(spec.seed_file)]
     assert len(keys) == len(set(keys))
+
+
+# --------------------------------------------------------------------------- all services
+
+
+def test_every_service_joins_the_lab_network_at_its_fixed_ip() -> None:
+    for name in services.available():
+        compose = yaml.safe_load(services.load(name, env={}).compose_file.read_text(encoding="utf-8"))
+        assert compose["networks"][lab.MGMT_NETWORK]["external"] is True, name
+        ips = [
+            svc["networks"][lab.MGMT_NETWORK]["ipv4_address"]
+            for svc in compose["services"].values()
+            if isinstance(svc.get("networks"), dict) and lab.MGMT_NETWORK in svc["networks"]
+        ]
+        assert ips == [lab.SERVICE_IPS[name]], name
+
+
+def test_service_ips_are_unique() -> None:
+    assert len(set(lab.SERVICE_IPS.values())) == len(lab.SERVICE_IPS)
+
+
+# --------------------------------------------------------------------------- oxidized
+
+
+def _router_db() -> list[list[str]]:
+    path = services.load("oxidized", env={}).directory / "router.db"
+    return [line.split(":") for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+def test_oxidized_inventory_matches_topology() -> None:
+    topo = yaml.safe_load(paths.topology_path("base").read_text(encoding="utf-8"))["topology"]["nodes"]
+    expected = {
+        name: (node["mgmt-ipv4"], "srlinux" if node["kind"] == "nokia_srlinux" else "frr")
+        for name, node in topo.items()
+        if not name.startswith("h")  # hosts aren't backed up
+    }
+    assert {row[0]: (row[1], row[2]) for row in _router_db()} == expected
+
+
+def test_oxidized_models_exist_for_inventory() -> None:
+    model_dir = services.load("oxidized", env={}).directory / "model"
+    for _, _, model, *_ in _router_db():
+        assert (model_dir / f"{model}.rb").is_file(), model
+
+
+def test_oxidized_reset_is_volume_based() -> None:
+    spec = services.load("oxidized", env={})
+    assert spec.snapshot is not None
+    assert spec.snapshot.kind == "volumes"
+    assert lifecycle.has_snapshot(spec)  # empty baseline always exists, no docker call needed
+
+
+def test_volume_reset_commands(monkeypatch: Any) -> None:
+    spec = services.load("oxidized", env={})
+    calls: list[list[str]] = []
+
+    def fake_run(argv: list[str], **_: Any) -> Any:
+        calls.append(argv)
+
+    monkeypatch.setattr(lifecycle, "_run", fake_run)
+    monkeypatch.setattr(lifecycle, "wait_healthy", lambda spec, timeout: None)
+    lifecycle.restore_snapshot(spec)
+    assert calls[0][-4:] == ["rm", "--stop", "--force", "oxidized"]
+    assert calls[1] == ["docker", "volume", "rm", "--force", "stick-oxidized_oxidized-output"]
+    assert calls[2][-5:-2] == ["up", "-d", "--wait"]
