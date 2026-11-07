@@ -131,3 +131,22 @@ jobs:
         with:
           name: docs-preview
           path: site/
+
+  # The only check branch protection requires. Jobs can be added, renamed or re-matrixed without
+  # touching branch protection. GitHub treats a *skipped* required check as passing, so this gate
+  # fails on skipped dependencies itself.
+  ci-ok:
+    name: ci-ok
+    if: always()
+    needs: [pr-title, lint, test, integration, build, release-dry-run, deploy-preview]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: All required jobs succeeded
+        env:
+          RESULTS: ${{ toJSON(needs.*.result) }}
+        run: |
+          echo "job results: $RESULTS"
+          if [[ "$RESULTS" == *failure* || "$RESULTS" == *cancelled* || "$RESULTS" == *skipped* ]]; then
+            echo "::error::at least one required job did not succeed"
+            exit 1
+          fi

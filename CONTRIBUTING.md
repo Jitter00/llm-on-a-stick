@@ -31,7 +31,7 @@ major (minor while we're below 1.0).
 | When | What runs |
 |---|---|
 | Push to a branch | lint → unit tests (Linux, Python 3.12) |
-| Pull request to `main` | PR-title check; lint → unit tests (Linux/macOS/Windows × Python 3.11–3.13) + base-lab integration tests → build (wheel, multi-arch `stick-frr`) → release dry run → docs preview |
+| Pull request to `main` | PR-title check; lint → unit tests (Linux, macOS 26 Apple Silicon, Windows × Python 3.11–3.13, plus one Intel Mac job) + base-lab integration tests → build (wheel, multi-arch `stick-frr`) → release dry run → docs preview → `ci-ok` gate (the only check branch protection requires) |
 | Merge to `main` | release-please updates the Release PR |
 | Merge of the Release PR | build → GitHub Release + tag → PyPI, `ghcr.io/<owner>/stick-frr`, docs on GitHub Pages |
 

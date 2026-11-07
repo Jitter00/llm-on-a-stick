@@ -7,17 +7,20 @@ Items are roughly in order; dependencies are noted. Tick items off in the PR tha
 
 - [x] Replace the `OWNER` placeholder with the GitHub user (`Jitter00`) in `pyproject.toml`, `mkdocs.yml` and the task schema.
 - [x] Repo created (public): https://github.com/Jitter00/llm-on-a-stick; `main` pushed; PR #2 (`feat/netbox`) opened, CI green.
-- [x] Branch protection on `main`: all 15 CI jobs required by name (a skipped required check counts as passing, so
-      `build` alone isn't enough), up-to-date branches, linear history, conversations resolved, no force pushes. Admins can bypass.
+- [x] Branch protection on `main`: requires only the `ci-ok` gate job (it depends on every CI job and fails on
+      failed, cancelled or *skipped* jobs, since GitHub counts a skipped required check as passing). Also: up-to-date
+      branches, linear history, conversations resolved, no force pushes. Admins can bypass.
 - [x] Squash merge only (PR title becomes the commit), branches deleted after merge, auto-merge allowed.
 - [x] GitHub Pages enabled (source: GitHub Actions). Actions may create PRs (needed by release-please).
 - [x] `pypi` environment created.
-- [ ] **You:** PyPI pending trusted publisher: project `llm-on-a-stick`, owner `Jitter00`, repo `llm-on-a-stick`,
-      workflow `release.yml`, environment `pypi`. Needed before the first Release PR is merged.
-- [ ] **You:** fine-grained PAT (this repo only; Contents + Pull requests read/write) stored as secret
+- [x] PyPI trusted publisher: project `llm-on-a-stick`, owner `Jitter00`, repo `llm-on-a-stick`,
+      workflow `release.yml`, environment `pypi`. v0.1.0 published.
+- [x] Fine-grained PAT (this repo only; Contents + Pull requests read/write) stored as secret
       `RELEASE_PLEASE_TOKEN` (`gh secret set RELEASE_PLEASE_TOKEN -R Jitter00/llm-on-a-stick`). Without it, the Release PR
       opened by `GITHUB_TOKEN` never runs CI and is blocked by branch protection.
-- [ ] When adding or renaming CI jobs, update the required checks in branch protection.
+- [x] CI matrix: Linux (ubuntu-24.04), Apple Silicon (macos-26), Windows (windows-2025) × Python 3.11–3.13, plus one
+      Intel Mac job (macos-15-intel, Python 3.12).
+- [ ] Try `ubuntu-26.04` runners once containerlab is verified there (`ubuntu-latest` is still 24.04).
 - [x] Licence: MIT.
 
 ## Phase 0: environment (one service per PR)
