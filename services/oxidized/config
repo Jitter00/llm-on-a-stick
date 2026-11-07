@@ -1,0 +1,47 @@
+---
+# Oxidized config for llm-on-a-stick. Backups are taken on start and on demand
+# (REST: GET /node/next/<name>); the long interval keeps runs reproducible.
+username: admin
+password: admin
+model: frr
+resolve_dns: false
+interval: 86400
+use_syslog: false
+debug: false
+threads: 4
+timeout: 30
+retries: 1
+prompt: !ruby/regexp /^([\w.@-]+[#>]\s?)$/
+next_adds_job: true
+vars: {}
+groups: {}
+models: {}
+extensions:
+  oxidized-web:
+    load: true
+    listen: 0.0.0.0
+    port: 8888
+input:
+  default: ssh
+  ssh:
+    secure: false
+output:
+  default: git
+  git:
+    user: oxidized
+    email: oxidized@stick.invalid
+    repo: /home/oxidized/.config/oxidized/output/configs.git
+source:
+  default: csv
+  csv:
+    file: /home/oxidized/.config/oxidized/router.db
+    delimiter: !ruby/regexp /:/
+    map:
+      name: 0
+      ip: 1
+      model: 2
+      username: 3
+      password: 4
+model_map:
+  srlinux: srlinux
+  frr: frr

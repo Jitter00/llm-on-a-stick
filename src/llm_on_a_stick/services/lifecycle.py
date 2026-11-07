@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 from llm_on_a_stick import lab
 from llm_on_a_stick.services import seed as seeding
-from llm_on_a_stick.services.spec import ServiceSpec
+from llm_on_a_stick.services.spec import PostgresSnapshot, ServiceSpec, VolumesSnapshot
 
 
 class ServiceError(RuntimeError):
@@ -75,6 +75,8 @@ def has_snapshot(spec: ServiceSpec) -> bool:
     snap = spec.snapshot
     if snap is None:
         return False
+    if snap.kind == "volumes":
+        return True  # the baseline is "empty", which always exists
     res = _run(compose_argv(spec, "exec", "-T", snap.service, "test", "-f", snap.path), check=False)
     return res.returncode == 0
 
@@ -83,19 +85,17 @@ def take_snapshot(spec: ServiceSpec) -> None:
     snap = spec.snapshot
     if snap is None:
         raise ServiceError(f"{spec.name} has no snapshot configuration")
-    if snap.kind == "postgres":
-        _run(
-            compose_argv(
-                spec, "exec", "-T", snap.service,
-                "pg_dump", "-U", snap.user, "-Fc", "-f", snap.path, snap.database,
-            )
-        )  # fmt: skip
+    if snap.kind == "volumes":
+        raise ServiceError(f"{spec.name}: its baseline is empty volumes, there is nothing to snapshot")
+    _run(
+        compose_argv(
+            spec, "exec", "-T", snap.service,
+            "pg_dump", "-U", snap.user, "-Fc", "-f", snap.path, snap.database,
+        )
+    )  # fmt: skip
 
 
-def restore_snapshot(spec: ServiceSpec, log: Log = _noop) -> None:
-    snap = spec.snapshot
-    if snap is None:
-        raise ServiceError(f"{spec.name} has no snapshot configuration")
+def _restore_postgres(spec: ServiceSpec, snap: PostgresSnapshot, log: Log) -> None:
     if not has_snapshot(spec):
         raise ServiceError(f"{spec.name}: no snapshot yet; run `stick svc up {spec.name}` first")
     if snap.stop:
@@ -111,6 +111,23 @@ def restore_snapshot(spec: ServiceSpec, log: Log = _noop) -> None:
     )  # fmt: skip
     for step in snap.after_restore:
         _run(compose_argv(spec, "exec", "-T", step.service, *step.cmd))
+
+
+def _restore_volumes(spec: ServiceSpec, snap: VolumesSnapshot, log: Log) -> None:
+    log(f"removing {', '.join(snap.services)} and volumes {', '.join(snap.volumes)}")
+    _run(compose_argv(spec, "rm", "--stop", "--force", *snap.services))
+    for volume in snap.volumes:
+        _run(["docker", "volume", "rm", "--force", f"{spec.project}_{volume}"])
+
+
+def restore_snapshot(spec: ServiceSpec, log: Log = _noop) -> None:
+    snap = spec.snapshot
+    if snap is None:
+        raise ServiceError(f"{spec.name} has no snapshot configuration")
+    if snap.kind == "postgres":
+        _restore_postgres(spec, snap, log)
+    else:
+        _restore_volumes(spec, snap, log)
     log("starting services")
     _run(compose_argv(spec, "up", "-d", "--wait", "--wait-timeout", str(spec.wait_timeout_s)))
     wait_healthy(spec, spec.wait_timeout_s)

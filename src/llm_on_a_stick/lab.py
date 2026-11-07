@@ -7,4 +7,5 @@ MGMT_SUBNET = "172.30.30.0/24"
 # Fixed service addresses on the management network (lab nodes use .11-.99).
 SERVICE_IPS = {
     "netbox": "172.30.30.100",
+    "oxidized": "172.30.30.101",
 }

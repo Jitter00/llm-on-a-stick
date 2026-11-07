@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import re
 from pathlib import Path
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 import yaml
 from pydantic import BaseModel, Field
@@ -44,7 +44,9 @@ class ExecStep(BaseModel):
     cmd: list[str]
 
 
-class Snapshot(BaseModel):
+class PostgresSnapshot(BaseModel):
+    """Baseline = a pg_dump taken after seeding; reset = pg_restore it."""
+
     kind: Literal["postgres"]
     service: str
     database: str
@@ -52,6 +54,17 @@ class Snapshot(BaseModel):
     path: str
     stop: list[str] = Field(default_factory=list)
     after_restore: list[ExecStep] = Field(default_factory=list)
+
+
+class VolumesSnapshot(BaseModel):
+    """Baseline = empty volumes; reset = delete them and recreate the services (e.g. Oxidized's repo)."""
+
+    kind: Literal["volumes"]
+    services: list[str]
+    volumes: list[str]
+
+
+Snapshot = Annotated[PostgresSnapshot | VolumesSnapshot, Field(discriminator="kind")]
 
 
 class ServiceSpec(BaseModel):

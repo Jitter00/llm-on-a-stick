@@ -23,6 +23,15 @@ Items are roughly in order; dependencies are noted. Tick items off in the PR tha
 - [ ] Try `ubuntu-26.04` runners once containerlab is verified there (`ubuntu-latest` is still 24.04).
 - [x] Licence: MIT.
 
+## Next up (agreed order: first end-to-end result before the full tool stack)
+
+1. [x] **Oxidized** (the one service the first tasks depend on).
+2. [ ] **Check library + `result.json` + `stick grade`** (Phase 1 items below).
+3. [ ] **cfg-mgmt config retrieval tasks** (Phase 2 item below): CLI and NETCONF on SR Linux and FRR, Oxidized for consistency.
+4. [ ] **Runner integration** (Phase 1 item below), giving the first local-vs-frontier comparison.
+
+Then return to the rest of Phase 0 (Nautobot first).
+
 ## Phase 0: environment (one service per PR)
 
 Pattern for every service (see `services/netbox/` and `docs/services.md`):
@@ -33,8 +42,7 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
 
 - [ ] **Nautobot.** Very close to NetBox: Postgres + Redis, REST API with nested lookups. The `netbox-rest` seeder may work
       as-is (maybe rename it `rest`). Cold boot is likely slower than NetBox; set `start_period`/`wait_timeout_s` from a measurement.
-- [ ] **Oxidized.** Needs a device inventory (generate it from the base topology) and credentials for SR Linux
-      (`admin`/`NokiaSrl1!`) and FRR (`admin`/`admin`, which lands in vtysh). Find which Oxidized models fit SR Linux and FRR. Snapshot = its git repo/output dir.
+- [x] **Oxidized.** Done: custom SR Linux and FRR models (Oxidized ships neither), git output, volume-based reset.
 - [ ] **Gitea.** Seed an org, a `lab-configs` repo and an API token; snapshot = its DB and repo volume. Needed for the GitOps tasks.
 - [ ] **Syslog (Loki + Promtail, or rsyslog → Loki).** `stick-frr` already forwards when `STICK_SYSLOG_TARGET=host:port` is set;
       wire that in the topology. Configure SR Linux remote syslog in `configs/srl/*.cli`. Verify logs from all four nodes.
@@ -100,7 +108,11 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
 - `snmpd -c` *adds* a config file to the default search path; use `-C -c` or it binds udp:161 twice and crashes the container.
 - FRR config is mounted read-only under `/etc/stick` and copied in at boot, so `write memory` can't modify the repo (a test enforces this).
 - NetBox 4.5+ only creates a v2 token (`Bearer nbt_<key>.<token>`) when `API_TOKEN_PEPPER_1`, a 12-char `SUPERUSER_API_KEY`
-  and a 40-char `SUPERUSER_API_TOKEN` are all set; `Token <hex>` returns 403. Cold boot is ~150 s, so the health check needs `start_period: 300s`.
+  and a 40-char `SUPERUSER_API_TOKEN` are all set; `Token <hex>` returns 403. Cold boot is ~150 s on a desktop but 5–6 min on a 4-vCPU GitHub runner, so the health check uses `start_period: 600s`.
 - `docker stats` reports 0B for SR Linux containers; read cgroup `memory.current` instead.
 - containerlab reuses an existing `stick-mgmt` network and doesn't delete it on destroy while services are attached.
 - A local credential-guard hook blocks reading or writing `*.env` files; keep service settings inline in `compose.yaml`.
+- Oxidized 0.37 has no SR Linux or FRR model; ours use SSH exec mode. `CONFIG_RELOAD_INTERVAL: "0"` in its image means
+  "reload continuously", not "never". Named volumes are root-owned, so mount them under `~/.config/oxidized`, which the
+  image chowns at start. `rest:` is deprecated; use `extensions.oxidized-web`.
+- stick-frr: without `/etc/frr/vtysh.conf`, every non-root vtysh session printed two warning lines first; the entrypoint now creates it.

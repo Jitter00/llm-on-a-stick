@@ -12,6 +12,11 @@ for f in frr.conf daemons; do
         cp "/etc/stick/$f" "/etc/frr/$f"
     fi
 done
+# Without vtysh.conf, every vtysh session of a non-root user starts with two warning lines
+# ("Can't open configuration file /etc/frr/vtysh.conf" ...), which pollute CLI output and backups.
+if [[ ! -f /etc/frr/vtysh.conf ]]; then
+    echo "service integrated-vtysh-config" > /etc/frr/vtysh.conf
+fi
 chown -R frr:frr /etc/frr
 
 # CLI user: SSH lands straight in vtysh, like logging into a router.

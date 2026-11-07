@@ -2,33 +2,53 @@
 
 **One eval harness, many LLMs. Start poking.**
 
-An open-source benchmark that compares local and frontier LLMs on real NetDevOps work and reports *why* a model
-fails, not just a score.
+A free, open-source benchmark that tests how well AI models handle real network engineering work, on a small virtual
+network that runs on your own machine. It reports *why* a model fails, not just a score.
 
 !!! note "Status"
-    Pre-alpha, Phase 0. The base lab and the `stick` CLI skeleton work; the tool stack, grader and tasks are next.
+    Early days. The virtual lab, the `stick` command, NetBox and Oxidized work and are covered by automated tests.
+    The AI benchmark tasks come next.
 
-## Quick start
+**New here?** The [README](https://github.com/Jitter00/llm-on-a-stick#readme) walks you through installing Docker,
+containerlab and uv step by step, and has a troubleshooting table.
+
+## Your first lab
+
+Run these from inside the `llm-on-a-stick` folder:
 
 ```bash
-uv sync
-uv run stick doctor            # what can this machine run?
-uv run stick image build frr   # builds stick-frr:dev
-uv run stick env up            # deploys the base lab (2x SR Linux, 2x FRR, 2x hosts)
-uv run stick env status
-uv run stick env down
+uv run stick doctor                    # check your machine
+uv run stick image build frr           # build the FRR router image (once)
+uv run stick env up                    # start the lab
+ssh admin@clab-stick-base-frr1         # password: admin (FRR CLI)
+ssh admin@clab-stick-base-srl1         # password: NokiaSrl1! (SR Linux CLI)
+uv run stick svc up netbox oxidized    # start the tools (NetBox's first start takes ~2.5 min)
+uv run stick svc reset netbox          # back to the starting state
+uv run stick svc down netbox oxidized  # stop the tools
+uv run stick env down                  # stop the lab
 ```
 
-## The base lab
+## Cheat sheet
 
-| Node | Image | Role | Access |
+| Lab node | Management IP | Login | Role |
 |---|---|---|---|
-| srl1, srl2 | `ghcr.io/nokia/srlinux:26.7.2` | spines, AS65001 / AS65002 | SSH `admin`/`NokiaSrl1!` (containerlab default), gNMI, JSON-RPC |
-| frr1, frr2 | `stick-frr` (FRR 10.7.1 + extras) | leaves, AS65101 / AS65102 | SSH `admin`/`admin` straight into vtysh, SNMPv2c `stick-ro` |
-| h1, h2 | `network-multitool` | hosts 10.1.1.10, 10.1.2.10 | `docker exec` |
+| srl1, srl2 | 172.30.30.11, .12 | `admin` / `NokiaSrl1!` | Nokia SR Linux spines, AS65001 / AS65002 |
+| frr1, frr2 | 172.30.30.21, .22 | `admin` / `admin` | FRR leaves, AS65101 / AS65102 |
+| h1, h2 | 172.30.30.31, .32 | `docker exec -it clab-stick-base-h1 sh` | hosts 10.1.1.10, 10.1.2.10 |
 
-Management network: `stick-mgmt`, 172.30.30.0/24. Measured RAM: ~1.9 GB per SR Linux node, ~31 MB per FRR
-node; the whole lab is ~4 GB.
+| Tool | In your browser | From the lab network |
+|---|---|---|
+| NetBox 4.7 | <http://127.0.0.1:8081> (`admin` / `admin`) | `http://172.30.30.100:8080` |
+| Oxidized 0.37 | <http://127.0.0.1:8888> | `http://172.30.30.101:8888` |
 
-See [Platforms](platforms.md) for OS support and [Compatibility](compatibility.md) for which tools work with which
-devices.
+Measured RAM: ~1.9 GB per SR Linux node and ~31 MB per FRR node (the whole lab is ~4 GB), NetBox ~1.5 GB,
+Oxidized ~50 MB.
+
+## Run the tests
+
+```bash
+uv run pytest            # quick tests, a few seconds, no lab needed
+uv run pytest -m lab -v  # lab tests: builds the lab, starts NetBox and Oxidized (~3 min)
+```
+
+More: [Services](services.md) · [Platforms](platforms.md) · [Compatibility](compatibility.md)

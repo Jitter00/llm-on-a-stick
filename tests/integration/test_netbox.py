@@ -10,6 +10,7 @@ import subprocess
 from collections.abc import Iterator
 
 import pytest
+from labutil import service_session
 
 from llm_on_a_stick import lab, services
 from llm_on_a_stick.services import lifecycle, seed
@@ -19,11 +20,10 @@ pytestmark = pytest.mark.lab
 
 @pytest.fixture(scope="module")
 def netbox() -> Iterator[seed.RestClient]:
-    spec = services.load("netbox")
-    lifecycle.up(spec)
-    assert spec.seed is not None
-    yield seed.RestClient(spec.seed.base_url, spec.seed.headers)
-    lifecycle.restore_snapshot(spec)  # leave it clean for the next test run
+    with service_session("netbox") as spec:
+        assert spec.seed is not None
+        yield seed.RestClient(spec.seed.base_url, spec.seed.headers)
+        lifecycle.restore_snapshot(spec)  # leave its data at the baseline for next time
 
 
 def count(client: seed.RestClient, path: str) -> int:

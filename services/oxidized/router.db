@@ -1,0 +1,4 @@
+srl1:172.30.30.11:srlinux:admin:NokiaSrl1!
+srl2:172.30.30.12:srlinux:admin:NokiaSrl1!
+frr1:172.30.30.21:frr:admin:admin
+frr2:172.30.30.22:frr:admin:admin
