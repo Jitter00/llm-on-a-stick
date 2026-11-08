@@ -28,12 +28,12 @@ Items are roughly in order; dependencies are noted. Tick items off in the PR tha
 1. [x] **Oxidized** (the one service the first tasks depend on).
 2. [x] **Check library + `result.json` + `stick grade`**: `stick task start` / `stick grade`, 9 built-in checks,
       canaries, failure hints, `result.json` + JSON schema ([docs/grading.md](docs/grading.md)).
-3. [x] **cfg-mgmt config retrieval tasks**: 7 tasks (CLI + NETCONF, SR Linux + FRR, Oxidized consistency), each with
-      canaries, an oracle and `stick task validate` (oracle passes, doing nothing fails); validated in CI.
+3. [x] **cfg-mgmt config retrieval tasks**: 7 tasks (CLI + NETCONF, SR Linux + FRR, Oxidized consistency), trimmed
+      to 5 after the first comparison (see docs/tasks.md, "Which tasks are kept"), each with canaries, an oracle and `stick task validate` (oracle passes, doing nothing fails); validated in CI.
 4. [x] **Runner integration**: `stick run` / `stick report` ([docs/runner.md](docs/runner.md)). Own thin loop (not
       Inspect AI): OpenAI-compatible servers (Ollama, LM Studio, vLLM, llama.cpp, Strata, OpenAI, OpenRouter) and the
       Anthropic SDK; one `run_command` tool in a toolbox container; transcript, tokens, cost, time, turns, peak context.
-      Next: first real comparison (Strata vs Ollama) on the 7 cfg-mgmt tasks.
+      First comparison done (Strata deepseek-v4.1-flash 20/21, gemma4:26b 11/21, gemma4:12b 8/21).
 5. [ ] **LLM judge** (only for what code can't grade; policy in [docs/grading.md](docs/grading.md#grading-policy-code-first)):
       new check type `llm_judge` (`artifact`, `rubric`, `reference`, `scale`); `stick grade --judge-model`, refused if it's
       the tested model; judge scores in their own `result.json` section with model/version/agreement, never mixed into
@@ -100,8 +100,10 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
       3. NETCONF `<get-config>`, full and filtered (SR Linux);
       4. CLI/XML → given JSON schema;
       5. CLI vs NETCONF vs Oxidized consistency.
-- [ ] 3–5 tasks for each of the other sections: `lab-mgmt`, `sot-ddi`, `validation-observability`, `troubleshooting`
-      (fault injection: MTU mismatch, wrong ASN, ACL blackhole, NetBox drift).
+      After the first comparison, 3 (full get-config) and 4 were removed as too easy; 5 tasks remain.
+- [ ] **At most 5 tasks for each of the other sections, none obvious** (rules: docs/tasks.md, "Which tasks are
+      kept"; pick the ones local models are likely to get wrong): `lab-mgmt`, `sot-ddi`, `validation-observability`,
+      `troubleshooting` (fault injection: MTU mismatch, wrong ASN, ACL blackhole, NetBox drift).
 - [ ] **User-defined tasks.** `--tasks-dir` (local path or git URL); `stick task new` (scaffold); `stick task validate`
       (oracle must PASS, no-op agent must FAIL); a `@check` plugin interface + entry points; `matrix:` expansion.
 - [ ] **Run variants.** Same model × context window (8k/32k/128k) first, then quantisation, CLI vs MCP tools, reasoning

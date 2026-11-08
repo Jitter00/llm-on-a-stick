@@ -9,7 +9,7 @@ example one running in Ollama) with a paid one. It tells you **why** a model fai
 fields, changing things it shouldn't), not just a score.
 
 > **Status: early days.** What works today: the virtual lab, the `stick` command, two tools (NetBox and
-> Oxidized), the **grader**, which checks an attempt at a task and explains what went wrong, the **first seven
+> Oxidized), the **grader**, which checks an attempt at a task and explains what went wrong, the **first five
 > tasks** (getting router configs right over CLI and NETCONF), and the **runner**, which lets AI models attempt
 > them and compares the results. You can [be the agent yourself](#try-the-grader-be-the-agent) or
 > [run a model](#run-a-model). More tools and tasks come next. See [Roadmap](#roadmap).
@@ -204,7 +204,7 @@ into `result.json` in the run folder.
 **4. Now fail on purpose** and grade again: delete half of the lines in `frr2.cfg`, or add a line that isn't on the
 router. The grader tells you what's missing or invented (`truncated-output`, `hallucinated-value`).
 
-**5. Try a harder one.** `uv run stick task list` shows all seven tasks, from saving a config to comparing CLI,
+**5. Try a harder one.** `uv run stick task list` shows all five tasks, from saving a config to comparing CLI,
 NETCONF and Oxidized. What each one tests: [docs/tasks.md](docs/tasks.md). How grading works and how to write your
 own checks: [docs/grading.md](docs/grading.md).
 
@@ -230,7 +230,7 @@ The model gets the task's instructions and one tool: running shell commands in a
 reach the lab. When it says it's done (or runs out of turns or time), the grader scores the attempt. The first run
 builds the toolbox image, which takes about a minute.
 
-**3. Compare two models on all seven tasks**, three attempts each (models don't always do the same thing twice).
+**3. Compare two models on all five tasks**, three attempts each (models don't always do the same thing twice).
 **Run local models one after another, never at the same time**: they share your GPU and memory. Finish the first
 model, stop its server, then run the second:
 
@@ -290,7 +290,7 @@ The project checks itself with automated tests. There are two kinds.
 uv run pytest
 ```
 
-These check the code and configuration files. The last line should look like `122 passed, 30 deselected`
+These check the code and configuration files. The last line should look like `122 passed, 28 deselected`
 ("deselected" are the lab tests below, which are skipped by default).
 
 ### Lab tests (about 5 minutes, more the first time)
