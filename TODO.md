@@ -28,7 +28,8 @@ Items are roughly in order; dependencies are noted. Tick items off in the PR tha
 1. [x] **Oxidized** (the one service the first tasks depend on).
 2. [x] **Check library + `result.json` + `stick grade`**: `stick task start` / `stick grade`, 9 built-in checks,
       canaries, failure hints, `result.json` + JSON schema ([docs/grading.md](docs/grading.md)).
-3. [ ] **cfg-mgmt config retrieval tasks** (Phase 2 item below): CLI and NETCONF on SR Linux and FRR, Oxidized for consistency.
+3. [x] **cfg-mgmt config retrieval tasks**: 7 tasks (CLI + NETCONF, SR Linux + FRR, Oxidized consistency), each with
+      canaries, an oracle and `stick task validate` (oracle passes, doing nothing fails); validated in CI.
 4. [ ] **Runner integration** (Phase 1 item below), giving the first local-vs-frontier comparison.
 5. [ ] **LLM judge** (only for what code can't grade; policy in [docs/grading.md](docs/grading.md#grading-policy-code-first)):
       new check type `llm_judge` (`artifact`, `rubric`, `reference`, `scale`); `stick grade --judge-model`, refused if it's
@@ -86,7 +87,7 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
 
 ## Phase 2: tasks, user tests, variants, scheduler
 
-- [ ] **cfg-mgmt config retrieval tasks** (first tasks to write):
+- [x] **cfg-mgmt config retrieval tasks** (first tasks to write):
       1. full running config over clear-text CLI (SR Linux `info`, FRR `show running-config`);
       2. one section only;
       3. NETCONF `<get-config>`, full and filtered (SR Linux);
@@ -127,3 +128,7 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
 - The grader reads state via `docker exec` (sr_cli / vtysh); verified byte-identical to what SSH returns.
 - The credential-guard hook matches the text `llm_on_a_stick.env` (our env module) as a `.env` file; put such
   edits in a scratchpad script instead of an inline shell command.
+- A full SR Linux NETCONF reply is ~300 KB: too big for one environment variable (128 KB limit). Use files.
+- SR Linux NETCONF trees contain `<interface>` under network-instances, LLDP etc. with reused names; use
+  `data/interface` for the real interfaces.
+- Oxidized only stores a new version when the config changed: wait for the backup *run* (nodes.json `last.end`).

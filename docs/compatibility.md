@@ -14,7 +14,7 @@ Legend: ✅ verified · ⚠️ partial (see notes) · ❌ doesn't work · ❓ no
 | arm64 image available | ✅ | ✅ | registry manifest lists |
 | SSH CLI | ✅ (`admin`/`NokiaSrl1!`; exec mode works) | ✅ (lands in vtysh; clean output) | `test_oxidized.py`, `test_frr_cli_output_is_clean` |
 | SNMPv2c | ❓ | ✅ | `test_frr_snmp_answers` |
-| NETCONF | ❓ | ❌ (FRR has no NETCONF server) | – |
+| NETCONF | ✅ port 830, base:1.0 framing, subtree filters (`get-config` on running) | ❌ (FRR has no NETCONF server) | `test_tasks_lab.py` (netconf tasks) |
 | gNMI | ❓ | ❌ (no native gNMI) | – |
 | LLDP | ❓ | ❓ | – |
 | Remote syslog | ❓ | ❓ | – |

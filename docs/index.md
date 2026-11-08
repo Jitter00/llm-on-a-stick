@@ -54,9 +54,9 @@ uv run pytest -m lab -v  # lab tests: builds the lab, starts NetBox and Oxidized
 ## Try the grader
 
 ```bash
-uv run stick task start demo-frr-config-retrieval --tasks-dir tests/fixtures/tasks
-ssh admin@clab-stick-base-frr1 "show running-config" > runs/<run folder>/work/frr1.cfg
+uv run stick task start running-config-cli-frr
+ssh admin@clab-stick-base-frr2 "show running-config" > runs/<run folder>/work/frr2.cfg
 uv run stick grade
 ```
 
-More: [Grading](grading.md) · [Services](services.md) · [Platforms](platforms.md) · [Compatibility](compatibility.md)
+More: [Tasks](tasks.md) · [Grading](grading.md) · [Services](services.md) · [Platforms](platforms.md) · [Compatibility](compatibility.md)

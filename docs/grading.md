@@ -55,17 +55,17 @@ NetClaw or Claude Code, or a person.
 
 ## Try it yourself: be the agent
 
-A demo task ships with the tests. With the lab running:
+With the lab running, start the simplest real task (see [Tasks](tasks.md) for all of them):
 
 ```bash
-uv run stick task start demo-frr-config-retrieval --tasks-dir tests/fixtures/tasks
+uv run stick task start running-config-cli-frr
 ```
 
-Follow the printed prompt yourself: SSH to frr1 and save its running config into the workspace file it names, for
+Follow the printed prompt yourself: SSH to frr2 and save its running config into the workspace file it names, for
 example:
 
 ```bash
-ssh admin@clab-stick-base-frr1 "show running-config" > runs/<run folder>/work/frr1.cfg   # password: admin
+ssh admin@clab-stick-base-frr2 "show running-config" > runs/<run folder>/work/frr2.cfg   # password: admin
 uv run stick grade
 ```
 
@@ -94,6 +94,7 @@ Every failed check says what it expected, what it found, and gives one or more h
 | `truncated-output` | The output is a strict subset of the real config (cut off, pager not handled) |
 | `hallucinated-value` | The output contains lines or values the device doesn't have |
 | `wrong-format` | The output barely resembles what was asked for (wrong command, error text, wrong format) |
+| `unfiltered-output` | Asked for one part, got more (the whole config instead of the BGP section, an unfiltered NETCONF reply) |
 | `incomplete-config` | The device is missing configuration the task asked for |
 | `wrong-config` | Device state differs from what was asked (e.g. a BGP session isn't established) |
 | `collateral-change` | A device the task didn't allow to change was changed |
@@ -112,7 +113,10 @@ Use these in a task's `checks:` list. Parameters can use `{{ canaries.<name> }}`
 | `file_exists` | `path` | The workspace file exists and isn't empty |
 | `file_contains` | `path`, `lines` | Every line appears in the file (whitespace-insensitive) |
 | `file_matches_running_config` | `node`, `path`, `format` (`flat` or `tree`, SR Linux only), `ignore` (regexes) | The file is the node's complete running config: same lines, any order |
-| `json_file_matches` | `path`, `expected` (object) | The file is a JSON object with those keys and values (extra keys allowed) |
+| `json_file_matches` | `path`, `expected` (object) | The file is a JSON object with those keys and values (extra keys allowed; list and key order don't matter) |
+| `file_matches_config_section` | `node`, `path`, `section` | The file is exactly one section of the running config: SR Linux flat lines starting with `section`, or FRR's block starting with `section` up to its `exit` |
+| `xml_file_xpath` | `path`, `expect` (XPath → text, `"*"` = exists) | The file is a NETCONF reply (bare `<data>`, `<rpc-reply>` or a session dump) and each path finds that text; namespaces are ignored |
+| `xml_file_absent` | `path`, `xpaths` | None of the paths match: proves a NETCONF filter was really used |
 | `running_config_contains` | `node`, `lines`, `format` | The device's running config contains every line |
 | `bgp_session` | `node`, `peer`, `state` (default `established`) | The BGP session to `peer` is in that state |
 | `no_change_outside` | `allowed` (list of nodes) | No other router changed since `stick task start` |

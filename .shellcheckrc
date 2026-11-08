@@ -1,0 +1,2 @@
+# Task scripts source "$STICK_LIB/common.sh", a path only known at run time (SC1091 is informational).
+disable=SC1091

@@ -15,11 +15,13 @@ import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from pydantic import BaseModel
 
+from llm_on_a_stick import paths, services
 from llm_on_a_stick.grading import canaries as canary_mod
-from llm_on_a_stick.grading.labstate import LabState
+from llm_on_a_stick.grading.labstate import LabState, LabStateError
 from llm_on_a_stick.grading.template import render
 from llm_on_a_stick.tasks import Task
 
@@ -47,32 +49,61 @@ class RunInfo(BaseModel):
         return self.run_dir / "baseline"
 
 
+def service_urls() -> dict[str, dict[str, str]]:
+    """Base URL of each service as seen from the host, e.g. {"oxidized": {"url": "http://127.0.0.1:8888"}}."""
+    urls = {}
+    for name in services.available():
+        parsed = urlparse(services.load(name).health.url)
+        urls[name] = {"url": f"{parsed.scheme}://{parsed.netloc}"}
+    return urls
+
+
 def template_vars(info_canaries: dict[str, str], workspace: Path, lab: LabState) -> dict[str, Any]:
     return {
         "canaries": info_canaries,
         "workspace": str(workspace),
         "nodes": {n.name: {"mgmt_ip": n.mgmt_ipv4, "os": n.os} for n in lab.nodes().values()},
+        "services": service_urls(),
     }
 
 
-def _run_setup(task: Task, run_dir: Path, workspace: Path, values: dict[str, str], lab: LabState) -> None:
-    if not task.setup:
-        return
+def script_env(
+    task: Task, run_dir: Path, workspace: Path, values: dict[str, str], lab: LabState
+) -> dict[str, str]:
+    """Environment for a task's setup and oracle scripts."""
     env = {
         **os.environ,
         **canary_mod.env_vars(values),
         "STICK_RUN_DIR": str(run_dir),
         "STICK_WORKSPACE": str(workspace),
-        **{f"STICK_NODE_{n.name.upper()}": n.container for n in lab.nodes().values()},
+        "STICK_TASK_DIR": str(task.directory),
+        "STICK_LIB": str(paths.sections_dir() / "_lib"),
     }
-    log = run_dir / "setup.log"
+    for n in lab.nodes().values():
+        env[f"STICK_NODE_{n.name.upper()}"] = n.container
+        env[f"STICK_NODE_{n.name.upper()}_IP"] = n.mgmt_ipv4
+    return env
+
+
+def run_script(task: Task, script: str, kind: str, run_dir: Path, env: dict[str, str]) -> None:
+    """Run a task script (setup or oracle) with bash, logging to <run dir>/<kind>.log."""
+    log = run_dir / f"{kind}.log"
     with log.open("w", encoding="utf-8") as fh:
         res = subprocess.run(
-            ["bash", str(task.directory / task.setup)],
+            ["bash", str(task.directory / script)],
             cwd=task.directory, env=env, stdout=fh, stderr=subprocess.STDOUT, check=False, timeout=300,
         )  # fmt: skip
     if res.returncode != 0:
-        raise RunError(f"setup script failed (exit {res.returncode}); see {log}")
+        tail = " | ".join(log.read_text(encoding="utf-8").strip().splitlines()[-3:])
+        raise RunError(f"{kind} script failed (exit {res.returncode}): {tail} (full log: {log})")
+
+
+def run_oracle(info: RunInfo, task: Task, lab: LabState) -> None:
+    """Run the task's reference solution against this run (used by `stick task validate`)."""
+    if not task.oracle:
+        raise RunError(f"task {task.id} has no oracle script")
+    env = script_env(task, info.run_dir, info.workspace, info.canaries, lab)
+    run_script(task, task.oracle, "oracle", info.run_dir, env)
 
 
 def start(task: Task, runs_dir: Path, lab: LabState, seed: int | None = None) -> RunInfo:
@@ -84,14 +115,21 @@ def start(task: Task, runs_dir: Path, lab: LabState, seed: int | None = None) ->
 
     values = canary_mod.generate(task.canaries, seed)
     prompt = render(task.prompt, template_vars(values, workspace, lab))  # fail early on unknown names
-    _run_setup(task, run_dir, workspace, values, lab)
+    if task.setup:
+        run_script(task, task.setup, "setup", run_dir, script_env(task, run_dir, workspace, values, lab))
 
     # Baseline after setup: setup may change devices on purpose (e.g. plant canaries or a fault).
     baseline = run_dir / "baseline"
     baseline.mkdir()
     for node in lab.nodes().values():
         if node.os != "host":
-            (baseline / f"{node.name}.cfg").write_text(lab.running_config(node.name), encoding="utf-8")
+            try:
+                config = lab.running_config(node.name)
+            except LabStateError as exc:
+                raise RunError(
+                    f"cannot read {node.name}: is the lab running? (`stick env up`) [{exc}]"
+                ) from exc
+            (baseline / f"{node.name}.cfg").write_text(config, encoding="utf-8")
 
     info = RunInfo(
         task_id=task.id,

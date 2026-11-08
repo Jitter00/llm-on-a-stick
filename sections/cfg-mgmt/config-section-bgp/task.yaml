@@ -1,0 +1,38 @@
+id: config-section-bgp
+section: cfg-mgmt
+title: Save only the BGP configuration of two routers from different vendors
+tier: intermediate
+tags: [vendor:srl, vendor:frr, iface:cli, skill:config-retrieval, skill:filtering]
+prompt: |
+  Two routers, reachable over SSH:
+    - srl2 (Nokia SR Linux) at {{ nodes.srl2.mgmt_ip }}, user admin, password NokiaSrl1!
+    - frr1 (FRRouting) at {{ nodes.frr1.mgmt_ip }}, user admin, password admin
+
+  For each router, save ONLY its BGP configuration (nothing else) from the running configuration:
+    - srl2: to {{ workspace }}/srl2-bgp.cfg, in SR Linux "flat" format: every `set / ...` line of the running
+      configuration that belongs to BGP in the default network-instance
+      (lines starting with "set / network-instance default protocols bgp").
+    - frr1: to {{ workspace }}/frr1-bgp.cfg: the complete "router bgp" block, exactly as it appears in the running
+      configuration, from its "router bgp" line up to and including its closing "exit".
+
+  Do not change any configuration on any device.
+requires:
+  devices: [srl2, frr1]
+canaries:
+  srl_peer_desc: description
+  frr_peer_desc: description
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: file_matches_config_section
+    name: srl2-bgp.cfg is srl2's BGP section, nothing else
+    params: {node: srl2, path: srl2-bgp.cfg, section: "set / network-instance default protocols bgp "}
+    weight: 2
+  - type: file_matches_config_section
+    name: frr1-bgp.cfg is frr1's router bgp block, nothing else
+    params: {node: frr1, path: frr1-bgp.cfg, section: "router bgp"}
+    weight: 2
+  - type: no_change_outside
+    name: no configuration was changed
+    params: {allowed: []}
+limits: {turns: 30}

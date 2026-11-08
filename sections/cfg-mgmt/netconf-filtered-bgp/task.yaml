@@ -1,0 +1,41 @@
+id: netconf-filtered-bgp
+section: cfg-mgmt
+title: Retrieve only the BGP neighbours over NETCONF, using a filter
+tier: advanced
+tags: [vendor:srl, iface:netconf, skill:config-retrieval, skill:filtering]
+prompt: |
+  The router srl1 (Nokia SR Linux) has a NETCONF server at {{ nodes.srl1.mgmt_ip }}, port 830
+  (user admin, password NokiaSrl1!).
+
+  Using NETCONF, retrieve ONLY the BGP neighbor configuration of srl1's "default" network-instance from the running
+  datastore. Use a NETCONF filter in your <get-config> request so that the router returns nothing else (no
+  interfaces, no system settings, no routing policies...). Save the XML <rpc-reply> you receive to:
+    {{ workspace }}/srl1-bgp-neighbors.xml
+
+  Do not change any configuration on any device.
+requires:
+  devices: [srl1]
+canaries:
+  peer_desc: description
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: xml_file_xpath
+    name: the reply holds srl1's live BGP neighbours
+    params:
+      path: srl1-bgp-neighbors.xml
+      expect:
+        ".//neighbor[peer-address='10.0.1.1']/description": "{{ canaries.peer_desc }}"
+        ".//neighbor[peer-address='10.0.1.1']/peer-as": "65101"
+        ".//neighbor[peer-address='10.0.1.3']/peer-as": "65102"
+    weight: 2
+  - type: xml_file_absent
+    name: a filter was really used (nothing but BGP neighbours)
+    params:
+      path: srl1-bgp-neighbors.xml
+      xpaths: [".//interface", ".//system", ".//routing-policy", ".//acl", ".//autonomous-system"]
+    weight: 2
+  - type: no_change_outside
+    name: no configuration was changed
+    params: {allowed: []}
+limits: {turns: 30}
