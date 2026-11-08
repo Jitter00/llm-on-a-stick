@@ -12,6 +12,10 @@ from rich.table import Table
 
 from llm_on_a_stick import __version__, doctor, paths, services, tasks
 from llm_on_a_stick.env import containerlab
+from llm_on_a_stick.grading import grade as grade_mod
+from llm_on_a_stick.grading import run as run_mod
+from llm_on_a_stick.grading.labstate import DockerLabState, LabStateError
+from llm_on_a_stick.grading.template import TemplateError
 from llm_on_a_stick.services import lifecycle
 from llm_on_a_stick.services.seed import RestError
 
@@ -154,6 +158,83 @@ def task_lint(
         err.print(f"[red]{e.path}[/]: {e.message}")
     console.print(f"{len(found)} task file(s) checked, {len(errors)} error(s)")
     raise typer.Exit(1 if errors else 0)
+
+
+TasksDirOpt = Annotated[
+    list[Path] | None,
+    typer.Option(
+        "--tasks-dir", help="Extra folder(s) with your own tasks (built-in sections are always searched)."
+    ),
+]
+RunsDirOpt = Annotated[Path, typer.Option("--runs-dir", help="Where run folders are created.")]
+
+
+def _task_roots(extra: list[Path] | None) -> list[Path]:
+    return [paths.sections_dir(), *(extra or [])]
+
+
+@task_app.command("list")
+def task_list(tasks_dir: TasksDirOpt = None) -> None:
+    """List the available tasks."""
+    table = Table("task", "section", "tier", "title")
+    for path in tasks.discover(_task_roots(tasks_dir)):
+        try:
+            t = tasks.load_task(path)
+        except tasks.TaskError as exc:
+            err.print(f"[red]{exc}[/]")
+            continue
+        table.add_row(t.id, t.section, t.tier, t.title)
+    console.print(table)
+
+
+@task_app.command("start")
+def task_start(
+    task: Annotated[str, typer.Argument(help="Task id, or a path to a task folder.")],
+    tasks_dir: TasksDirOpt = None,
+    runs_dir: RunsDirOpt = Path("runs"),
+    seed: Annotated[int | None, typer.Option(help="Seed for canary values (for reproducible runs).")] = None,
+) -> None:
+    """Prepare an attempt: workspace, canary values, setup, baseline. Prints the prompt for the agent."""
+    try:
+        t = tasks.find_task(task, _task_roots(tasks_dir))
+        info = run_mod.start(t, runs_dir, DockerLabState(t.topology), seed=seed)
+    except (tasks.TaskError, run_mod.RunError, LabStateError, TemplateError) as exc:
+        err.print(f"[red]{exc}[/]")
+        raise typer.Exit(1) from exc
+    console.print(f"[bold]Run[/]: {info.run_dir}", soft_wrap=True)
+    console.print(f"[bold]Workspace[/] (the agent writes its files here): {info.workspace}", soft_wrap=True)
+    console.print("[bold]Prompt for the agent[/]:")
+    console.print(info.prompt, markup=False, highlight=False, soft_wrap=True)
+    console.print(f"\nWhen the agent is done: [bold]uv run stick grade {info.run_dir}[/]")
+
+
+@app.command("grade")
+def grade_cmd(
+    run_dir: Annotated[Path | None, typer.Argument(help="Run folder (default: the latest one).")] = None,
+    runs_dir: RunsDirOpt = Path("runs"),
+    as_json: Annotated[bool, typer.Option("--json", help="Print result.json instead of a table.")] = False,
+) -> None:
+    """Grade an attempt against the live lab and write result.json. Exit: 0 pass, 1 fail/partial, 2 error."""
+    try:
+        target = run_dir or run_mod.latest(runs_dir)
+        result = grade_mod.grade(target)
+    except (run_mod.RunError, tasks.TaskError, LabStateError) as exc:
+        err.print(f"[red]{exc}[/]")
+        raise typer.Exit(2) from exc
+    if as_json:
+        console.print_json(result.model_dump_json())
+    else:
+        style = {"pass": "green", "partial": "yellow", "fail": "red", "error": "magenta"}
+        table = Table("check", "status", "details")
+        for c in result.checks:
+            hints = f" [dim]({', '.join(c.hints)})[/]" if c.hints else ""
+            table.add_row(c.name, f"[{style[c.status]}]{c.status}[/]", c.message + hints)
+        console.print(table)
+        console.print(
+            f"[bold]{result.task_id}[/]: [{style[result.outcome]}]{result.outcome}[/] "
+            f"(score {result.score:.2f}) -> {target / 'result.json'}"
+        )
+    raise typer.Exit({"pass": 0, "partial": 1, "fail": 1, "error": 2}[result.outcome])
 
 
 ServiceNames = Annotated[

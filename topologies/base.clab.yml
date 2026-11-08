@@ -9,6 +9,7 @@
 #
 # Point-to-point links are /31s in 10.0.<spine>.0/24; loopbacks in 10.255.0.0/24.
 # eBGP everywhere; leaves redistribute their connected host subnets.
+# Each node carries a `stick-os` label (srlinux | frr | host) that the grader uses to read its state.
 name: stick-base
 
 mgmt:
@@ -25,21 +26,25 @@ topology:
 
   nodes:
     srl1:
+      labels: {stick-os: srlinux}
       kind: nokia_srlinux
       mgmt-ipv4: 172.30.30.11
       startup-config: ../configs/srl/srl1.cli
     srl2:
+      labels: {stick-os: srlinux}
       kind: nokia_srlinux
       mgmt-ipv4: 172.30.30.12
       startup-config: ../configs/srl/srl2.cli
 
     frr1:
+      labels: {stick-os: frr}
       kind: linux
       mgmt-ipv4: 172.30.30.21
       binds:
         - ../configs/frr/frr1/frr.conf:/etc/stick/frr.conf:ro
         - ../configs/frr/daemons:/etc/stick/daemons:ro
     frr2:
+      labels: {stick-os: frr}
       kind: linux
       mgmt-ipv4: 172.30.30.22
       binds:
@@ -47,6 +52,7 @@ topology:
         - ../configs/frr/daemons:/etc/stick/daemons:ro
 
     h1:
+      labels: {stick-os: host}
       kind: linux
       image: ghcr.io/hellt/network-multitool@sha256:a8d96c19e593e227d7b16d320a04256ba00434028f0adb9f7da206bf098c7140
       mgmt-ipv4: 172.30.30.31
@@ -54,6 +60,7 @@ topology:
         - ip addr add 10.1.1.10/24 dev eth1
         - ip route replace 10.0.0.0/8 via 10.1.1.1
     h2:
+      labels: {stick-os: host}
       kind: linux
       image: ghcr.io/hellt/network-multitool@sha256:a8d96c19e593e227d7b16d320a04256ba00434028f0adb9f7da206bf098c7140
       mgmt-ipv4: 172.30.30.32
