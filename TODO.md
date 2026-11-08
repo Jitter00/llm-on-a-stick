@@ -30,6 +30,11 @@ Items are roughly in order; dependencies are noted. Tick items off in the PR tha
       canaries, failure hints, `result.json` + JSON schema ([docs/grading.md](docs/grading.md)).
 3. [ ] **cfg-mgmt config retrieval tasks** (Phase 2 item below): CLI and NETCONF on SR Linux and FRR, Oxidized for consistency.
 4. [ ] **Runner integration** (Phase 1 item below), giving the first local-vs-frontier comparison.
+5. [ ] **LLM judge** (only for what code can't grade; policy in [docs/grading.md](docs/grading.md#grading-policy-code-first)):
+      new check type `llm_judge` (`artifact`, `rubric`, `reference`, `scale`); `stick grade --judge-model`, refused if it's
+      the tested model; judge scores in their own `result.json` section with model/version/agreement, never mixed into
+      `score`; per-check `graded_by: code | judge`; `not-graded` when no judge is configured; a small human-graded
+      calibration set. Before that, add transcript-based code checks (e.g. `no-verification`).
 
 Then return to the rest of Phase 0 (Nautobot first).
 
@@ -76,7 +81,7 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
       `collateral-change`, `no-verification`, `loop`, `gave-up`, `limit-exceeded`, `env-error` (excluded from scores).
 - [ ] **Runner integration.** Decide on Inspect AI (leading candidate) vs our own; models via Ollama/vLLM/LM Studio and
       API providers; tools = SSH/API/MCP to the lab. Record tokens, cost, wall time, turns and peak context.
-- [ ] **Judge model** (`--judge-model`). Optional failure narratives; never the model under test by default.
+- [ ] **Judge model** (`--judge-model`): see "Next up" item 5 and the grading policy in docs/grading.md.
 - [ ] **Report.** HTML + JSON capability profile per model: by section, tag and failure class.
 
 ## Phase 2: tasks, user tests, variants, scheduler

@@ -4,6 +4,32 @@ The grader looks at the **live lab** after an agent has worked on a task and dec
 work was done, and if not, *why not*. It reads device state directly from the containers (`docker exec`), never
 through the agent's own path, so a broken SSH session or API call can't hide or fake anything.
 
+## Grading policy: code first
+
+Results must not depend on which AI model does the grading, so **code decides pass or fail** wherever it can.
+
+1. **Code checks for everything that leaves a trace**: device config and state, NetBox/DNS/DHCP objects, backups,
+   files the agent wrote, and changes it shouldn't have made. Every task has these, and only these decide its
+   `outcome` and `score`.
+2. **Structured answers instead of prose.** A diagnosis task asks for a machine-readable answer, for example
+   `answer.json` with `{"device": "frr2", "interface": "eth1", "cause": "mtu-mismatch"}` from a fixed list of causes,
+   graded exactly by `json_file_matches`. A free-text explanation can be asked for as well, but it's extra.
+3. **An AI judge only where code can't grade**: the quality of a written explanation, a change plan or a ticket
+   summary; parts of *how* the agent worked that a log can't show (a safe approach, asking before doing something
+   ambiguous or risky); and plain-language failure summaries for the report (these aren't scored).
+4. **Rules for the judge** (it arrives after the model runner):
+    - it is **never the model being tested** (refused unless explicitly overridden);
+    - it **never overrides code**: if the code says the BGP session is down, no judge turns that into a pass;
+    - its score is reported **separately** from the code score, never mixed in;
+    - it grades against a written rubric and a reference answer, **without knowing which model** produced the answer;
+    - it runs at temperature 0 and repeats each judgement, so disagreement shows up;
+    - the judge model and version are recorded in `result.json`;
+    - it's optional: without a judge, judge-only checks show as "not graded" and the code score stands.
+5. **Calibration**: a small set of human-graded examples per kind of judged check, to measure how often a judge
+   agrees with people before its scores are trusted.
+
+All checks available today are code checks.
+
 ## The flow
 
 ```bash
