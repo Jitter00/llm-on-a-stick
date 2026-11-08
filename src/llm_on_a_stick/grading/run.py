@@ -13,7 +13,7 @@ from __future__ import annotations
 import os
 import subprocess
 from datetime import UTC, datetime
-from pathlib import Path
+from pathlib import Path, PurePath, PurePosixPath
 from typing import Any
 from urllib.parse import urlparse
 
@@ -58,7 +58,7 @@ def service_urls() -> dict[str, dict[str, str]]:
     return urls
 
 
-def template_vars(info_canaries: dict[str, str], workspace: Path, lab: LabState) -> dict[str, Any]:
+def template_vars(info_canaries: dict[str, str], workspace: PurePath, lab: LabState) -> dict[str, Any]:
     return {
         "canaries": info_canaries,
         "workspace": str(workspace),
@@ -118,7 +118,8 @@ def start(
     workspace.mkdir(parents=True)
 
     values = canary_mod.generate(task.canaries, seed)
-    shown = Path(workdir) if workdir else workspace
+    # workdir is a path inside the (Linux) toolbox container: keep it POSIX, also on Windows hosts.
+    shown: PurePath = PurePosixPath(workdir) if workdir else workspace
     prompt = render(task.prompt, template_vars(values, shown, lab))  # fail early on unknown names
     if task.setup:
         run_script(task, task.setup, "setup", run_dir, script_env(task, run_dir, workspace, values, lab))

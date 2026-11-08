@@ -16,7 +16,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from functools import cache
 from importlib.resources import files
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 import psutil
@@ -290,7 +290,7 @@ def run_task(
     box_name = f"stick-toolbox-{info.run_id}".lower()[:120]
     final_text = ""
     with toolbox_mod.Toolbox(info.workspace, box_name, s.max_output_chars) as box:
-        variables = run_mod.template_vars(info.canaries, Path(toolbox_mod.WORKDIR), lab)
+        variables = run_mod.template_vars(info.canaries, PurePosixPath(toolbox_mod.WORKDIR), lab)
         session = client.new_session(system, info.prompt, [RUN_COMMAND], variables)
         while True:
             if m.turns >= max_turns:
