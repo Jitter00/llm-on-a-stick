@@ -14,6 +14,7 @@ from llm_on_a_stick import __version__, doctor, paths, services, tasks
 from llm_on_a_stick.env import containerlab
 from llm_on_a_stick.grading import grade as grade_mod
 from llm_on_a_stick.grading import run as run_mod
+from llm_on_a_stick.grading import validate as validate_mod
 from llm_on_a_stick.grading.labstate import DockerLabState, LabStateError
 from llm_on_a_stick.grading.template import TemplateError
 from llm_on_a_stick.services import lifecycle
@@ -197,7 +198,11 @@ def task_start(
     """Prepare an attempt: workspace, canary values, setup, baseline. Prints the prompt for the agent."""
     try:
         t = tasks.find_task(task, _task_roots(tasks_dir))
-        info = run_mod.start(t, runs_dir, DockerLabState(t.topology), seed=seed)
+        lab = DockerLabState(t.topology)
+        problems = validate_mod.check_requirements(t, lab)
+        if problems:
+            raise run_mod.RunError(f"{t.id}: " + "; ".join(problems))
+        info = run_mod.start(t, runs_dir, lab, seed=seed)
     except (tasks.TaskError, run_mod.RunError, LabStateError, TemplateError) as exc:
         err.print(f"[red]{exc}[/]")
         raise typer.Exit(1) from exc
@@ -206,6 +211,39 @@ def task_start(
     console.print("[bold]Prompt for the agent[/]:")
     console.print(info.prompt, markup=False, highlight=False, soft_wrap=True)
     console.print(f"\nWhen the agent is done: [bold]uv run stick grade {info.run_dir}[/]")
+
+
+@task_app.command("validate")
+def task_validate(
+    task_refs: Annotated[
+        list[str] | None, typer.Argument(help="Task ids or paths (default: all tasks).")
+    ] = None,
+    tasks_dir: TasksDirOpt = None,
+    runs_dir: RunsDirOpt = Path("runs/validate"),
+    seed: Annotated[int | None, typer.Option(help="Seed for canary values.")] = None,
+) -> None:
+    """Prove tasks are sound: the oracle must pass and doing nothing must fail. Needs the lab running."""
+    roots = _task_roots(tasks_dir)
+    try:
+        selected = (
+            [tasks.find_task(r, roots) for r in task_refs]
+            if task_refs
+            else [tasks.load_task(p) for p in tasks.discover(roots)]
+        )
+    except tasks.TaskError as exc:
+        err.print(f"[red]{exc}[/]")
+        raise typer.Exit(2) from exc
+    table = Table("task", "oracle", "do nothing", "verdict")
+    failures = 0
+    for t in selected:
+        console.print(f"validating {t.id} ...", highlight=False)
+        v = validate_mod.validate(t, DockerLabState(t.topology), runs_dir, seed)
+        failures += not v.ok
+        verdict = "[green]ok[/]" if v.ok else f"[red]{v.problem}[/]"
+        table.add_row(t.id, v.oracle_outcome or "-", v.noop_outcome or "-", verdict)
+    console.print(table)
+    console.print(f"{len(selected) - failures} of {len(selected)} task(s) valid")
+    raise typer.Exit(1 if failures else 0)
 
 
 @app.command("grade")

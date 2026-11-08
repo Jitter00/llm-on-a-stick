@@ -19,6 +19,7 @@ FailureHint = Literal[
     "truncated-output",  # output is a strict subset of what the device has (pager, cut-off)
     "hallucinated-value",  # output contains values the device doesn't have
     "wrong-format",  # output barely overlaps with the expected format
+    "unfiltered-output",  # asked for one part, got more (e.g. the whole config instead of the BGP section)
     "incomplete-config",  # device lacks some of the expected configuration
     "wrong-config",  # device state differs from what was asked
     "collateral-change",  # something outside the allowed scope changed

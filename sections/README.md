@@ -13,4 +13,5 @@ Built-in tasks live here, one directory per task: `sections/<section>/<task-id>/
 The schema is `src/llm_on_a_stick/data/task.schema.json`. Check tasks with `stick task lint`.
 Your own tasks can live anywhere: `stick task lint ./my-tests`.
 
-No tasks have been written yet. They come in Phase 2, after the environment and the grader exist.
+Tasks so far: seven in `cfg-mgmt` (config retrieval over CLI and NETCONF), described in `docs/tasks.md`.
+`_lib/common.sh` holds helpers for setup and oracle scripts. Prove a task is sound with `stick task validate`.

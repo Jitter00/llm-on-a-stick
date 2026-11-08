@@ -9,9 +9,10 @@ example one running in Ollama) with a paid one. It tells you **why** a model fai
 fields, changing things it shouldn't), not just a score.
 
 > **Status: early days.** What works today: the virtual lab, the `stick` command, two tools (NetBox and
-> Oxidized) and the **grader**, which checks an attempt at a task and explains what went wrong. You can already
-> [be the agent yourself](#try-the-grader-be-the-agent). What doesn't exist yet: the real benchmark tasks and
-> connecting AI models. They come next. See [Roadmap](#roadmap).
+> Oxidized), the **grader**, which checks an attempt at a task and explains what went wrong, and the **first seven
+> tasks** (getting router configs right over CLI and NETCONF). You can already
+> [be the agent yourself](#try-the-grader-be-the-agent). What doesn't exist yet: connecting AI models to run the
+> tasks. That comes next. See [Roadmap](#roadmap).
 
 **Contents:** [What you need](#what-you-need) · [Install](#install-step-by-step) ·
 [Your first lab](#your-first-lab-about-10-minutes) · [Try the grader](#try-the-grader-be-the-agent) ·
@@ -176,19 +177,19 @@ Your NetBox data is kept for next time. To wipe it too, add `--volumes` to the `
 The grader is what will score AI models: it looks at the lab after an attempt and checks, one by one, whether the
 task was done, and if not, why. You can try it now by doing a task yourself. With the lab running (see above):
 
-**1. Start the demo task.** It prints the instructions an AI model would get.
+**1. Start a task.** It prints the instructions an AI model would get.
 
 ```bash
-uv run stick task start demo-frr-config-retrieval --tasks-dir tests/fixtures/tasks
+uv run stick task start running-config-cli-frr
 ```
 
-The task: save frr1's complete running config to a file. Before you start, it puts a random interface description
-on frr1 (a "canary"), so a made-up or memorised config can't pass.
+The task: save frr2's complete running config to a file. Before you start, it puts a random interface description
+on frr2 (a "canary"), so a made-up or memorised config can't pass.
 
-**2. Do the task.** Copy the run folder name from the output (`runs/demo-frr-config-retrieval-...`):
+**2. Do the task.** Copy the run folder name from the output (`runs/running-config-cli-frr-...`):
 
 ```bash
-ssh admin@clab-stick-base-frr1 "show running-config" > runs/<run folder>/work/frr1.cfg    # password: admin
+ssh admin@clab-stick-base-frr2 "show running-config" > runs/<run folder>/work/frr2.cfg    # password: admin
 ```
 
 **3. Grade it.**
@@ -200,10 +201,12 @@ uv run stick grade
 You'll see each check with `pass` or `fail`, and an overall result (`pass`, `partial` or `fail`). The full details go
 into `result.json` in the run folder.
 
-**4. Now fail on purpose** and grade again: delete half of the lines in `frr1.cfg`, or add a line that isn't on the
+**4. Now fail on purpose** and grade again: delete half of the lines in `frr2.cfg`, or add a line that isn't on the
 router. The grader tells you what's missing or invented (`truncated-output`, `hallucinated-value`).
 
-How grading works, all the checks and how to write your own: [docs/grading.md](docs/grading.md).
+**5. Try a harder one.** `uv run stick task list` shows all seven tasks, from saving a config to comparing CLI,
+NETCONF and Oxidized. What each one tests: [docs/tasks.md](docs/tasks.md). How grading works and how to write your
+own checks: [docs/grading.md](docs/grading.md).
 
 ## Cheat sheet
 
@@ -241,20 +244,21 @@ The project checks itself with automated tests. There are two kinds.
 uv run pytest
 ```
 
-These check the code and configuration files. The last line should look like `75 passed, 21 deselected`
+These check the code and configuration files. The last line should look like `84 passed, 28 deselected`
 ("deselected" are the lab tests below, which are skipped by default).
 
-### Lab tests (about 3 minutes, more the first time)
+### Lab tests (about 5 minutes, more the first time)
 
 These build the real lab, start NetBox and Oxidized, and check that everything works: BGP comes up, hosts can ping
 each other, NetBox has its starting data and resets correctly, Oxidized backs up every router, and so on.
 
 ```bash
+sudo apt install sshpass         # once: the NETCONF task checks use it
 uv run stick image build frr     # only needed once, or after updating the code
 uv run pytest -m lab -v
 ```
 
-Each test prints `PASSED` or `FAILED` as it runs; the last line is the summary, for example `21 passed`. The first
+Each test prints `PASSED` or `FAILED` as it runs; the last line is the summary, for example `28 passed`. The first
 run takes longer because of image downloads and NetBox's first start.
 
 To test just one area, name its file:
@@ -264,6 +268,7 @@ uv run pytest -m lab -v tests/integration/test_base_lab.py   # the lab itself
 uv run pytest -m lab -v tests/integration/test_netbox.py     # NetBox
 uv run pytest -m lab -v tests/integration/test_oxidized.py   # Oxidized
 uv run pytest -m lab -v tests/integration/test_grading_lab.py # the grader
+uv run pytest -m lab -v tests/integration/test_tasks_lab.py   # every task can be solved, and can't be faked
 ```
 
 > **Note:** the lab tests redeploy the lab from scratch and reset NetBox and Oxidized to their starting state, so
@@ -308,7 +313,7 @@ model on my own machine and compare it to a frontier model".
 ## Roadmap
 
 1. ~~**Grader**~~: done. Checks the lab after an attempt and reports what went wrong ([docs/grading.md](docs/grading.md)).
-2. **First tasks**: retrieving router configs over the CLI and NETCONF, and checking them against Oxidized.
+2. ~~**First tasks**~~: done. Seven config-retrieval tasks over CLI and NETCONF ([docs/tasks.md](docs/tasks.md)).
 3. **Running models**: connect local models (Ollama, LM Studio, vLLM) and paid ones, and compare them.
 4. **More tools**: Nautobot, Gitea, syslog, telemetry, DNS/DHCP, LibreNMS, Zabbix, SuzieQ, Batfish.
 

@@ -133,9 +133,11 @@ def json_file_matches(ctx: GradeContext, path: str, expected: dict[str, Any]) ->
 
 
 def _normalise_json(value: Any) -> Any:
-    """Compare loosely: numbers vs numeric strings and list order don't matter."""
+    """Compare loosely: numbers vs numeric strings, list order and key order don't matter."""
+    if isinstance(value, dict):
+        return {str(k): _normalise_json(v) for k, v in sorted(value.items(), key=lambda kv: str(kv[0]))}
     if isinstance(value, list):
-        return sorted(str(_normalise_json(v)) for v in value)
+        return sorted((_normalise_json(v) for v in value), key=lambda v: json.dumps(v, sort_keys=True))
     if isinstance(value, bool) or value is None:
         return value
     return str(value).strip()

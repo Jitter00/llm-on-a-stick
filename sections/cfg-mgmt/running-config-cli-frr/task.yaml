@@ -1,0 +1,30 @@
+id: running-config-cli-frr
+section: cfg-mgmt
+title: Save an FRR router's full running config (CLI)
+tier: basic
+tags: [vendor:frr, iface:cli, skill:config-retrieval]
+prompt: |
+  The router frr2 runs FRRouting. You can reach it over SSH at {{ nodes.frr2.mgmt_ip }} (user admin, password admin).
+
+  Save frr2's complete running configuration, exactly as the router displays it, to the file:
+    {{ workspace }}/frr2.cfg
+
+  Do not change any configuration on any device.
+requires:
+  devices: [frr2]
+canaries:
+  host_desc: description
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: file_matches_running_config
+    name: frr2.cfg is frr2's complete running config
+    params: {node: frr2, path: frr2.cfg}
+    weight: 3
+  - type: file_contains
+    name: includes this run's interface description
+    params: {path: frr2.cfg, lines: ["description {{ canaries.host_desc }}"]}
+  - type: no_change_outside
+    name: no configuration was changed
+    params: {allowed: []}
+limits: {turns: 20}

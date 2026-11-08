@@ -51,6 +51,8 @@ jobs:
       - run: uv sync --locked
       - name: Install containerlab
         run: bash -c "$(curl -sL https://get.containerlab.dev)" -- --version "$CONTAINERLAB_VERSION"
+      - name: Install sshpass (the NETCONF task oracles use it)
+        run: sudo apt-get install -y --no-install-recommends sshpass
       - name: Build stick-frr
         run: uv run stick image build frr
       - name: stick doctor
