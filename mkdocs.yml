@@ -8,6 +8,7 @@ theme:
 nav:
   - Home: index.md
   - Services: services.md
+  - Grading: grading.md
   - Platforms: platforms.md
   - Compatibility: compatibility.md
 markdown_extensions:

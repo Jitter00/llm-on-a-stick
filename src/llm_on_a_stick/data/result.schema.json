@@ -1,0 +1,166 @@
+{
+  "$defs": {
+    "CheckResult": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "title": "Type",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "pass",
+            "fail",
+            "error"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "weight": {
+          "default": 1.0,
+          "title": "Weight",
+          "type": "number"
+        },
+        "message": {
+          "default": "",
+          "title": "Message",
+          "type": "string"
+        },
+        "expected": {
+          "default": null,
+          "title": "Expected"
+        },
+        "observed": {
+          "default": null,
+          "title": "Observed"
+        },
+        "hints": {
+          "items": {
+            "enum": [
+              "no-output",
+              "truncated-output",
+              "hallucinated-value",
+              "wrong-format",
+              "incomplete-config",
+              "wrong-config",
+              "collateral-change",
+              "missing-object",
+              "env-error"
+            ],
+            "type": "string"
+          },
+          "title": "Hints",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "type",
+        "status"
+      ],
+      "title": "CheckResult",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "schema_version": {
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "task_id": {
+      "title": "Task Id",
+      "type": "string"
+    },
+    "run_id": {
+      "title": "Run Id",
+      "type": "string"
+    },
+    "stick_version": {
+      "title": "Stick Version",
+      "type": "string"
+    },
+    "started_at": {
+      "format": "date-time",
+      "title": "Started At",
+      "type": "string"
+    },
+    "graded_at": {
+      "format": "date-time",
+      "title": "Graded At",
+      "type": "string"
+    },
+    "outcome": {
+      "enum": [
+        "pass",
+        "partial",
+        "fail",
+        "error"
+      ],
+      "title": "Outcome",
+      "type": "string"
+    },
+    "score": {
+      "description": "Weighted share of checks that passed (errors excluded).",
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Score",
+      "type": "number"
+    },
+    "checks": {
+      "items": {
+        "$ref": "#/$defs/CheckResult"
+      },
+      "title": "Checks",
+      "type": "array"
+    },
+    "failure_hints": {
+      "description": "Union of all check hints.",
+      "items": {
+        "enum": [
+          "no-output",
+          "truncated-output",
+          "hallucinated-value",
+          "wrong-format",
+          "incomplete-config",
+          "wrong-config",
+          "collateral-change",
+          "missing-object",
+          "env-error"
+        ],
+        "type": "string"
+      },
+      "title": "Failure Hints",
+      "type": "array"
+    },
+    "canaries": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Canaries",
+      "type": "object"
+    },
+    "metrics": {
+      "additionalProperties": true,
+      "description": "Filled in by the runner: tokens, cost, wall time, turns, tool calls.",
+      "title": "Metrics",
+      "type": "object"
+    }
+  },
+  "required": [
+    "task_id",
+    "run_id",
+    "stick_version",
+    "started_at",
+    "graded_at",
+    "outcome",
+    "score",
+    "checks"
+  ],
+  "title": "Result",
+  "type": "object",
+  "$id": "https://github.com/Jitter00/llm-on-a-stick/schemas/result.schema.json"
+}

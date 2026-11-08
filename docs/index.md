@@ -6,8 +6,8 @@ A free, open-source benchmark that tests how well AI models handle real network 
 network that runs on your own machine. It reports *why* a model fails, not just a score.
 
 !!! note "Status"
-    Early days. The virtual lab, the `stick` command, NetBox and Oxidized work and are covered by automated tests.
-    The AI benchmark tasks come next.
+    Early days. The virtual lab, the `stick` command, NetBox, Oxidized and the grader work and are covered by
+    automated tests. The real benchmark tasks and model runner come next.
 
 **New here?** The [README](https://github.com/Jitter00/llm-on-a-stick#readme) walks you through installing Docker,
 containerlab and uv step by step, and has a troubleshooting table.
@@ -51,4 +51,12 @@ uv run pytest            # quick tests, a few seconds, no lab needed
 uv run pytest -m lab -v  # lab tests: builds the lab, starts NetBox and Oxidized (~3 min)
 ```
 
-More: [Services](services.md) · [Platforms](platforms.md) · [Compatibility](compatibility.md)
+## Try the grader
+
+```bash
+uv run stick task start demo-frr-config-retrieval --tasks-dir tests/fixtures/tasks
+ssh admin@clab-stick-base-frr1 "show running-config" > runs/<run folder>/work/frr1.cfg
+uv run stick grade
+```
+
+More: [Grading](grading.md) · [Services](services.md) · [Platforms](platforms.md) · [Compatibility](compatibility.md)

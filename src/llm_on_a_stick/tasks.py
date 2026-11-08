@@ -1,4 +1,4 @@
-"""Task discovery and schema validation (`stick task lint`)."""
+"""Task discovery, schema validation (`stick task lint`) and loading."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ from typing import Any
 
 import yaml
 from jsonschema import Draft202012Validator
+from pydantic import BaseModel, Field
 
 
 @dataclass
@@ -61,3 +62,62 @@ def lint_file(path: Path) -> list[LintError]:
 def lint(roots: Iterable[Path]) -> tuple[list[Path], list[LintError]]:
     files_ = discover(roots)
     return files_, [e for f in files_ for e in lint_file(f)]
+
+
+# --------------------------------------------------------------------------- loading
+
+
+class TaskError(RuntimeError):
+    pass
+
+
+class CheckSpec(BaseModel):
+    type: str
+    name: str | None = None
+    params: dict[str, Any] = Field(default_factory=dict)
+    weight: float = 1.0
+
+    @property
+    def label(self) -> str:
+        return self.name or self.type
+
+
+class Task(BaseModel):
+    id: str
+    section: str
+    title: str
+    tier: str
+    prompt: str
+    checks: list[CheckSpec]
+    tags: list[str] = Field(default_factory=list)
+    topology: str = "base"
+    requires: dict[str, Any] = Field(default_factory=dict)
+    canaries: dict[str, str] = Field(default_factory=dict)
+    setup: str | None = None
+    oracle: str | None = None
+    allowed_changes: list[str] = Field(default_factory=list)
+    limits: dict[str, int] = Field(default_factory=dict)
+    directory: Path = Path()
+
+
+def load_task(path: Path) -> Task:
+    """Load and validate a task.yaml (or a task directory)."""
+    path = path / "task.yaml" if path.is_dir() else path
+    errors = lint_file(path)
+    if errors:
+        raise TaskError("; ".join(f"{e.path}: {e.message}" for e in errors))
+    task = Task.model_validate(yaml.safe_load(path.read_text(encoding="utf-8")))
+    task.directory = path.parent.resolve()
+    return task
+
+
+def find_task(ref: str, roots: Iterable[Path]) -> Task:
+    """`ref` is a task id (searched under `roots`) or a path to a task dir / task.yaml."""
+    candidate = Path(ref)
+    if candidate.exists():
+        return load_task(candidate)
+    for path in discover(roots):
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+        if isinstance(data, dict) and data.get("id") == ref:
+            return load_task(path)
+    raise TaskError(f"task {ref!r} not found (searched: {', '.join(str(r) for r in roots)})")

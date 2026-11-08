@@ -26,9 +26,15 @@ Items are roughly in order; dependencies are noted. Tick items off in the PR tha
 ## Next up (agreed order: first end-to-end result before the full tool stack)
 
 1. [x] **Oxidized** (the one service the first tasks depend on).
-2. [ ] **Check library + `result.json` + `stick grade`** (Phase 1 items below).
+2. [x] **Check library + `result.json` + `stick grade`**: `stick task start` / `stick grade`, 9 built-in checks,
+      canaries, failure hints, `result.json` + JSON schema ([docs/grading.md](docs/grading.md)).
 3. [ ] **cfg-mgmt config retrieval tasks** (Phase 2 item below): CLI and NETCONF on SR Linux and FRR, Oxidized for consistency.
 4. [ ] **Runner integration** (Phase 1 item below), giving the first local-vs-frontier comparison.
+5. [ ] **LLM judge** (only for what code can't grade; policy in [docs/grading.md](docs/grading.md#grading-policy-code-first)):
+      new check type `llm_judge` (`artifact`, `rubric`, `reference`, `scale`); `stick grade --judge-model`, refused if it's
+      the tested model; judge scores in their own `result.json` section with model/version/agreement, never mixed into
+      `score`; per-check `graded_by: code | judge`; `not-graded` when no judge is configured; a small human-graded
+      calibration set. Before that, add transcript-based code checks (e.g. `no-verification`).
 
 Then return to the rest of Phase 0 (Nautobot first).
 
@@ -63,18 +69,19 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
 
 ## Phase 1: grading and runner
 
-- [ ] **Check library** (`src/llm_on_a_stick/checks/`): `bgp_session`, `interface_ip`, `running_config_contains`,
-      `file_matches_running_config` (normalised diff), `netbox_object`, `dns_record`, `oxidized_has_backup`,
-      `no_change_outside` (config diff limited to allowed devices). Read state via gNMI / native JSON CLI, not pyATS.
-- [ ] **Canary values.** Random ASNs, IPs and descriptions seeded per run and rendered into task prompts, so invented or
+- [x] **Check library** (`src/llm_on_a_stick/grading/checks/`): `file_exists`, `file_contains`,
+      `file_matches_running_config`, `json_file_matches`, `running_config_contains`, `bgp_session`, `no_change_outside`,
+      `oxidized_has_backup`, `netbox_object`; plugin entry points. State is read via native JSON CLI over `docker exec`.
+- [ ] More checks as tasks need them: `interface_ip`, `dns_record` (with PowerDNS), NETCONF-specific checks, gNMI-based reads.
+- [x] **Canary values.** Random ASNs, IPs and descriptions seeded per run and rendered into task prompts, so invented or
       memorised answers fail.
-- [ ] **`result.json` schema + `stick grade <task>`.** Grades whatever state the lab is in (this is also the BYO-agent mode).
+- [x] **`result.json` schema + `stick grade <task>`.** Grades whatever state the lab is in (this is also the BYO-agent mode).
 - [ ] **Failure classifier** (`classify.py`): transcript plus device responses → `cli-syntax`, `wrong-dialect`,
       `netconf-rpc-error`, `hallucinated-api`, `hallucinated-value`, `truncated-output`, `incomplete-config`, `wrong-config`,
       `collateral-change`, `no-verification`, `loop`, `gave-up`, `limit-exceeded`, `env-error` (excluded from scores).
 - [ ] **Runner integration.** Decide on Inspect AI (leading candidate) vs our own; models via Ollama/vLLM/LM Studio and
       API providers; tools = SSH/API/MCP to the lab. Record tokens, cost, wall time, turns and peak context.
-- [ ] **Judge model** (`--judge-model`). Optional failure narratives; never the model under test by default.
+- [ ] **Judge model** (`--judge-model`): see "Next up" item 5 and the grading policy in docs/grading.md.
 - [ ] **Report.** HTML + JSON capability profile per model: by section, tag and failure class.
 
 ## Phase 2: tasks, user tests, variants, scheduler
@@ -116,3 +123,7 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
   "reload continuously", not "never". Named volumes are root-owned, so mount them under `~/.config/oxidized`, which the
   image chowns at start. `rest:` is deprecated; use `extensions.oxidized-web`.
 - stick-frr: without `/etc/frr/vtysh.conf`, every non-root vtysh session printed two warning lines first; the entrypoint now creates it.
+- SR Linux: `sr_cli -ed "set ..."` does NOT commit; use `sr_cli -ec` (candidate mode, commit at end).
+- The grader reads state via `docker exec` (sr_cli / vtysh); verified byte-identical to what SSH returns.
+- The credential-guard hook matches the text `llm_on_a_stick.env` (our env module) as a `.env` file; put such
+  edits in a scratchpad script instead of an inline shell command.

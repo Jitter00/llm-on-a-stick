@@ -1,0 +1,29 @@
+# Demo task used by the grader tests (the real tasks live under sections/).
+id: demo-frr-config-retrieval
+section: cfg-mgmt
+title: Save frr1's running configuration to a file
+tier: basic
+tags: [vendor:frr, iface:cli]
+prompt: |
+  Log in to the router frr1 (management IP {{ nodes.frr1.mgmt_ip }}, user admin, password admin) and save its
+  complete running configuration, exactly as the router shows it, to {{ workspace }}/frr1.cfg.
+  Do not change any configuration.
+canaries:
+  host_desc: description
+setup: setup.sh
+checks:
+  - type: file_matches_running_config
+    name: frr1.cfg is frr1's running config
+    params: {node: frr1, path: frr1.cfg}
+    weight: 3
+  - type: file_contains
+    name: includes the canary description
+    params: {path: frr1.cfg, lines: ["description {{ canaries.host_desc }}"]}
+  - type: bgp_session
+    name: frr1 still peers with srl1
+    params: {node: frr1, peer: 10.0.1.0}
+  - type: no_change_outside
+    name: nothing was changed
+    params: {allowed: []}
+allowed_changes: []
+limits: {turns: 20}
