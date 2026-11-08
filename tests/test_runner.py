@@ -283,7 +283,7 @@ def test_shorten_keeps_head_and_tail() -> None:
     text = "".join(f"line {i}\n" for i in range(5000))
     short = toolbox.shorten(text, 1000)
     assert short.startswith("line 0\n") and short.endswith("line 4999\n")
-    assert "characters omitted" in short and len(short) < 1200
+    assert "characters omitted. Save long output to a file" in short and len(short) < 1200
     assert toolbox.shorten("small", 1000) == "small"
 
 
@@ -519,6 +519,9 @@ def test_prompt_names_the_short_workdir_and_sampling_is_recorded(demo: Any, tmp_
     assert "/work/frr1.cfg" in info.prompt and str(info.workspace) not in info.prompt
     start = json.loads((info.run_dir / "transcript.jsonl").read_text().splitlines()[0])
     assert "Your working directory is /work" in start["system"]
+    assert "at most 4000 characters of each command's output" in start["system"]
+    assert len(start["system"].split()) < 150  # re-read on every turn: keep it short
+    assert result.metrics["limits"]["max_output_chars"] == 4000
     assert result.metrics["sampling"] == {"temperature": 0.0}
     assert result.metrics["system_prompt_version"] == loop.SYSTEM_PROMPT_VERSION
 

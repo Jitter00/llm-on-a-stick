@@ -43,8 +43,9 @@ API keys are only read from the environment. They are never written to the run f
 ## What the model gets
 
 - **System prompt** (the same for every model, versioned as `system_prompt_version` in the metrics): it's a network
-  engineer in a lab with one tool; its working directory is `/work`; commands have no terminal; long output is
-  shortened; only what the task asks it to produce is checked, not its reply.
+  engineer in a lab with one tool; its working directory is `/work`; commands have no terminal; it sees at most
+  4,000 characters of each command's output; only what the task asks it to produce is checked, not its reply.
+  It is kept short on purpose (see [Keeping the input small](#keeping-the-input-small)).
 - **The task's prompt**, with this run's addresses, file paths and canaries filled in. Paths in the workspace are
   written `/work/...`: short, so a model can't fail a task by mistyping a long folder name.
 - **One tool, `run_command`**, which runs a bash command in the **toolbox** container: `ssh`, `sshpass`, `curl`,
@@ -55,6 +56,23 @@ API keys are only read from the environment. They are never written to the run f
 The model never runs anything on your machine itself. The toolbox image is built automatically the first time
 (`uv run stick image build toolbox` builds it by hand).
 
+### Keeping the input small
+
+Most models tested here run locally, where reading the prompt is a large part of the time: every turn re-sends
+the whole conversation, so one long command output is paid for again on every later turn. In the first
+comparison (7 cfg-mgmt tasks × 3 attempts), Strata's deepseek-v4.1-flash read 4 million tokens and wrote 0.1
+million. So the input is kept to what a task needs:
+
+- a short system prompt (about 130 words) and short task prompts;
+- at most 4,000 characters of each command's output. The model is told so, and is told to save long output to a
+  file and read it in parts with `grep`, `head` or `sed -n`. Tasks are written so that nothing needs more: big
+  outputs (a full NETCONF reply is ~300 KB) go to files and are graded there;
+- the model's reasoning isn't sent back to OpenAI-compatible servers on the next turn (Anthropic's API requires
+  its thinking blocks back, and handles them itself).
+
+Earlier turns are never shortened or dropped afterwards: the conversation only grows at the end, so servers
+that cache the prompt (llama.cpp, Strata, Ollama, Anthropic) re-read only the new part on each turn.
+
 ## Limits
 
 | Limit | Default | Change it with |
@@ -63,7 +81,7 @@ The model never runs anything on your machine itself. The toolbox image is built
 | Time for the whole attempt (**safety net only**) | 1 hour (or the task's `limits.time_s`, if larger) | `--timeout` |
 | Tokens (read + written) | the task's `limits.tokens`, else none | task.yaml |
 | One command | 60 s | `--cmd-timeout` |
-| Output the model sees per command | 16,000 characters (head and tail kept, the gap marked) | `Settings.max_output_chars` |
+| Output the model sees per command | 4,000 characters, about 1,000 tokens (head and tail kept, the gap marked) | `Settings.max_output_chars` |
 | RAM kept free for your system | 2048 MiB: below it an attempt waits up to a minute, then stops (`low_memory`, not counted against the model) | `--min-free-ram` (0 = off) |
 
 **The turns are the limit.** Time depends on your hardware: the same model passes on a fast GPU and runs out of

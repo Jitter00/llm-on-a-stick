@@ -43,8 +43,8 @@ def shorten(text: str, limit: int) -> str:
     head, tail = int(limit * 0.75), int(limit * 0.25)
     omitted = len(text) - head - tail
     return (
-        f"{text[:head]}\n[... {omitted} characters omitted: write long output to a file and read it in"
-        f" parts ...]\n{text[-tail:]}"
+        f"{text[:head]}\n[... {omitted} characters omitted. Save long output to a file and read it with grep,"
+        f" head or sed -n ...]\n{text[-tail:]}"
     )
 
 
@@ -64,7 +64,7 @@ WORKDIR = "/work"
 
 
 class Toolbox:
-    def __init__(self, workspace: Path, name: str, max_output: int = 16000) -> None:
+    def __init__(self, workspace: Path, name: str, max_output: int = 4000) -> None:
         self.workspace = workspace.resolve()
         self.name = name
         self.max_output = max_output

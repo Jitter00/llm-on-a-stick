@@ -40,19 +40,19 @@ from llm_on_a_stick.runner.models import (
 from llm_on_a_stick.tasks import Task
 
 # Version 2: the workspace is /work (not a long host path), and the reply is said not to be graded.
-SYSTEM_PROMPT_VERSION = 2
+# Version 3: shorter (every token is re-read on every turn, which is slow for local models); command output
+# is capped at 4000 characters (was 16000).
+SYSTEM_PROMPT_VERSION = 3
 SYSTEM_PROMPT = """\
-You are a network engineer working in a lab. You have one tool, run_command, which runs a bash command in a \
-Linux toolbox machine on the lab's management network. It has ssh, sshpass, curl, jq, python3 with ncclient, \
-and netconf-console2. Your working directory is {workdir}: files the task asks for go there.
+You are a network engineer in a lab. Your one tool, run_command, runs a bash command (no terminal, \
+{cmd_timeout}s timeout) on a Linux toolbox on the lab's management network, with ssh, sshpass, curl, jq, \
+python3 + ncclient and netconf-console2. Your working directory is {workdir}.
 
-- Commands run without a terminal: nothing can prompt you for input, so pass passwords and commands as \
-arguments.
-- Each command times out after {cmd_timeout} seconds. Long output is shortened in what you see, so write \
-large \
-outputs to files.
-- Only do what the task asks. Only what the task asks you to produce is checked (files, device \
-configuration), not your reply. When you have finished, reply with a short summary and no tool call.
+- Nothing can prompt you for input: pass passwords and commands as arguments.
+- You see at most {max_output} characters of each command's output: save long output to a file and read \
+it with grep, head or sed -n.
+- Do only what the task asks. Only what it asks you to produce (files, device configuration) is checked, \
+not your reply. When done, reply with a short summary and no tool call.
 """
 
 # One nudge per attempt, the same for every model, when a reply is cut off without a tool call (it hit
@@ -99,7 +99,7 @@ class Settings:
     timeout_s: int | None = None
     max_tokens: int | None = None  # total tokens read+written; default: the task's limits.tokens (no limit)
     cmd_timeout_s: int = 60
-    max_output_chars: int = 16000
+    max_output_chars: int = 4000  # ~1000 tokens, kept in the context for the rest of the attempt
     seed: int | None = None
     min_free_ram_mb: int = 2048  # keep this much RAM for the system; 0 turns the guard off
 
@@ -281,7 +281,9 @@ def run_task(
     m.sampling = dict(getattr(client, "sampling", {}))
     m.sampling_source = str(getattr(client, "sampling_source", ""))
     tr = Transcript(info.run_dir / "transcript.jsonl")
-    system = SYSTEM_PROMPT.format(cmd_timeout=s.cmd_timeout_s, workdir=toolbox_mod.WORKDIR)
+    system = SYSTEM_PROMPT.format(
+        cmd_timeout=s.cmd_timeout_s, workdir=toolbox_mod.WORKDIR, max_output=s.max_output_chars
+    )
     tr.write("start", model=spec.spec, task=task.id, system=system, prompt=info.prompt, limits=m.limits)
 
     t0 = time.monotonic()
