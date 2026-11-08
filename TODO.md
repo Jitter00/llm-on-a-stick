@@ -30,7 +30,10 @@ Items are roughly in order; dependencies are noted. Tick items off in the PR tha
       canaries, failure hints, `result.json` + JSON schema ([docs/grading.md](docs/grading.md)).
 3. [x] **cfg-mgmt config retrieval tasks**: 7 tasks (CLI + NETCONF, SR Linux + FRR, Oxidized consistency), each with
       canaries, an oracle and `stick task validate` (oracle passes, doing nothing fails); validated in CI.
-4. [ ] **Runner integration** (Phase 1 item below), giving the first local-vs-frontier comparison.
+4. [x] **Runner integration**: `stick run` / `stick report` ([docs/runner.md](docs/runner.md)). Own thin loop (not
+      Inspect AI): OpenAI-compatible servers (Ollama, LM Studio, vLLM, llama.cpp, Strata, OpenAI, OpenRouter) and the
+      Anthropic SDK; one `run_command` tool in a toolbox container; transcript, tokens, cost, time, turns, peak context.
+      Next: first real comparison (Strata vs Ollama) on the 7 cfg-mgmt tasks.
 5. [ ] **LLM judge** (only for what code can't grade; policy in [docs/grading.md](docs/grading.md#grading-policy-code-first)):
       new check type `llm_judge` (`artifact`, `rubric`, `reference`, `scale`); `stick grade --judge-model`, refused if it's
       the tested model; judge scores in their own `result.json` section with model/version/agreement, never mixed into
@@ -80,10 +83,14 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
 - [ ] **Failure classifier** (`classify.py`): transcript plus device responses → `cli-syntax`, `wrong-dialect`,
       `netconf-rpc-error`, `hallucinated-api`, `hallucinated-value`, `truncated-output`, `incomplete-config`, `wrong-config`,
       `collateral-change`, `no-verification`, `loop`, `gave-up`, `limit-exceeded`, `env-error` (excluded from scores).
-- [ ] **Runner integration.** Decide on Inspect AI (leading candidate) vs our own; models via Ollama/vLLM/LM Studio and
-      API providers; tools = SSH/API/MCP to the lab. Record tokens, cost, wall time, turns and peak context.
+- [x] **Runner integration** (`src/llm_on_a_stick/runner/`): own loop, see docs/runner.md.
+- [ ] Runner follow-ups: scheduler (parallel *lab work* only: **never run several local models at the same time**;
+      local models always go one after another, and API models may run in parallel), publish `stick-toolbox` to GHCR, Inspect-format log export,
+      optional MCP/structured tools as a variant (`--tools mcp`), context-window variants (`--num-ctx`), streaming for
+      long Anthropic turns, macOS support for the toolbox.
 - [ ] **Judge model** (`--judge-model`): see "Next up" item 5 and the grading policy in docs/grading.md.
-- [ ] **Report.** HTML + JSON capability profile per model: by section, tag and failure class.
+- [ ] **Report.** `stick report` (table/md/json per model and attempt) exists; next: HTML, and breakdowns by section,
+      tag and failure class.
 
 ## Phase 2: tasks, user tests, variants, scheduler
 

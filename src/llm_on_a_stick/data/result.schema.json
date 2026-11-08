@@ -49,7 +49,18 @@
               "wrong-config",
               "collateral-change",
               "missing-object",
-              "env-error"
+              "env-error",
+              "max-turns",
+              "timeout",
+              "model-error",
+              "refusal",
+              "tool-call-error",
+              "no-tool-use",
+              "output-limit",
+              "repetition-loop",
+              "empty-reply",
+              "context-full",
+              "answer-in-reply"
             ],
             "type": "string"
           },
@@ -131,7 +142,18 @@
           "wrong-config",
           "collateral-change",
           "missing-object",
-          "env-error"
+          "env-error",
+          "max-turns",
+          "timeout",
+          "model-error",
+          "refusal",
+          "tool-call-error",
+          "no-tool-use",
+          "output-limit",
+          "repetition-loop",
+          "empty-reply",
+          "context-full",
+          "answer-in-reply"
         ],
         "type": "string"
       },

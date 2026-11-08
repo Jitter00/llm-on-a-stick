@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 from rich.console import Console
@@ -375,3 +375,195 @@ def svc_snapshot(names: ServiceNames) -> None:
             err.print(f"[red]{exc}[/]")
             raise typer.Exit(1) from exc
         console.print(f"[green]snapshot taken[/] {spec.name}")
+
+
+# --------------------------------------------------------------------------- runner
+
+
+def _select_tasks(
+    refs: list[str] | None, sections: list[str] | None, all_: bool, roots: list[Path]
+) -> list[tasks.Task]:
+    if refs:
+        return [tasks.find_task(r, roots) for r in refs]
+    if not (sections or all_):
+        raise tasks.TaskError("say which tasks: task ids, --section <name> or --all")
+    found = [tasks.load_task(p) for p in tasks.discover(roots)]
+    return [t for t in found if all_ or t.section in (sections or [])]
+
+
+@app.command("run")
+def run_cmd(
+    task_refs: Annotated[list[str] | None, typer.Argument(help="Task ids or paths.")] = None,
+    model: Annotated[
+        list[str],
+        typer.Option(
+            "--model",
+            "-m",
+            help="provider/model, e.g. ollama/qwen3:14b, strata/<model>, anthropic/claude-sonnet-5-5. "
+            "Repeatable.",
+        ),
+    ] = [],  # noqa: B006 (typer reads the default; it is never mutated)
+    section: Annotated[
+        list[str] | None, typer.Option("--section", "-s", help="Run every task in a section.")
+    ] = None,
+    all_: Annotated[bool, typer.Option("--all", help="Run every task.")] = False,
+    repeat: Annotated[int, typer.Option(min=1, help="Attempts per model and task.")] = 1,
+    base_url: Annotated[
+        str | None,
+        typer.Option(help="Server address for OpenAI-compatible models, e.g. http://127.0.0.1:9000/v1."),
+    ] = None,
+    max_turns: Annotated[int | None, typer.Option(help="Override the task's turn limit.")] = None,
+    timeout_s: Annotated[
+        int | None,
+        typer.Option(
+            "--timeout", help="Safety time limit per attempt (s); default 3600. The real limit is the turns."
+        ),
+    ] = None,
+    cmd_timeout: Annotated[int, typer.Option(help="Seconds before one command is stopped.")] = 60,
+    temperature: Annotated[
+        float | None,
+        typer.Option(
+            help="Sampling temperature for every model (OpenAI-compatible servers). Default: the model's "
+            "recommended settings from data/sampling.yaml, else 0."
+        ),
+    ] = None,
+    effort: Annotated[
+        str | None, typer.Option(help="Anthropic effort: low, medium, high, xhigh, max.")
+    ] = None,
+    min_free_ram: Annotated[
+        int,
+        typer.Option(
+            help="MiB of RAM to keep free for the system; attempts pause, then stop, below it (0 = off)."
+        ),
+    ] = 2048,
+    tasks_dir: TasksDirOpt = None,
+    runs_dir: RunsDirOpt = Path("runs"),
+    seed: Annotated[int | None, typer.Option(help="Seed for canary values.")] = None,
+) -> None:
+    """Let models attempt tasks in the lab, grade each attempt and compare. Needs the lab running."""
+    from llm_on_a_stick.runner import loop, models, report, toolbox
+
+    if not model:
+        err.print("[red]give at least one --model, e.g. --model ollama/qwen3:14b[/]")
+        raise typer.Exit(2)
+    try:
+        selected = _select_tasks(task_refs, section, all_, _task_roots(tasks_dir))
+        clients = [models.make_client(m, base_url, temperature, effort) for m in model]
+        local = [c.spec.spec for c in clients if c.spec.endpoint.local and c.spec.provider != "script"]
+        if len(local) > 1:
+            raise models.ModelError(
+                f"{', '.join(local)} are local models: run them one after another, never together "
+                "(they compete for the same GPU and RAM). One `stick run` per local model, stopping the "
+                "first model's server before the next; then `stick report` compares them."
+            )
+        for c in clients:
+            console.print(
+                f"checking {c.spec.spec} at {c.spec.base_url or c.spec.provider} ...", highlight=False
+            )
+            c.check()
+            if c.sampling:
+                shown = ", ".join(f"{k} {v}" for k, v in c.sampling.items() if v is not None) or "defaults"
+                console.print(f"  sampling: {shown} ({c.sampling_source})", highlight=False)
+        toolbox.ensure_image(console.print)
+    except (tasks.TaskError, models.ModelError, toolbox.ToolboxError, containerlab.ContainerlabError) as exc:
+        err.print(f"[red]{exc}[/]")
+        raise typer.Exit(2) from exc
+    if not selected:
+        err.print("[red]no tasks matched[/]")
+        raise typer.Exit(2)
+
+    free = loop.available_ram_mb()
+    if min_free_ram and free < min_free_ram:
+        err.print(
+            f"[red]only {free} MiB RAM available, below --min-free-ram {min_free_ram}. "
+            "Close something (or stop other model servers) first.[/]"
+        )
+        raise typer.Exit(2)
+    settings = loop.Settings(
+        max_turns=max_turns,
+        timeout_s=timeout_s,
+        cmd_timeout_s=cmd_timeout,
+        seed=seed,
+        min_free_ram_mb=min_free_ram,
+    )
+    style = {"pass": "green", "partial": "yellow", "fail": "red", "error": "magenta"}
+    done: list[Path] = []
+    errors = 0
+    for c in clients:  # model by model: one model's whole batch before the next
+        for t in selected:
+            lab = DockerLabState(t.topology)
+            for i in range(repeat):
+                attempt = f" (attempt {i + 1}/{repeat})" if repeat > 1 else ""
+                console.print(f"[bold]{t.id}[/] with {c.spec.spec}{attempt}", highlight=False)
+                try:
+                    info, result, m = loop.run_task(t, c, lab, runs_dir, settings, log=console.print)
+                except (run_mod.RunError, LabStateError, TemplateError, toolbox.ToolboxError) as exc:
+                    err.print(f"  [red]{exc}[/]")
+                    errors += 1
+                    continue
+                done.append(info.run_dir)
+                hints = f" [dim]({', '.join(result.failure_hints)})[/]" if result.failure_hints else ""
+                console.print(
+                    f"  [{style[result.outcome]}]{result.outcome}[/] score {result.score:.2f}, "
+                    f"{m.turns} turns, "
+                    f"{m.tokens_in + m.tokens_out} tokens, {m.wall_s:.0f}s, stop: {m.stop_reason}{hints}",
+                    highlight=False,
+                )
+                console.print(f"  [dim]{info.run_dir}[/]", soft_wrap=True, highlight=False)
+    rows = report.collect(done)
+    if rows:
+        console.print()
+        _print_report(rows)
+    raise typer.Exit(1 if errors else 0)
+
+
+def _print_report(rows: list[Any]) -> None:
+    from llm_on_a_stick.runner import report
+
+    table = Table(
+        "model", "sampling", "runs", "passed", "mean score", "tokens", "cost", "mean time",
+        "most common problems",
+    )  # fmt: skip
+    for s in report.summarise(rows):
+        cost = "?" if s.cost_usd is None else f"${s.cost_usd:.4f}"
+        table.add_row(s.model, s.sampling or "-", str(s.runs), str(s.passed), f"{s.mean_score:.2f}",
+                      str(s.tokens), cost, f"{s.mean_wall_s}s", ", ".join(s.common_hints) or "-")  # fmt: skip
+    console.print(table)
+
+
+@app.command("report")
+def report_cmd(
+    paths_: Annotated[
+        list[Path] | None, typer.Argument(help="Run folders, or folders of runs (default: runs/).")
+    ] = None,
+    fmt: Annotated[str, typer.Option("--format", "-f", help="table, md or json.")] = "table",
+    task: Annotated[str | None, typer.Option(help="Only this task.")] = None,
+) -> None:
+    """Compare model runs: pass rate, score, tokens, cost, time and the most common problems."""
+    from llm_on_a_stick.runner import report
+
+    rows = report.collect(paths_ or [Path("runs")])
+    if task:
+        rows = [r for r in rows if r.task_id == task]
+    if not rows:
+        err.print("[yellow]no model runs found; start some with `stick run`[/]")
+        raise typer.Exit(1)
+    if fmt == "json":
+        console.print(report.to_json(rows), markup=False, highlight=False, soft_wrap=True)
+    elif fmt == "md":
+        console.print(report.to_markdown(rows), markup=False, highlight=False, soft_wrap=True)
+    else:
+        _print_report(rows)
+        style = {"pass": "green", "partial": "yellow", "fail": "red", "error": "magenta"}
+        table = Table("task", "model", "outcome", "score", "turns", "tokens in/out", "time", "problems")
+        for r in rows:
+            table.add_row(
+                r.task_id,
+                r.model,
+                f"[{style.get(r.outcome, 'white')}]{r.outcome}[/]",
+                f"{r.score:.2f}",
+                str(r.turns),
+                f"{r.tokens_in}/{r.tokens_out}",
+                f"{r.wall_s:.0f}s",
+                ", ".join(r.hints) or "-",
+            )

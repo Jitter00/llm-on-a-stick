@@ -16,6 +16,7 @@ from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Literal
+from urllib.parse import urlparse
 
 import psutil
 
@@ -203,16 +204,19 @@ def probe_kvm(dev: Path = Path("/dev/kvm")) -> bool:
     return dev.exists() and os.access(dev, os.R_OK | os.W_OK)
 
 
-def _ollama_base() -> str:
+def ollama_base() -> str:
     host = os.environ.get("OLLAMA_HOST", "127.0.0.1:11434")
     if not host.startswith(("http://", "https://")):
         host = "http://" + host.replace("0.0.0.0", "127.0.0.1")  # noqa: S104 (rewriting, not binding)
-    return host.rstrip("/")
+    host = host.rstrip("/")
+    if urlparse(host).port is None:  # like the ollama CLI: no port means 11434
+        host += ":11434"
+    return host
 
 
 def probe_model_servers(fetch: Fetcher = default_fetch) -> list[ModelServer]:
     found: list[ModelServer] = []
-    base = _ollama_base()
+    base = ollama_base()
     ps = fetch(f"{base}/api/ps", 2)
     if isinstance(ps, dict):
         server = ModelServer(name="ollama", url=base)
@@ -222,7 +226,14 @@ def probe_model_servers(fetch: Fetcher = default_fetch) -> list[ModelServer]:
             server.ram_mb += max(size - vram, 0) // MIB
             server.vram_mb += vram // MIB
         found.append(server)
-    for name, url in (("lm-studio", "http://127.0.0.1:1234"), ("openai-compatible", "http://127.0.0.1:8000")):
+    strata = (
+        os.environ.get("STICK_STRATA_BASE_URL", "http://127.0.0.1:8080/v1").rstrip("/").removesuffix("/v1")
+    )
+    for name, url in (
+        ("lm-studio", "http://127.0.0.1:1234"),
+        ("strata / llama.cpp", strata),
+        ("openai-compatible", "http://127.0.0.1:8000"),
+    ):
         models = fetch(f"{url}/v1/models", 2)
         if isinstance(models, dict) and isinstance(models.get("data"), list):
             found.append(

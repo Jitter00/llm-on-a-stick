@@ -25,3 +25,10 @@ currently loaded. Ollama loads models on demand, so if the model under test isn'
 ```bash
 uv run stick doctor --reserve-mb 20000   # keep ~20 GB free for the model
 ```
+
+## Running models (`stick run`)
+
+The toolbox container that runs a model's commands uses Docker host networking to reach the lab's management
+addresses. That works on Linux and WSL2. On macOS the lab addresses aren't reachable from the host, so `stick run` is
+not supported there yet; the model servers themselves (Ollama, LM Studio...) can still run on a Mac and be used from a
+Linux machine with `--base-url`.

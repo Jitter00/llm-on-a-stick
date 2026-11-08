@@ -106,7 +106,11 @@ def run_oracle(info: RunInfo, task: Task, lab: LabState) -> None:
     run_script(task, task.oracle, "oracle", info.run_dir, env)
 
 
-def start(task: Task, runs_dir: Path, lab: LabState, seed: int | None = None) -> RunInfo:
+def start(
+    task: Task, runs_dir: Path, lab: LabState, seed: int | None = None, workdir: str | None = None
+) -> RunInfo:
+    """Create the run folder, canaries, setup and baseline. `workdir`: the workspace path to show in the
+    prompt when the agent sees the workspace somewhere else (the runner's toolbox mounts it at /work)."""
     started = datetime.now(UTC)
     run_id = f"{task.id}-{started.strftime('%Y%m%dT%H%M%S%fZ')}"
     run_dir = (runs_dir / run_id).resolve()
@@ -114,7 +118,8 @@ def start(task: Task, runs_dir: Path, lab: LabState, seed: int | None = None) ->
     workspace.mkdir(parents=True)
 
     values = canary_mod.generate(task.canaries, seed)
-    prompt = render(task.prompt, template_vars(values, workspace, lab))  # fail early on unknown names
+    shown = Path(workdir) if workdir else workspace
+    prompt = render(task.prompt, template_vars(values, shown, lab))  # fail early on unknown names
     if task.setup:
         run_script(task, task.setup, "setup", run_dir, script_env(task, run_dir, workspace, values, lab))
 

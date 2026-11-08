@@ -101,7 +101,23 @@ Every failed check says what it expected, what it found, and gives one or more h
 | `missing-object` | An expected object wasn't found (NetBox object, Oxidized backup) |
 | `env-error` | The grader or lab failed; not counted against the model |
 
-More hints (wrong CLI dialect, loops, giving up...) come with the transcript analysis once the runner exists.
+`stick run` adds hints from the transcript ([Running models](runner.md)):
+
+| Hint | Meaning |
+|---|---|
+| `max-turns` | The model was still working when it ran out of turns |
+| `timeout` | The attempt hit its token limit, or the 1-hour safety time limit (a hung server or a very slow machine) |
+| `model-error` | The model server failed (HTTP error, unreachable, no tool support) |
+| `refusal` | The model declined the task |
+| `tool-call-error` | Malformed tool calls: arguments that aren't JSON, an unknown tool |
+| `no-tool-use` | The model answered without running a single command |
+| `output-limit` | A reply hit the output-token cap; the model got one nudge to continue (see [Running models](runner.md#when-a-reply-is-cut-off-loops)) |
+| `repetition-loop` | The cut-off reply was the model repeating itself |
+| `empty-reply` | A reply with no text and no command; the model got one nudge to continue |
+| `context-full` | The conversation filled the model's context window; the attempt ended there |
+| `answer-in-reply` | No output, but the final reply quotes this attempt's canary: the answer was found, not delivered |
+
+More (wrong CLI dialect, giving up...) will come from analysing transcripts.
 
 ## Built-in checks
 

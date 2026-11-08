@@ -37,3 +37,11 @@ def test_doctor_json_exit_code(monkeypatch: pytest.MonkeyPatch) -> None:
     data = json.loads(result.stdout)
     assert data["ok"] is False
     assert data["docker"]["error"] == "no socket"
+
+
+def test_run_refuses_two_local_models() -> None:
+    res = runner.invoke(
+        cli.app, ["run", "running-config-cli-frr", "--model", "strata/a", "--model", "ollama/b"]
+    )
+    assert res.exit_code == 2
+    assert "one after another" in res.output

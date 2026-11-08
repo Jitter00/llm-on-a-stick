@@ -1,0 +1,10 @@
+# USD per million tokens, for `metrics.cost_usd`. Local servers (Ollama, LM Studio, vLLM, Strata, ...) cost 0.
+# Keys are model specs as given to `stick run --model`. Unknown API models get cost null: add them here.
+# Source: Anthropic API pricing (2026-10). Check your provider's current prices before relying on these.
+anthropic/claude-fable-5-1: {input: 10.00, output: 50.00}
+anthropic/claude-opus-5-5: {input: 4.00, output: 20.00}
+anthropic/claude-opus-5: {input: 5.00, output: 25.00}
+anthropic/claude-sonnet-5-5: {input: 2.00, output: 10.00}
+anthropic/claude-sonnet-5: {input: 2.00, output: 10.00}
+anthropic/claude-haiku-5-5: {input: 0.10, output: 0.50}
+anthropic/claude-haiku-4-5: {input: 1.00, output: 5.00}

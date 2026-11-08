@@ -1,0 +1,6 @@
+# A scripted "model" for `stick run --model script/<this file>`: the commands a correct agent runs.
+# Used by the lab test to prove the runner, the toolbox and the task work together.
+commands:
+  - sshpass -p admin ssh admin@{{ nodes.frr2.mgmt_ip }} "show running-config" > {{ workspace }}/frr2.cfg
+  - wc -l {{ workspace }}/frr2.cfg
+final: Saved frr2's running config.

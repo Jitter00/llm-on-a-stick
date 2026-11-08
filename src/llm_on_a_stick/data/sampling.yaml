@@ -1,0 +1,39 @@
+# Recommended sampling settings per model, used by `stick run` for OpenAI-compatible servers
+# (Ollama, Strata, LM Studio, vLLM, llama.cpp, OpenAI, OpenRouter...).
+#
+# - `match`: shell-style patterns (* ? [0-9]) tried against the model name, lower-cased: the part after
+#   `provider/` (e.g. `gemma4:26b` for `ollama/gemma4:26b`, `google/gemma-4-26b-it` for an OpenRouter model).
+#   The first entry that matches wins, so put specific entries before general ones.
+# - `temperature` (required) and `top_p` (optional) are sent with every request. Other settings (top_k,
+#   min_p...) aren't: not every server accepts them, so they stay at the server's / model's defaults.
+# - `source`: where the values come from, so they can be checked when the file is updated.
+#
+# A model that matches nothing runs at temperature 0. `--temperature` on the command line overrides this
+# file. Claude models (anthropic/...) take no temperature and ignore this file; use --effort.
+# What was used is recorded in each attempt's metrics (`sampling`, `sampling_source`).
+
+models:
+  - name: Gemma 4
+    match: ["gemma4*", "gemma-4*", "*/gemma-4*", "*/gemma4*"]  # all sizes (12b, 26b, ...)
+    temperature: 1.0
+    top_p: 0.95  # Google also gives top_k 64 (Ollama's gemma4 Modelfiles set it)
+    source: "Google's Gemma defaults (1.0 / 0.95 / top_k 64), as in Ollama's gemma4:12b and gemma4:26b
+      Modelfiles (checked 2026-11-08)"
+
+  - name: Gemma 3
+    match: ["gemma3*", "gemma-3*", "*/gemma-3*", "*/gemma3*"]
+    temperature: 1.0
+    top_p: 0.95
+    source: "Gemma team via LM Studio's Gemma 3 preset (1.0 / 0.95 / top_k 64)"
+
+  - name: DeepSeek V4
+    match: ["deepseek-v4*", "*/deepseek-v4*"]
+    temperature: 1.0
+    top_p: 0.95  # DeepSeek: 0.95 for agentic use (this benchmark), 1.0 otherwise
+    source: "https://unsloth.ai/docs/models/deepseek-v4"
+
+  - name: Qwen3 (original release; thinking mode)
+    match: ["qwen3:*", "qwen3-[0-9]*", "*/qwen3-[0-9]*"]  # not qwen3.5 / qwen3.6: they differ
+    temperature: 0.6
+    top_p: 0.95  # plus top_k 20; the model card warns against greedy decoding (temperature 0)
+    source: "Qwen3 model cards, best practices (thinking mode: 0.6 / 0.95 / top_k 20)"
