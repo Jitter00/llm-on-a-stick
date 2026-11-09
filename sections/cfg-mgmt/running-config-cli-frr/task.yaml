@@ -2,6 +2,7 @@ id: running-config-cli-frr
 section: cfg-mgmt
 title: Save an FRR router's full running config (CLI)
 tier: basic
+floor: true  # the section's cheap floor task: CI validates it on every shared-code change
 tags: [vendor:frr, iface:cli, skill:config-retrieval]
 prompt: |
   The router frr2 runs FRRouting. You can reach it over SSH at {{ nodes.frr2.mgmt_ip }} (user admin, password admin).

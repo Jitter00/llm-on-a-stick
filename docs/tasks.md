@@ -89,7 +89,8 @@ Each section (a tool such as `netbox`, or a group such as `cfg-mgmt`; the wider 
 
 - **No obvious tasks.** A task that every model tried passes every time measures nothing. The exception is one
   cheap "floor" task per section, kept on purpose: it shows that a model can use the tool at all, in seconds
-  (in cfg-mgmt, `running-config-cli-frr`).
+  (in cfg-mgmt, `running-config-cli-frr`). It is marked `floor: true` in its `task.yaml` (a test checks there is
+  exactly one per section), and CI validates it whenever shared code changes.
 - **No task that a harder one already covers.** Keep the harder one.
 - **Re-check after each comparison** and remove tasks that stopped telling models apart.
 

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import shutil
 from collections.abc import Iterator
+from contextlib import ExitStack
 from pathlib import Path
 
 import pytest
@@ -23,11 +24,23 @@ TASKS = sorted(tasks.discover([paths.sections_dir()]), key=lambda p: p.parent.na
 
 
 @pytest.fixture(scope="module")
-def tools(lab: None) -> Iterator[None]:
+def tools(lab: None, request: pytest.FixtureRequest) -> Iterator[None]:
     if shutil.which("sshpass") is None:
         pytest.skip("the NETCONF oracles need sshpass on the host (sudo apt install sshpass)")
-    # The services the built-in tasks need (cfg-mgmt: Oxidized; netbox, nautobot: reset by each task's start).
-    with service_session("oxidized"), service_session("netbox"), service_session("nautobot"):
+    # The services the selected tasks need (cfg-mgmt: Oxidized; netbox, nautobot: reset by each task's start),
+    # and only those: CI may have selected one section (see conftest.py).
+    selected = {
+        item.callspec.id  # type: ignore[attr-defined]
+        for item in request.session.items
+        if item.path.name == Path(__file__).name
+    }
+    needed: set[str] = set()
+    for path in TASKS:
+        if path.parent.name in selected:
+            needed.update(tasks.load_task(path).requires.get("services") or [])
+    with ExitStack() as stack:
+        for name in sorted(needed):
+            stack.enter_context(service_session(name))
         yield
 
 

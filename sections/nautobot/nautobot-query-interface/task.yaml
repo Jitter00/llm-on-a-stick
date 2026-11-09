@@ -2,6 +2,7 @@ id: nautobot-query-interface
 section: nautobot
 title: Find an interface and its IP address in Nautobot
 tier: basic
+floor: true  # the section's cheap floor task: CI validates it on every shared-code change
 tags: [tool:nautobot, iface:rest, skill:sot-query]
 prompt: |
   Nautobot is at {{ services.nautobot.url }} (REST API under /api/, header "Authorization: Token {{ services.nautobot.token }}").

@@ -88,6 +88,7 @@ class Task(BaseModel):
     title: str
     tier: str
     prompt: str
+    floor: bool = False
     checks: list[CheckSpec]
     tags: list[str] = Field(default_factory=list)
     topology: str = "base"

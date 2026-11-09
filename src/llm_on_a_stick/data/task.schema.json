@@ -14,6 +14,7 @@
     },
     "title": {"type": "string", "minLength": 3},
     "tier": {"enum": ["basic", "intermediate", "advanced"]},
+    "floor": {"type": "boolean", "default": false, "description": "The section's cheap floor task (one per section): it shows a model can use the tool at all, and CI validates it on every change to shared code."},
     "tags": {"type": "array", "items": {"type": "string", "pattern": "^[a-z0-9-]+:[a-z0-9.-]+$"}},
     "prompt": {"type": "string", "minLength": 10, "description": "Jinja template rendered with topology vars and canary values."},
     "topology": {"type": "string", "default": "base", "description": "Built-in topology name or path to a .clab.yml file."},
