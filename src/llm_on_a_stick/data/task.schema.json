@@ -9,7 +9,7 @@
   "properties": {
     "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
     "section": {
-      "enum": ["lab-mgmt", "cfg-mgmt", "netbox", "nautobot", "validation-observability", "troubleshooting"],
+      "enum": ["lab-mgmt", "cfg-mgmt", "netbox", "nautobot", "aws", "terraform", "validation-observability", "troubleshooting"],
       "description": "The group of tasks it is run with (`stick run --section`): a tool such as netbox, or cfg-mgmt. Wider groupings (SoT/DDI...) are listed in sections/README.md."
     },
     "title": {"type": "string", "minLength": 3},
@@ -17,7 +17,7 @@
     "floor": {"type": "boolean", "default": false, "description": "The section's cheap floor task (one per section): it shows a model can use the tool at all, and CI validates it on every change to shared code."},
     "tags": {"type": "array", "items": {"type": "string", "pattern": "^[a-z0-9-]+:[a-z0-9.-]+$"}},
     "prompt": {"type": "string", "minLength": 10, "description": "Jinja template rendered with topology vars and canary values."},
-    "topology": {"type": "string", "default": "base", "description": "Built-in topology name or path to a .clab.yml file."},
+    "topology": {"type": "string", "default": "base", "description": "Built-in topology name or path to a .clab.yml file; `none` for a task that needs no lab devices (the lab needn't be running)."},
     "requires": {
       "type": "object",
       "additionalProperties": false,
@@ -32,7 +32,7 @@
     "canaries": {
       "type": "object",
       "description": "Random values seeded per run so memorised or invented answers fail.",
-      "additionalProperties": {"enum": ["asn", "ipv4", "description", "hostname", "net24"]}
+      "additionalProperties": {"enum": ["asn", "ipv4", "description", "hostname", "net24", "net16"]}
     },
     "setup": {"type": "string", "description": "Script (relative to the task dir) that prepares the initial state."},
     "oracle": {"type": "string", "description": "Reference solution script; `stick task validate` requires it to PASS."},

@@ -53,6 +53,8 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
 
 - [x] **Nautobot.** Done: Nautobot 3.2.8 (no Celery worker), seeded with the generic `rest` seeder, postgres snapshot
       (~25 s reset), five tasks in `sections/nautobot/`.
+- [x] **moto (emulated AWS).** Done: moto 5.2.5, no seed, reset over HTTP (~0.2 s); AWS CLI, boto3, Terraform and
+      its AWS provider in the toolbox image; five tasks each in `sections/aws/` and `sections/terraform/`.
 - [x] **Oxidized.** Done: custom SR Linux and FRR models (Oxidized ships neither), git output, volume-based reset.
 - [ ] **Gitea.** Seed an org, a `lab-configs` repo and an API token; snapshot = its DB and repo volume. Needed for the GitOps tasks.
 - [ ] **Syslog (Loki + Promtail, or rsyslog → Loki).** `stick-frr` already forwards when `STICK_SYSLOG_TARGET=host:port` is set;
@@ -108,6 +110,9 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
 - [x] **nautobot tasks** (5 of 5): the NetBox set with drift replaced by `nautobot-graphql`, each built around
       what Nautobot does differently (Token auth, locations, required statuses, namespaces, IP-to-interface links,
       `termination_a_*` cables).
+- [x] **aws and terraform tasks** (5 + 5), against moto, with no lab devices (`topology: none`). Graded on
+      resource state only: the emulator enforces nothing. Later: a second cloud only if a broad emulator
+      appears (Azurite covers Azure storage only, GCP has per-product emulators); OpenTofu next to Terraform.
 - [ ] **At most 5 tasks for each of the other sections, none obvious** (rules: docs/tasks.md, "Which tasks are
       kept"; pick the ones local models are likely to get wrong). New sections are per tool (powerdns, kea,
       ...); the groupings are in sections/README.md. Also `lab-mgmt` and `troubleshooting` (fault injection:

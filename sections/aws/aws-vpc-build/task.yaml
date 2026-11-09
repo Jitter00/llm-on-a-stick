@@ -1,0 +1,86 @@
+id: aws-vpc-build
+section: aws
+title: Build a VPC with a public and a private subnet
+tier: intermediate
+tags: [tool:aws-cli, iface:rest, skill:cloud-networking]
+topology: none
+prompt: |
+  An AWS account is ready in your toolbox: `aws` and boto3 work as they are (the credentials, the region
+  eu-west-1 and the API endpoint, an emulator, are set in the environment).
+
+  Build this network, with the Name tags given:
+    - a VPC {{ canaries.vpc }}.0.0/16, Name {{ canaries.name }};
+    - a subnet {{ canaries.vpc }}.1.0/24 in eu-west-1a, Name {{ canaries.name }}-public, where instances
+      get a public IPv4 address at launch;
+    - a subnet {{ canaries.vpc }}.2.0/24 in eu-west-1b, Name {{ canaries.name }}-private;
+    - an internet gateway attached to the VPC;
+    - a route table Name {{ canaries.name }}-public with a default route to the internet gateway, used by
+      the public subnet only. The private subnet stays on the VPC's main route table, which must not get a
+      default route.
+
+  Do not change anything else in the account.
+requires:
+  services: [moto]
+reset_services: [moto]
+canaries:
+  vpc: net16
+  name: hostname
+  old: hostname
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: aws_query
+    name: the VPC exists with its CIDR block
+    params:
+      command: ec2 describe-vpcs --filters Name=tag:Name,Values={{ canaries.name }}
+      query: Vpcs[].CidrBlock
+      expect: ["{{ canaries.vpc }}.0.0/16"]
+  - type: aws_query
+    name: the public subnet is in eu-west-1a and gives public addresses
+    params:
+      command: ec2 describe-subnets --filters Name=tag:Name,Values={{ canaries.name }}-public
+      query: Subnets[].{cidr:CidrBlock,az:AvailabilityZone,public:MapPublicIpOnLaunch}
+      expect: [{cidr: "{{ canaries.vpc }}.1.0/24", az: eu-west-1a, public: true}]
+  - type: aws_query
+    name: the private subnet is in eu-west-1b and gives no public addresses
+    params:
+      command: ec2 describe-subnets --filters Name=tag:Name,Values={{ canaries.name }}-private
+      query: Subnets[].{cidr:CidrBlock,az:AvailabilityZone,public:MapPublicIpOnLaunch}
+      expect: [{cidr: "{{ canaries.vpc }}.2.0/24", az: eu-west-1b, public: false}]
+  - type: aws_query
+    name: an internet gateway is attached to the VPC
+    params:
+      command: >-
+        ec2 describe-internet-gateways --filters Name=attachment.vpc-id,Values=$(aws ec2 describe-vpcs
+        --filters Name=tag:Name,Values={{ canaries.name }} --query 'Vpcs[0].VpcId' --output text)
+      query: InternetGateways[]
+      count: 1
+  - type: aws_query
+    name: the public route table has a default route to an internet gateway
+    params:
+      command: ec2 describe-route-tables --filters Name=tag:Name,Values={{ canaries.name }}-public
+      query: RouteTables[].Routes[?DestinationCidrBlock=='0.0.0.0/0' && starts_with(GatewayId, 'igw-')][]
+      count: 1
+    weight: 2
+  - type: aws_query
+    name: the public route table is used by the public subnet only
+    params:
+      command: >-
+        ec2 describe-route-tables --filters Name=tag:Name,Values={{ canaries.name }}-public
+        Name=association.subnet-id,Values=$(aws ec2 describe-subnets --filters
+        Name=tag:Name,Values={{ canaries.name }}-public --query 'Subnets[0].SubnetId' --output text)
+      query: RouteTables[].Associations[].SubnetId
+      count: 1
+  - type: aws_query
+    name: the VPC's main route table has no default route
+    params:
+      command: >-
+        ec2 describe-route-tables --filters Name=association.main,Values=true Name=vpc-id,Values=$(aws ec2
+        describe-vpcs --filters Name=tag:Name,Values={{ canaries.name }} --query 'Vpcs[0].VpcId' --output text)
+      query: RouteTables[].Routes[?DestinationCidrBlock=='0.0.0.0/0'][]
+      count: 0
+  - type: aws_unchanged
+    name: nothing else was changed in the AWS account
+    params:
+      allow_new: [ec2/vpcs, ec2/subnets, ec2/internet-gateways, ec2/route-tables, ec2/security-groups]
+limits: {turns: 30}

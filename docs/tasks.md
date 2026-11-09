@@ -18,14 +18,17 @@ uv run stick grade                           # grades the attempt
 Every attempt starts from the same state. The lab stays up between attempts, tasks, sections and models (only
 `stick env up` / `env down` deploy or remove it), so `stick task start` resets it first:
 
-1. the services the task lists under `reset_services` go back to their seeded snapshot (NetBox: ~20 s,
-   Nautobot: ~25 s);
+1. the services the task lists under `reset_services` go back to their baseline (NetBox's seeded snapshot:
+   ~20 s, Nautobot's: ~25 s, moto's empty account: ~0.2 s);
 2. **every router goes back to the config it booted with**, without a restart, so BGP stays up:
    - SR Linux reverts to `clab-initial`, the checkpoint containerlab takes once the startup config is applied;
    - FRR runs `frr-reload.py` against its startup config, `configs/frr/<node>/frr.conf`;
    - it takes about 2 s for the four routers, and the times are in the run's `restore.log`;
 3. the task's `setup.sh` plants this run's canaries (or a fault);
-4. the baseline is taken, for `no_change_outside`, `netbox_unchanged` and `nautobot_unchanged`.
+4. the baseline is taken, for `no_change_outside`, `netbox_unchanged`, `nautobot_unchanged` and `aws_unchanged`.
+
+A task with `topology: none` (the `aws` and `terraform` sections) uses no lab device: step 2 is skipped, and the
+lab doesn't need to be running at all.
 
 ## cfg-mgmt: getting configuration right
 
@@ -81,6 +84,43 @@ Requirements: the lab and Nautobot (`uv run stick env up`, `uv run stick svc up 
 by restoring Nautobot's seeded snapshot (`reset_services: [nautobot]`, about 25 s), and `nautobot_unchanged` fails
 attempts that change anything the task didn't ask for. Run them with `uv run stick run --section nautobot ...`.
 
+## aws: cloud operations with the AWS CLI
+
+AWS work against an emulated account ([moto](services.md#moto-emulated-aws)), with the `aws` CLI or boto3: the
+model chooses. Tasks state the goal, not the commands, and are graded on the resources the account ends up with.
+
+| Task | Tier | What the agent must do | What can go wrong (and is detected) |
+|---|---|---|---|
+| `aws-query-instance` | basic | Report an instance's private IP, its subnet's CIDR block and its security group's name | The other instance's values, the subnet id instead of its CIDR block, a changed account |
+| `aws-vpc-build` | intermediate | Build a VPC with a public and a private subnet, an internet gateway, and a route table for the public subnet only | Gateway created but not attached, the default route put on the main route table (the private subnet gets it too), the route table not associated, no public addresses at launch |
+| `aws-sg-tighten` | intermediate | SSH to an instance is open to the world: allow it from one network only, on the group that opens it | Editing the wrong one of the instance's two groups, deleting and recreating the group (new id), losing the group's other rules, adding the new rule without removing the open one |
+| `aws-orphan-cleanup` | intermediate | Delete a project's unattached volumes and unassociated Elastic IPs | Deleting the attached volume or associated address, another project's or an untagged orphan, leaving one orphan behind |
+| `aws-iam-role` | advanced | A role EC2 can assume, with an inline policy for `s3:GetObject` under one prefix and `s3:ListBucket` on the bucket, and an instance profile | Wildcard actions or resources, `ListBucket` on the object ARN, a trust policy copied from the over-broad existing role, a managed policy, no instance profile |
+
+Requirements: moto only (`uv run stick svc up moto`), not the lab. Every attempt starts from an empty account
+(`reset_services: [moto]`, about 0.2 s), and `aws_unchanged` fails attempts that add, change or delete anything
+the task didn't ask for. Run them with `uv run stick run --section aws ...`.
+
+To try one by hand (`stick task start`, then work on your own machine), set the four `AWS_*` variables from
+[Services](services.md#moto-emulated-aws) in your shell first: `stick run` sets them in the model's toolbox, but
+your shell doesn't have them.
+
+## terraform: infrastructure as code
+
+Terraform against the same emulated account. Each task gives a working directory under the workspace, most with
+a configuration that the setup already applied; the grader runs `terraform plan` and `terraform state list` there
+itself, and reads the account.
+
+| Task | Tier | What the agent must do | What can go wrong (and is detected) |
+|---|---|---|---|
+| `tf-plan-report` | basic | Say what applying an edited configuration would create, update, replace and delete, without applying | Applying it, calling a replacement an update, missing the resource that is only deleted |
+| `tf-write-vpc` | intermediate | Write and apply a configuration for a VPC, two subnets and a security group with two rules | Resources made with the CLI instead (not in the state), a plan that isn't clean on the second run, SSH open to the world |
+| `tf-import` | advanced | Bring a hand-made VPC, subnet and security group under Terraform without changing them | Recreating instead of importing, a configuration that doesn't match the real settings (DNS hostnames, public addresses, the group's description and rules), "fixing" the difference with an apply |
+| `tf-drift` | advanced | Two manual changes since the last apply: keep the instance's new type (and put it in the configuration), revert the extra security-group rule | A blind `terraform apply` (reverts both), `apply -refresh-only` (keeps both), replacing the instance |
+| `tf-refactor-moved` | advanced | Turn two subnet resources into one `for_each` resource and add a third, without recreating the two | Destroy and create instead of `moved` blocks or `state mv`, wrong keys, the new subnet missing |
+
+Requirements: moto only. Run them with `uv run stick run --section terraform ...`.
+
 ## Which tasks are kept
 
 Most models tested here run locally, where one attempt can take minutes, so every task has to earn its place.
@@ -111,7 +151,8 @@ Scripts get these environment variables:
 | `STICK_WORKSPACE` | Where the agent writes its files (`oracle.sh` writes its answer here) |
 | `STICK_NODE_<NODE>` / `STICK_NODE_<NODE>_IP` | Container name / management IP of each lab node, e.g. `STICK_NODE_SRL1` |
 | `STICK_<SERVICE>_URL` / `STICK_<SERVICE>_AUTH` | A service's host URL and, if it has an API token, its `Authorization` header value, e.g. `STICK_NETBOX_URL` |
-| `STICK_LIB` | Folder with shared helpers: `source "$STICK_LIB/common.sh"` gives `srl_set`, `srl_cli`, `frr_conf`, `frr_cli`, `netconf_get_config`, `oxidized_backup_now`, `netbox_api`, `netbox_id`, `nautobot_api`, `nautobot_id` |
+| `AWS_ENDPOINT_URL`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION` | Only for tasks that require `moto`: what the AWS tools need to reach the emulator |
+| `STICK_LIB` | Folder with shared helpers: `source "$STICK_LIB/common.sh"` gives `srl_set`, `srl_cli`, `frr_conf`, `frr_cli`, `netconf_get_config`, `oxidized_backup_now`, `netbox_api`, `netbox_id`, `nautobot_api`, `nautobot_id`, and for the cloud sections `toolbox_run`, `aws_cli`, `tf` and `$TF_HEADER` |
 
 Prompts can use `{{ services.<name>.url }}` and, for services with an API token, `{{ services.<name>.token }}`.
 
@@ -124,6 +165,11 @@ uv run stick task validate --tasks-dir ./my-tasks my-task-id
 
 `stick task validate` needs `sshpass` on the host for tasks whose reference solution uses NETCONF
 (`sudo apt install sshpass`). Agents attempting the tasks don't need it.
+
+The cloud tasks' scripts need neither `aws` nor `terraform` on the host: `aws_cli ...` and `tf <dir> ...` run
+them in the toolbox image, with the workspace at `/work` as in a run. Each call starts a container (about half a
+second), so a setup with many commands sends one script instead:
+`toolbox_run . bash -euo pipefail -s <<'SCRIPT' ... SCRIPT`.
 
 Things learned while writing these tasks:
 

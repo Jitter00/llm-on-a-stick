@@ -23,12 +23,16 @@ Each service is a directory under `services/`:
 | File | Purpose |
 |---|---|
 | `compose.yaml` | containers, health checks, fixed `stick-mgmt` address; credentials are lab defaults, overridable with `STICK_*` environment variables |
-| `service.yaml` | how `stick` drives it: health URL, endpoints, credentials, seed data, snapshot/restore |
+| `service.yaml` | how `stick` drives it: health URL, endpoints, credentials, seed data, snapshot/restore, and the environment variables its client tools need (`env:`, given to the toolbox and to task scripts) |
 | `seed.yaml` | baseline objects every task starts from (idempotent: existing objects are skipped) |
 
 Resetting between benchmark attempts restores a database snapshot rather than recreating containers, which is
-what makes repeated runs cheap. Tasks that list a service under `reset_services` (all NetBox and Nautobot tasks) do this
-themselves at `stick task start`, before their setup.
+what makes repeated runs cheap. Tasks that list a service under `reset_services` (all NetBox, Nautobot, aws and
+terraform tasks) do this themselves at `stick task start`, before their setup.
+
+A reset is one of three kinds (`snapshot.kind` in `service.yaml`): `postgres` restores a database dump (NetBox,
+Nautobot), `volumes` deletes the service's volumes and recreates it (Oxidized), and `http` sends one request to the
+running service (moto).
 
 ## NetBox
 
@@ -84,6 +88,44 @@ namespace come with Nautobot. As with NetBox, the lab's devices are **not** seed
       it can't then be a device's primary IP;
     - cables still use `termination_a_type`/`termination_a_id` (NetBox 4 moved to `a_terminations`);
     - related objects come back as `{id, object_type, url}` unless the request adds `?depth=1`.
+
+## moto (emulated AWS)
+
+| | |
+|---|---|
+| Version | moto 5.2.5 (`motoserver/moto:5.2.5`), one container, everything in memory |
+| AWS API (host) | <http://127.0.0.1:8083> (`STICK_MOTO_PORT`); dashboard at `/moto-api/` |
+| AWS API (from the lab) | `http://172.30.30.103:5000` |
+| Credentials | any access key and secret (not checked); account `123456789012`; region `eu-west-1` |
+| Environment for the tools | `AWS_ENDPOINT_URL=http://127.0.0.1:8083 AWS_ACCESS_KEY_ID=testing AWS_SECRET_ACCESS_KEY=testing AWS_DEFAULT_REGION=eu-west-1` |
+| Client tools (toolbox image) | AWS CLI 2.39.6, boto3 1.43.126, Terraform 1.17.1 with `hashicorp/aws` 6.72.0 |
+| RAM (measured) | ~180 MiB after EC2, IAM and S3 use |
+| Timings (measured) | start ~3 s; `svc reset` ~0.2 s |
+
+moto answers the AWS API for EC2 and VPC, IAM, S3 and many more services, so the `aws` and `terraform` sections run
+in seconds, for free, and start from an empty account every time. It needs neither the lab nor a seed: each task's
+setup creates what it needs.
+
+The tools find it through environment variables (`AWS_ENDPOINT_URL`, `AWS_ACCESS_KEY_ID`,
+`AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION`, from `env:` in `services/moto/service.yaml`). The runner sets them
+in the toolbox of every task that requires moto, so `aws`, boto3 and an empty `provider "aws" {}` block work as
+they would against a configured account. The model is tested on AWS, not on emulator flags.
+
+Terraform's AWS provider is unpacked in the toolbox image at `/usr/share/terraform/plugins`, where Terraform
+looks for local copies: `terraform init` takes about a second and needs no registry. Other providers would be
+downloaded.
+
+!!! note "What an emulator can and can't test"
+    moto stores resources and returns them; it enforces nothing. A security group filters no packets, an IAM
+    policy denies no call, an instance runs no software. So the tasks are graded on **resource state** (what
+    `describe-*` returns, what `terraform plan` reports), never on behaviour. Other limits found so far:
+
+    - moto is laxer than AWS: it accepts some calls AWS would refuse (resizing a running instance), so a wrong
+      order of operations can pass;
+    - Terraform's `aws_s3_bucket` fails against an endpoint given as an IP address (the provider calls
+      S3 Control at `<account>.127.0.0.1`), so the terraform tasks use VPC, EC2 and IAM resources. S3 works with
+      the AWS CLI and boto3;
+    - the grader looks at one region (eu-west-1): resources created elsewhere count as not created.
 
 ## Oxidized
 

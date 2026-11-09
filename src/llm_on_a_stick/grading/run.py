@@ -4,7 +4,7 @@ A run directory holds everything about one attempt:
     run.json       task id, task dir, canaries, rendered prompt, timestamps
     work/          the agent's workspace (files the task asks for go here)
     baseline/      every router's config right after setup (for collateral-change checks), and
-                   <service>.json for tasks that need NetBox or Nautobot
+                   <service>.json for tasks that need NetBox, Nautobot or moto (the emulated AWS account)
     restore.log    how long putting each router back to its boot config took
     setup.log      output of the task's setup script, if any
     result.json    written later by `stick grade`
@@ -24,8 +24,8 @@ from urllib.parse import urlparse
 from pydantic import BaseModel
 
 from llm_on_a_stick import paths, services
+from llm_on_a_stick.grading import awsstate, sotstate
 from llm_on_a_stick.grading import canaries as canary_mod
-from llm_on_a_stick.grading import sotstate
 from llm_on_a_stick.grading.labstate import LabState, LabStateError
 from llm_on_a_stick.grading.template import render
 from llm_on_a_stick.services import lifecycle
@@ -99,6 +99,18 @@ def service_vars() -> dict[str, dict[str, str]]:
     return out
 
 
+def service_env(names: list[str]) -> dict[str, str]:
+    """The `env:` of these services' service.yaml: variables that point client tools at them (moto:
+    AWS_ENDPOINT_URL, credentials, region). For the toolbox and the scripts of a task that requires them."""
+    env: dict[str, str] = {}
+    for name in names:
+        try:
+            env.update(services.load(name).env)
+        except FileNotFoundError:  # an unknown service: check_requirements reports it
+            continue
+    return env
+
+
 def template_vars(info_canaries: dict[str, str], workspace: PurePath, lab: LabState) -> dict[str, Any]:
     return {
         "canaries": info_canaries,
@@ -119,6 +131,7 @@ def script_env(
         "STICK_WORKSPACE": str(workspace),
         "STICK_TASK_DIR": str(task.directory),
         "STICK_LIB": str(paths.sections_dir() / "_lib"),
+        **service_env(task.requires.get("services") or []),
     }
     for name, values in service_vars().items():  # e.g. STICK_NETBOX_URL, STICK_NETBOX_AUTH
         for key in ("url", "auth"):
@@ -188,6 +201,14 @@ def start(
                 ) from exc
             (baseline / f"{node.name}.cfg").write_text(config, encoding="utf-8")
     for name in task.requires.get("services") or []:  # baseline/<name>.json, for <name>_unchanged
+        if name == awsstate.SERVICE:  # the emulated AWS account, for aws_unchanged
+            try:
+                state = awsstate.snapshot()
+            except awsstate.AwsStateError as exc:
+                raise RunError(f"cannot read {name}: is it up? (`stick svc up {name}`) [{exc}]") from exc
+            (baseline / f"{name}.json").write_text(
+                json.dumps(state, indent=1, sort_keys=True), encoding="utf-8"
+            )
         if name not in sotstate.ENDPOINTS:
             continue
         try:

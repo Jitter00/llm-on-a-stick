@@ -9,6 +9,7 @@ import pytest
 from llm_on_a_stick import paths, tasks
 from llm_on_a_stick.grading import validate
 from llm_on_a_stick.grading.checks.retrieval import config_section, load_netconf_xml
+from llm_on_a_stick.grading.labstate import NO_LAB
 from test_grading import FakeLab, check, make_ctx
 
 SRL_FLAT = """set / interface ethernet-1/1 description "to frr1"
@@ -173,15 +174,19 @@ def test_builtin_tasks_are_complete() -> None:
         per_section[task.section] = per_section.get(task.section, 0) + 1
         assert task.oracle, f"{task.id} has no oracle"
         assert task.canaries, f"{task.id} plants no canary"
-        assert any(c.type == "no_change_outside" for c in task.checks), f"{task.id} doesn't check for changes"
+        if task.topology != NO_LAB:  # a task without lab devices has no router to leave alone
+            assert any(c.type == "no_change_outside" for c in task.checks), f"{task.id}: no change check"
         if any("path" in c.params for c in task.checks):  # the agent writes a file: say where
             assert "{{ workspace }}" in task.prompt or "{{workspace}}" in task.prompt, task.id
         services = task.requires.get("services") or []
         # Source-of-truth tasks start from the seed and check that nothing else changed there.
-        for sot in ("netbox", "nautobot"):
+        # The same for the emulated AWS account (moto), whose check is aws_unchanged.
+        for sot, unchanged in (("netbox", "netbox"), ("nautobot", "nautobot"), ("moto", "aws")):
             if sot in services:
                 assert sot in task.reset_services, f"{task.id} doesn't reset {sot}"
-                assert any(c.type == f"{sot}_unchanged" for c in task.checks), f"{task.id}: no {sot} check"
+                assert any(c.type == f"{unchanged}_unchanged" for c in task.checks), (
+                    f"{task.id}: no {sot} check"
+                )
         assert set(task.reset_services) <= set(services), f"{task.id} resets a service it doesn't require"
     # Every attempt costs minutes on a local model: at most 5 tasks per section, i.e. per tool or group such
     # as netbox or cfg-mgmt (docs/tasks.md).

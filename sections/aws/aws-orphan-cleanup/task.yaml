@@ -1,0 +1,65 @@
+id: aws-orphan-cleanup
+section: aws
+title: Delete a project's unused volumes and Elastic IPs
+tier: intermediate
+tags: [tool:aws-cli, iface:rest, skill:cloud-cleanup]
+topology: none
+prompt: |
+  An AWS account is ready in your toolbox: `aws` and boto3 work as they are (the credentials, the region
+  eu-west-1 and the API endpoint, an emulator, are set in the environment).
+
+  The project "{{ canaries.project }}" has ended, but its server is still running. Its resources carry the
+  tag project={{ canaries.project }}. Clean up what the project no longer uses:
+    - delete its EBS volumes that are not attached to an instance;
+    - release its Elastic IP addresses that are not associated with anything.
+
+  Leave everything that is in use, and everything that belongs to other projects, as it is.
+requires:
+  services: [moto]
+reset_services: [moto]
+canaries:
+  project: hostname
+  vol1: hostname
+  vol2: hostname
+  eip: hostname
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: aws_query
+    name: the project has no unattached volume left
+    params:
+      command: >-
+        ec2 describe-volumes --filters Name=tag:project,Values={{ canaries.project }}
+        Name=status,Values=available
+      query: Volumes[]
+      count: 0
+    weight: 2
+  - type: aws_query
+    name: the project has no unassociated Elastic IP left
+    params:
+      command: ec2 describe-addresses --filters Name=tag:project,Values={{ canaries.project }}
+      query: Addresses[?AssociationId==null]
+      count: 0
+    weight: 2
+  - type: aws_query
+    name: the project's attached volume is still there
+    params:
+      command: >-
+        ec2 describe-volumes --filters Name=tag:project,Values={{ canaries.project }}
+        Name=status,Values=in-use
+      query: Volumes[]
+      count: 1
+  - type: aws_query
+    name: the project's associated Elastic IP is still there
+    params:
+      command: ec2 describe-addresses --filters Name=tag:project,Values={{ canaries.project }}
+      query: Addresses[?AssociationId!=null]
+      count: 1
+  - type: aws_unchanged
+    name: nothing in use and nothing of other projects was touched
+    params:
+      allow_deleted:
+        - "ec2/volumes:{{ canaries.vol1 }}"
+        - "ec2/volumes:{{ canaries.vol2 }}"
+        - "ec2/addresses:{{ canaries.eip }}"
+limits: {turns: 25}

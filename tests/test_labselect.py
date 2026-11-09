@@ -58,3 +58,10 @@ def test_selection_round_trips_through_the_environment() -> None:
 def test_each_section_has_one_floor_task() -> None:
     floors = sorted(t.section for t in TASKS if t.floor)
     assert floors == sorted({t.section for t in TASKS})
+
+
+def test_the_cloud_sections_share_moto() -> None:
+    s = sel("services/moto/compose.yaml")
+    assert s == Selection(sections={"aws", "terraform"}, services={"moto"}, core=False)
+    assert sel("sections/terraform/tf-drift/setup.sh") == Selection(sections={"terraform"}, services={"moto"})
+    assert sel("images/toolbox/aws_snapshot.py").core  # the image's tools are shared code

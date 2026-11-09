@@ -1,0 +1,69 @@
+id: tf-write-vpc
+section: terraform
+title: Write and apply a Terraform configuration for a small network
+tier: intermediate
+tags: [tool:terraform, iface:cli, skill:iac-write]
+topology: none
+prompt: |
+  Terraform and its AWS provider (hashicorp/aws) are installed in your toolbox; `terraform init` needs no
+  download. An AWS account is ready: the credentials, the region eu-west-1 and the API endpoint, an emulator,
+  are set in the environment, so `provider "aws" {}` needs no arguments (`aws` and boto3 work too).
+
+  In {{ workspace }}/net, write a Terraform configuration and apply it. It must create, with the Name tags
+  given:
+    - a VPC {{ canaries.vpc }}.0.0/16, Name {{ canaries.name }};
+    - a subnet {{ canaries.vpc }}.1.0/24 in eu-west-1a, Name {{ canaries.name }}-a;
+    - a subnet {{ canaries.vpc }}.2.0/24 in eu-west-1b, Name {{ canaries.name }}-b;
+    - a security group named {{ canaries.name }}-web in that VPC, which allows inbound TCP 443 from anywhere
+      and inbound TCP 22 from {{ canaries.vpc }}.0.0/16 only, and no other inbound traffic.
+
+  Terraform must manage all four: when you are done, `terraform plan` in {{ workspace }}/net reports no
+  changes. Do not change anything else in the account.
+requires:
+  services: [moto]
+reset_services: [moto]
+canaries:
+  vpc: net16
+  name: hostname
+  old: hostname
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: aws_query
+    name: the VPC exists with its CIDR block
+    params:
+      command: ec2 describe-vpcs --filters Name=tag:Name,Values={{ canaries.name }}
+      query: Vpcs[].CidrBlock
+      expect: ["{{ canaries.vpc }}.0.0/16"]
+  - type: aws_query
+    name: both subnets exist in their availability zones
+    params:
+      command: ec2 describe-subnets --filters Name=tag:Name,Values={{ canaries.name }}-a,{{ canaries.name }}-b
+      query: Subnets[].{cidr:CidrBlock,az:AvailabilityZone}
+      expect:
+        - {cidr: "{{ canaries.vpc }}.1.0/24", az: eu-west-1a}
+        - {cidr: "{{ canaries.vpc }}.2.0/24", az: eu-west-1b}
+  - type: aws_query
+    name: the security group allows 443 from anywhere and 22 from the VPC only
+    params:
+      command: ec2 describe-security-groups --filters Name=group-name,Values={{ canaries.name }}-web
+      query: SecurityGroups[].IpPermissions[].{proto:IpProtocol,from:FromPort,to:ToPort,cidr:IpRanges[].CidrIp}
+      expect:
+        - {proto: tcp, from: 443, to: 443, cidr: [0.0.0.0/0]}
+        - {proto: tcp, from: 22, to: 22, cidr: ["{{ canaries.vpc }}.0.0/16"]}
+    weight: 2
+  - type: terraform_state_has
+    name: Terraform manages the VPC, the subnets and the security group
+    params:
+      path: net
+      types: {aws_vpc: 1, aws_subnet: 2, aws_security_group: 1}
+    weight: 2
+  - type: terraform_plan_clean
+    name: terraform plan reports no changes
+    params: {path: net}
+    weight: 2
+  - type: aws_unchanged
+    name: nothing else was changed in the AWS account
+    params:
+      allow_new: [ec2/vpcs, ec2/subnets, ec2/security-groups, ec2/route-tables]
+limits: {turns: 25}

@@ -107,3 +107,31 @@ nautobot_api() {
 }
 # nautobot_id <path with filters>  -> UUID of the first match, e.g. nautobot_id "dcim/devices/?name=srl2"
 nautobot_id() { nautobot_api GET "$1" | jq -er '.results[0].id'; }
+
+# --- AWS (the moto emulator) and Terraform ----------------------------------
+# The host needs neither `aws` nor `terraform`: these run them in the toolbox image, as the model does.
+# AWS_ENDPOINT_URL, the dummy credentials and the region come from `stick task start` (services/moto).
+STICK_TOOLBOX_IMAGE="${STICK_TOOLBOX_IMAGE:-stick-toolbox:dev}"
+# toolbox_run <directory under the workspace, or .> <command> [args]   (stdin is passed on)
+# The workspace is /work there, as in a run; $STICK_CANARY_* are set too. For many commands, send one script:
+#   toolbox_run . bash -euo pipefail -s <<'EOF' ... EOF
+toolbox_run() {
+    local dir=$1 var; shift
+    local args=(--rm -i --network host --user "$(id -u):$(id -g)" -e HOME=/tmp
+        -e AWS_ENDPOINT_URL -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_DEFAULT_REGION)
+    for var in $(compgen -v STICK_CANARY_); do args+=(-e "$var"); done
+    docker run "${args[@]}" -v "$STICK_WORKSPACE:/work" -w "/work/$dir" "$STICK_TOOLBOX_IMAGE" "$@"
+}
+# aws_cli ec2 describe-vpcs --query ...
+aws_cli() { toolbox_run . aws "$@"; }
+# tf <directory under the workspace> <terraform arguments>   e.g. tf net apply -auto-approve
+tf() { local dir=$1; shift; toolbox_run "$dir" terraform "$@" </dev/null; }
+# The start of every Terraform fixture: the provider takes its settings from the environment.
+# shellcheck disable=SC2034  # used by the task scripts that source this file
+TF_HEADER='terraform {
+  required_providers {
+    aws = { source = "hashicorp/aws" }
+  }
+}
+
+provider "aws" {}'

@@ -1,0 +1,51 @@
+id: tf-refactor-moved
+section: terraform
+title: Refactor Terraform resources into for_each without recreating them
+tier: advanced
+tags: [tool:terraform, iface:cli, skill:iac-refactor]
+topology: none
+prompt: |
+  Terraform and its AWS provider (hashicorp/aws) are installed in your toolbox; `terraform init` needs no
+  download. An AWS account is ready: the credentials, the region eu-west-1 and the API endpoint, an emulator,
+  are set in the environment, so `provider "aws" {}` needs no arguments (`aws` and boto3 work too).
+
+  The Terraform configuration in {{ workspace }}/net is applied and manages a VPC and two subnets, as the
+  separate resources aws_subnet.a and aws_subnet.b. Refactor it and apply:
+    - all subnets come from one resource block, aws_subnet.app, with for_each over the keys a, b and c;
+    - a and b are the two existing subnets. They must not be destroyed or recreated;
+    - c is new: {{ canaries.vpc }}.3.0/24 in eu-west-1c, with the Name tag {{ canaries.name }}-c.
+
+  When you are done, `terraform plan` in {{ workspace }}/net reports no changes. Do not change anything
+  else in the account.
+requires:
+  services: [moto]
+reset_services: [moto]
+canaries:
+  vpc: net16
+  name: hostname
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: terraform_state_has
+    name: the state has the three subnets under aws_subnet.app
+    params:
+      path: net
+      addresses: [aws_vpc.main, 'aws_subnet.app["a"]', 'aws_subnet.app["b"]', 'aws_subnet.app["c"]']
+      count: 4
+    weight: 2
+  - type: aws_query
+    name: the new subnet exists
+    params:
+      command: ec2 describe-subnets --filters Name=tag:Name,Values={{ canaries.name }}-c
+      query: Subnets[].{cidr:CidrBlock,az:AvailabilityZone}
+      expect: [{cidr: "{{ canaries.vpc }}.3.0/24", az: eu-west-1c}]
+  - type: terraform_plan_clean
+    name: terraform plan reports no changes
+    params: {path: net}
+    weight: 2
+  - type: aws_unchanged
+    name: the existing subnets were not recreated and nothing else was changed
+    params:
+      allow_new: ["ec2/subnets:{{ canaries.name }}-c"]
+    weight: 2
+limits: {turns: 25}

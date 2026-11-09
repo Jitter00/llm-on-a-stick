@@ -222,6 +222,7 @@ def make_client(
     temperature: float | None = None,
     effort: str | None = None,
     max_output_tokens: int = MAX_OUTPUT_TOKENS,
+    thinking: bool = True,
 ) -> Client:
     """`temperature` given (e.g. --temperature): sent as is, nothing else. Not given: data/sampling.yaml's
     values for the model, else temperature 0."""
@@ -233,7 +234,7 @@ def make_client(
             sampling, source = recommended_sampling(m.model)
         return OpenAIClient(m, sampling, source, max_output_tokens)
     if m.endpoint.kind == "anthropic":
-        return AnthropicClient(m, effort, max_output_tokens)
+        return AnthropicClient(m, effort, max_output_tokens, thinking)
     return ScriptClient(m)
 
 
@@ -477,15 +478,23 @@ class OpenAISession:
 
 
 class AnthropicClient:
-    def __init__(self, spec: ModelSpec, effort: str | None, max_output_tokens: int) -> None:
+    def __init__(
+        self, spec: ModelSpec, effort: str | None, max_output_tokens: int, thinking: bool = True
+    ) -> None:
         import anthropic  # imported lazily: only needed for Claude models
 
         self.spec = spec
         self.context_window: int | None = None
         self.effort = effort
         self.max_output_tokens = max_output_tokens
+        # False (--no-thinking): send thinking disabled. Recent Claude models think by default (adaptive), so
+        # leaving the parameter out does not turn it off. Models that can't run without thinking reject it.
+        self.thinking = thinking
         self.sampling: dict[str, Any] = {"effort": effort}  # Claude models take no temperature
-        self.sampling_source = "--effort" if effort else "default"
+        if not thinking:
+            self.sampling["thinking"] = "disabled"
+        flags = [f for f, on in (("--effort", effort), ("--no-thinking", not thinking)) if on]
+        self.sampling_source = " ".join(flags) or "default"
         kwargs: dict[str, Any] = {"max_retries": 3}
         if spec.base_url:
             kwargs["base_url"] = spec.base_url
@@ -532,6 +541,8 @@ class AnthropicSession:
         }
         if self.c.effort:
             kwargs["output_config"] = {"effort": self.c.effort}
+        if not self.c.thinking:
+            kwargs["thinking"] = {"type": "disabled"}
         t0 = time.monotonic()
         try:
             resp = self.c.client.messages.create(**kwargs)

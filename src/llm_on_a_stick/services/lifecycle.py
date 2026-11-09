@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 from llm_on_a_stick import lab
 from llm_on_a_stick.services import seed as seeding
-from llm_on_a_stick.services.spec import PostgresSnapshot, ServiceSpec, VolumesSnapshot
+from llm_on_a_stick.services.spec import HttpSnapshot, PostgresSnapshot, ServiceSpec, VolumesSnapshot
 
 
 class ServiceError(RuntimeError):
@@ -75,7 +75,7 @@ def has_snapshot(spec: ServiceSpec) -> bool:
     snap = spec.snapshot
     if snap is None:
         return False
-    if snap.kind == "volumes":
+    if snap.kind != "postgres":
         return True  # the baseline is "empty", which always exists
     res = _run(compose_argv(spec, "exec", "-T", snap.service, "test", "-f", snap.path), check=False)
     return res.returncode == 0
@@ -85,8 +85,8 @@ def take_snapshot(spec: ServiceSpec) -> None:
     snap = spec.snapshot
     if snap is None:
         raise ServiceError(f"{spec.name} has no snapshot configuration")
-    if snap.kind == "volumes":
-        raise ServiceError(f"{spec.name}: its baseline is empty volumes, there is nothing to snapshot")
+    if snap.kind != "postgres":
+        raise ServiceError(f"{spec.name}: its baseline is the empty service, there is nothing to snapshot")
     _run(
         compose_argv(
             spec, "exec", "-T", snap.service,
@@ -120,10 +120,23 @@ def _restore_volumes(spec: ServiceSpec, snap: VolumesSnapshot, log: Log) -> None
         _run(["docker", "volume", "rm", "--force", f"{spec.project}_{volume}"])
 
 
+def _restore_http(spec: ServiceSpec, snap: HttpSnapshot, log: Log) -> None:
+    log(f"{snap.method} {snap.url}")
+    req = urllib.request.Request(snap.url, method=snap.method, data=b"")  # noqa: S310
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310 (URL comes from service.yaml)
+            resp.read()
+    except (urllib.error.URLError, OSError) as exc:
+        raise ServiceError(f"{spec.name}: reset request to {snap.url} failed: {exc}") from exc
+
+
 def restore_snapshot(spec: ServiceSpec, log: Log = _noop) -> None:
     snap = spec.snapshot
     if snap is None:
         raise ServiceError(f"{spec.name} has no snapshot configuration")
+    if snap.kind == "http":  # the service keeps running: nothing to start again
+        _restore_http(spec, snap, log)
+        return
     if snap.kind == "postgres":
         _restore_postgres(spec, snap, log)
     else:

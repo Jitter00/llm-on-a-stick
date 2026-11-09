@@ -1,0 +1,56 @@
+id: tf-drift
+section: terraform
+title: Reconcile Terraform with changes made by hand, keeping one and reverting the other
+tier: advanced
+tags: [tool:terraform, iface:cli, skill:iac-drift]
+topology: none
+prompt: |
+  Terraform and its AWS provider (hashicorp/aws) are installed in your toolbox; `terraform init` needs no
+  download. An AWS account is ready: the credentials, the region eu-west-1 and the API endpoint, an emulator,
+  are set in the environment, so `provider "aws" {}` needs no arguments (`aws` and boto3 work too).
+
+  The Terraform configuration in {{ workspace }}/app was applied some time ago. Since then, two changes
+  were made by hand, outside Terraform:
+    - the instance {{ canaries.name }} was resized. This was approved: the instance must keep its new
+      type, and the configuration must say so;
+    - a rule was added to the security group {{ canaries.name }}-web. This was not approved: the group
+      must go back to what the configuration says.
+
+  Find both changes and bring the configuration, the Terraform state and the account back in line: when you
+  are done, `terraform plan` in {{ workspace }}/app reports no changes. The instance must not be replaced,
+  and nothing else in the account may change.
+requires:
+  services: [moto]
+reset_services: [moto]
+canaries:
+  vpc: net16
+  name: hostname
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: aws_query
+    name: the instance kept the type it was resized to
+    params:
+      command: >-
+        ec2 describe-instances --filters Name=tag:Name,Values={{ canaries.name }}
+        Name=instance-state-name,Values=running
+      query: Reservations[].Instances[].InstanceType
+      expect: [t3.large]
+    weight: 2
+  - type: aws_query
+    name: the security group has only the rule from the configuration
+    params:
+      command: ec2 describe-security-groups --filters Name=group-name,Values={{ canaries.name }}-web
+      query: SecurityGroups[].IpPermissions[].{proto:IpProtocol,from:FromPort,to:ToPort,cidr:IpRanges[].CidrIp}
+      expect:
+        - {proto: tcp, from: 443, to: 443, cidr: [0.0.0.0/0]}
+    weight: 2
+  - type: terraform_plan_clean
+    name: terraform plan reports no changes
+    params: {path: app}
+    weight: 2
+  - type: aws_unchanged
+    name: the instance was not replaced and nothing else was changed
+    params:
+      allow_changed: ["ec2/security-groups:{{ canaries.name }}-web"]
+limits: {turns: 25}
