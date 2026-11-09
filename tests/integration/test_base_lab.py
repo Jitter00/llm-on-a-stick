@@ -8,6 +8,8 @@ from __future__ import annotations
 import pytest
 from labutil import dexec, frr_established_peers, wait_for
 
+from llm_on_a_stick.grading.labstate import DockerLabState
+
 pytestmark = pytest.mark.lab
 
 
@@ -44,6 +46,25 @@ def test_frr_shell_user_reads_lldp(lab: None) -> None:
         return res.returncode == 0 and '"eth1"' in res.stdout and "ethernet-1/1" in res.stdout
 
     assert wait_for(heard, timeout=90), "frr1 heard no LLDP neighbour on eth1 (as netops)"
+
+
+def test_restore_config_undoes_changes(lab: None) -> None:
+    """`stick task start` puts every router back to its boot config, without restarting it: BGP stays up."""
+    state = DockerLabState()
+    for node in ("srl1", "frr1"):
+        state.restore_config(node)
+    boot = {node: state.running_config(node) for node in ("srl1", "frr1")}
+
+    dexec("srl1", "sr_cli", "-ec", "set / interface ethernet-1/2 description stick-junk")
+    dexec("srl1", "sr_cli", "-ec", "set / system name host-name stick-renamed")
+    dexec("frr1", "vtysh", "-c", "conf t", "-c", "interface eth3", "-c", "description stick-junk",
+          "-c", "exit", "-c", "ip prefix-list STICK-JUNK seq 5 permit 192.0.2.0/24")  # fmt: skip
+    assert all("stick-junk" in state.running_config(node) for node in ("srl1", "frr1"))
+
+    for node in ("srl1", "frr1"):
+        state.restore_config(node)
+    assert {node: state.running_config(node) for node in ("srl1", "frr1")} == boot
+    assert wait_for(lambda: set(state.bgp_sessions("frr1").values()) == {"established"}, timeout=60)
 
 
 def test_frr_snmp_answers(lab: None) -> None:

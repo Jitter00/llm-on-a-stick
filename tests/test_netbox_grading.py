@@ -269,3 +269,22 @@ def test_netbox_unchanged_allows_a_cable_only_where_allowed(tmp_path: Path) -> N
     nb.data["dcim/interfaces"][0]["description"] = "edited"
     res = check(ctx, "netbox_unchanged", allow_new=["dcim/cables"])
     assert res.status == "fail" and "changed ethernet-1/1 (description)" in res.observed[0]
+
+
+def test_netbox_unchanged_ignores_ip_counters_on_interfaces(tmp_path: Path) -> None:
+    data = cabled()
+    data["dcim/interfaces"][0]["count_ipaddresses"] = 0
+    ctx, nb = nb_ctx(tmp_path, data)
+    snap = netboxstate.snapshot(nb, ("dcim/interfaces",))
+    (ctx.run.baseline_dir / "netbox.json").write_text(json.dumps(snap))
+    nb.data["dcim/interfaces"][0]["count_ipaddresses"] = 1  # an IP was assigned to it: not an edit
+    assert check(ctx, "netbox_unchanged").status == "pass"
+
+
+def test_net24_canary_is_a_24_outside_the_ipv4_canaries() -> None:
+    from llm_on_a_stick.grading import canaries
+
+    values = canaries.generate({"pool": "net24", "addr": "ipv4"}, seed=3)
+    octets = values["pool"].split(".")
+    assert len(octets) == 3 and octets[:2] == ["198", "19"] and 0 <= int(octets[2]) <= 255
+    assert values["addr"].startswith("198.18.")

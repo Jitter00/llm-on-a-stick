@@ -77,6 +77,14 @@ Each run generates random values (an ASN, an IP, a description...) that the task
 before the agent starts. Checks then expect those exact values back, so a model can't pass by reciting a typical
 config from memory or inventing a plausible one.
 
+| Kind | Example | Use |
+|---|---|---|
+| `asn` | `65123` | a private 2-byte ASN |
+| `ipv4` | `198.18.42.7` | an address (RFC 2544 benchmarking range, 198.18.0.0/16) |
+| `description` | `stick-3fa9c01e` | interface or neighbour descriptions |
+| `hostname` | `stick-qkzpta` | device names (NetBox, LLDP system names) |
+| `net24` | `198.19.117` | the first three octets of a /24 pool: `{{ canaries.pool }}.0/24` (198.19.0.0/16, never overlaps `ipv4`) |
+
 ## Outcomes and scores
 
 - **pass**: every check passed.

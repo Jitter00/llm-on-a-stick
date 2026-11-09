@@ -102,9 +102,9 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
       4. CLI/XML → given JSON schema;
       5. CLI vs NETCONF vs Oxidized consistency.
       After the first comparison, 3 (full get-config) and 4 were removed as too easy; 5 tasks remain.
-- [ ] **netbox tasks** (4 of at most 5): `netbox-query-interface` (floor), `netbox-register-node`, `netbox-drift`,
-      `netbox-cables-lldp` (frr1 only, LLDP via `lldpcli`, to stay short) done. Next: "next free IP from a prefix, configured on a
-      device", which needs **device config restore between attempts** (no task changes a device yet).
+- [x] **netbox tasks** (5 of 5): `netbox-query-interface` (floor), `netbox-register-node`, `netbox-drift`,
+      `netbox-cables-lldp` (frr1 only, LLDP via `lldpcli`), `netbox-next-ip` (the first task that changes a
+      device; every task start restores the routers to their boot config). Re-check with a stronger model.
 - [ ] **At most 5 tasks for each of the other sections, none obvious** (rules: docs/tasks.md, "Which tasks are
       kept"; pick the ones local models are likely to get wrong). New sections are per tool (nautobot, powerdns,
       kea, ...); the groupings are in sections/README.md. Also `lab-mgmt` and `troubleshooting` (fault injection:

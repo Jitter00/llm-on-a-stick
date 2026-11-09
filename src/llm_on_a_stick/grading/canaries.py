@@ -15,6 +15,9 @@ _KINDS: dict[str, Callable[[random.Random], str]] = {
     "ipv4": lambda r: f"198.18.{r.randint(0, 255)}.{r.randint(1, 254)}",  # RFC 2544 benchmarking range
     "description": lambda r: "stick-" + "".join(r.choices(string.hexdigits.lower()[:16], k=8)),
     "hostname": lambda r: "stick-" + "".join(r.choices(string.ascii_lowercase, k=6)),
+    # The first three octets of a /24, for pools: "{{ canaries.pool }}.0/24". In 198.19.0.0/16, the other half
+    # of the benchmarking range, so it never overlaps an ipv4 canary.
+    "net24": lambda r: f"198.19.{r.randint(0, 255)}",
 }
 
 KINDS = tuple(_KINDS)

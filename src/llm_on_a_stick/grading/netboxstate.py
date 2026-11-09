@@ -39,11 +39,14 @@ class Getter(Protocol):
 
 
 def _stable(obj: dict[str, Any]) -> dict[str, Any]:
-    # Counters (device_count, interface_count...) go up when a related object is added: not an edit.
+    # Counters (device_count, count_ipaddresses...) go up when a related object is added: not an edit.
     return {
         k: v
         for k, v in obj.items()
-        if k not in _VOLATILE and k not in _CABLE_DERIVED and not k.endswith("_count")
+        if k not in _VOLATILE
+        and k not in _CABLE_DERIVED
+        and not k.endswith("_count")
+        and not k.startswith("count_")
     }
 
 

@@ -22,6 +22,7 @@ pytestmark = pytest.mark.lab
 def netbox() -> Iterator[seed.RestClient]:
     with service_session("netbox") as spec:
         assert spec.seed is not None
+        lifecycle.restore_snapshot(spec)  # start from the baseline, whatever an earlier run left behind
         yield seed.RestClient(spec.seed.base_url, spec.seed.headers)
         lifecycle.restore_snapshot(spec)  # leave its data at the baseline for next time
 

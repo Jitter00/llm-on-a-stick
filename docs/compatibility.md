@@ -17,6 +17,7 @@ Legend: ✅ verified · ⚠️ partial (see notes) · ❌ doesn't work · ❓ no
 | SNMPv2c | ❓ | ✅ | `test_frr_snmp_answers` |
 | NETCONF | ✅ port 830, base:1.0 framing, subtree filters (`get-config` on running) | ❌ (FRR has no NETCONF server) | `test_tasks_lab.py` (netconf tasks) |
 | gNMI | ❓ | ❌ (no native gNMI) | – |
+| Restore boot config without a restart (`stick task start`) | ✅ checkpoint `clab-initial` revert (~0.5 s) | ✅ `frr-reload.py` against the startup file (~0.15 s) | `test_restore_config_undoes_changes` |
 | LLDP | ✅ on by default; neighbours in `show system lldp neighbor`; sends its host name as system name | ✅ `lldpd`, read with `lldpcli` as `netops` (not from vtysh: FRR has no LLDP); port ID is the MAC unless `portidsubtype ifname` is set | `test_frr_shell_user_reads_lldp`, `test_tasks_lab.py` (`netbox-cables-lldp`) |
 | Remote syslog | ❓ | ❓ | – |
 | Measured RAM (idle) | 1870 MiB | 31 MiB | cgroup `memory.current` |
