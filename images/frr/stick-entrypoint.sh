@@ -4,6 +4,8 @@ set -euo pipefail
 
 ADMIN_USER="${STICK_ADMIN_USER:-admin}"
 ADMIN_PASSWORD="${STICK_ADMIN_PASSWORD:-admin}"
+SHELL_USER="${STICK_SHELL_USER:-netops}"
+SHELL_PASSWORD="${STICK_SHELL_PASSWORD:-netops}"
 SNMP_COMMUNITY="${STICK_SNMP_COMMUNITY:-stick-ro}"
 
 # Config is mounted read-only under /etc/stick so `write memory` never touches the repo.
@@ -28,8 +30,18 @@ if ! id "$ADMIN_USER" >/dev/null 2>&1; then
 fi
 echo "${ADMIN_USER}:${ADMIN_PASSWORD}" | chpasswd
 
+# Shell user: FRR runs on Linux, and some things live outside vtysh (lldpd's `lldpcli`, `ip`).
+# vtysh is still there (`vtysh -c ...`); the lldpd group may use lldpd's control socket.
+if ! id "$SHELL_USER" >/dev/null 2>&1; then
+    adduser -D -s /bin/bash "$SHELL_USER"
+    for g in frrvty frr lldpd; do
+        if getent group "$g" >/dev/null; then addgroup "$SHELL_USER" "$g"; fi
+    done
+fi
+echo "${SHELL_USER}:${SHELL_PASSWORD}" | chpasswd
+
 ssh-keygen -A >/dev/null
-# Lab-only settings: password login for the CLI user, no root login.
+# Lab-only settings: password login for the CLI and shell users, no root login.
 /usr/sbin/sshd -o PasswordAuthentication=yes -o PermitRootLogin=no
 
 sed -i "s/^rocommunity .*/rocommunity ${SNMP_COMMUNITY} default/" /etc/snmp/snmpd.conf

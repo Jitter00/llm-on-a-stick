@@ -42,7 +42,7 @@ address that must be assigned to an interface before it can be a device's primar
 | `netbox-query-interface` | basic | Find the interface with a given description on a device, and its IP address | No token or the wrong header, the distractor address, a changed NetBox |
 | `netbox-register-node` | intermediate | Document frr2 in NetBox: device, interfaces with the router's descriptions, mgmt IP as primary IPv4 | Wrong role/type/platform, descriptions not read off the router, primary IP not set (or set before it's assigned), edits to the seed |
 | `netbox-drift` | intermediate | Report every difference between srl2 in NetBox and its running config | Missing the wrong address, inventing differences, "fixing" NetBox instead of reporting |
-| `netbox-cables-lldp` | intermediate | Add NetBox cables for srl1's data links, from its LLDP neighbours (the neighbours carry this run's random names in NetBox and in LLDP) | Guessing instead of reading LLDP, a cable for the management network, the pre-4.x cable payload (`termination_a_type`) instead of `a_terminations` |
+| `netbox-cables-lldp` | intermediate | Add NetBox cables for frr1's data links, from its LLDP neighbours (read with `lldpcli` over a Linux shell; the SR Linux neighbours carry this run's random host names in LLDP and in NetBox) | Guessing instead of reading LLDP, a cable for the management network, the pre-4.x cable payload (`termination_a_type`) instead of `a_terminations` |
 
 Requirements: the lab and NetBox (`uv run stick env up`, `uv run stick svc up netbox`). Every attempt starts by
 restoring NetBox's seeded snapshot (`reset_services: [netbox]`, about 20 s), and `netbox_unchanged` fails
@@ -100,7 +100,8 @@ Things learned while writing these tasks:
 - Canaries stay on the devices until the lab is redeployed; a setup that adds rather than overwrites (like a loopback
   address) must remove earlier runs' canaries first.
 - NetBox doesn't need that care: `reset_services: [netbox]` restores the seeded snapshot before every setup.
-- LLDP: every node also sees every other node on the management network (`mgmt0` / `eth0`). FRR's `lldpd`
-  sends its MAC as the port ID unless `lldpcli configure lldp portidsubtype ifname` is set, and
-  `lldpcli update` sends at once instead of within 30 s. Names set with `lldpcli` last until the lab is
-  redeployed, so a setup sets them every time.
+- LLDP: every node also sees every other node on the management network (`mgmt0` / `eth0`). FRR has no LLDP
+  of its own: `lldpd` runs beside it, read with `lldpcli` as the `netops` shell user (vtysh can't). FRR's
+  `lldpd` sends its MAC as the port ID unless `lldpcli configure lldp portidsubtype ifname` is set. SR Linux
+  sends its host name as the LLDP system name, every 30 s, so a setup that renames it waits up to a minute
+  for the neighbours to hear it. Host names set by a setup last until the lab is redeployed.

@@ -12,11 +12,12 @@ Legend: ✅ verified · ⚠️ partial (see notes) · ❌ doesn't work · ❓ no
 | eBGP spine/leaf sessions up | ✅ | ✅ | `test_leaf_has_both_spine_sessions` |
 | Host-to-host traffic across the fabric | ✅ | ✅ | `test_host_to_host_ping` |
 | arm64 image available | ✅ | ✅ | registry manifest lists |
-| SSH CLI | ✅ (`admin`/`NokiaSrl1!`; exec mode works) | ✅ (lands in vtysh; clean output) | `test_oxidized.py`, `test_frr_cli_output_is_clean` |
+| SSH CLI | ✅ (`admin`/`NokiaSrl1!`; exec mode works) | ✅ (`admin` lands in vtysh; clean output) | `test_oxidized.py`, `test_frr_cli_output_is_clean` |
+| SSH Linux shell | – | ✅ (`netops`/`netops`: bash, `lldpcli`, `vtysh -c ...`) | `test_frr_shell_user_reads_lldp` |
 | SNMPv2c | ❓ | ✅ | `test_frr_snmp_answers` |
 | NETCONF | ✅ port 830, base:1.0 framing, subtree filters (`get-config` on running) | ❌ (FRR has no NETCONF server) | `test_tasks_lab.py` (netconf tasks) |
 | gNMI | ❓ | ❌ (no native gNMI) | – |
-| LLDP | ✅ on by default; neighbours in `show system lldp neighbor` | ✅ `lldpd` (`lldpcli show neighbors`); port ID is the MAC unless `portidsubtype ifname` is set | `test_tasks_lab.py` (`netbox-cables-lldp`) |
+| LLDP | ✅ on by default; neighbours in `show system lldp neighbor`; sends its host name as system name | ✅ `lldpd`, read with `lldpcli` as `netops` (not from vtysh: FRR has no LLDP); port ID is the MAC unless `portidsubtype ifname` is set | `test_frr_shell_user_reads_lldp`, `test_tasks_lab.py` (`netbox-cables-lldp`) |
 | Remote syslog | ❓ | ❓ | – |
 | Measured RAM (idle) | 1870 MiB | 31 MiB | cgroup `memory.current` |
 

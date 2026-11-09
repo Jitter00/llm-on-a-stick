@@ -257,7 +257,7 @@ port: `--base-url http://127.0.0.1:9000/v1`. All options and what's recorded: [d
 | Lab node | Management IP | Login | Notes |
 |---|---|---|---|
 | srl1, srl2 | 172.30.30.11, .12 | `admin` / `NokiaSrl1!` | Nokia SR Linux spines, AS65001 / AS65002 |
-| frr1, frr2 | 172.30.30.21, .22 | `admin` / `admin` | FRR leaves, AS65101 / AS65102; SSH lands in vtysh |
+| frr1, frr2 | 172.30.30.21, .22 | `admin` / `admin`; `netops` / `netops` | FRR leaves, AS65101 / AS65102; `admin` lands in vtysh, `netops` in a Linux shell (`lldpcli`, `vtysh -c ...`) |
 | h1, h2 | 172.30.30.31, .32 | `docker exec -it clab-stick-base-h1 sh` | hosts 10.1.1.10 and 10.1.2.10 |
 
 | Tool | In your browser | From the lab network | Login |

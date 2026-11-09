@@ -1,24 +1,21 @@
 #!/bin/bash
-# srl1's two neighbours are in NetBox under this run's random names, and announce the same names over LLDP:
-# which neighbour sits on which srl1 port can only be learnt from LLDP.
+# frr1's two SR Linux neighbours get this run's random host names, which they send as their LLDP system names,
+# and are in NetBox under those names: which neighbour sits on which frr1 port can only be learnt from LLDP.
+# (The host names stay until the lab is redeployed; no other task depends on them.)
 set -euo pipefail
 source "$STICK_LIB/common.sh"
 
-# LLDP: this run's system names, and interface names (not MACs) as port IDs; send now rather than in 30 s.
-lldp_name() {  # <container> <name>
-    docker exec "$1" lldpcli configure system hostname "$2" >/dev/null
-    docker exec "$1" lldpcli configure lldp portidsubtype ifname >/dev/null
-    docker exec "$1" lldpcli update >/dev/null
-}
-lldp_name "$STICK_NODE_FRR1" "$STICK_CANARY_N1"
-lldp_name "$STICK_NODE_FRR2" "$STICK_CANARY_N2"
+srl_set "$STICK_NODE_SRL1" "set / system name host-name ${STICK_CANARY_N1}"
+srl_set "$STICK_NODE_SRL2" "set / system name host-name ${STICK_CANARY_N2}"
+# SR Linux sends LLDP every 30 s: wait until frr1 has heard both new names.
+seen=""
 for _ in $(seq 1 30); do
-    seen=$(srl_cli "$STICK_NODE_SRL1" "show system lldp neighbor")
+    seen=$(docker exec "$STICK_NODE_FRR1" lldpcli show neighbors)
     if grep -q "$STICK_CANARY_N1" <<<"$seen" && grep -q "$STICK_CANARY_N2" <<<"$seen"; then break; fi
     sleep 2
 done
 if ! grep -q "$STICK_CANARY_N1" <<<"$seen" || ! grep -q "$STICK_CANARY_N2" <<<"$seen"; then
-    echo "srl1 did not learn the new LLDP names within 60 s" >&2
+    echo "frr1 did not hear the new LLDP names within 60 s" >&2
     exit 1
 fi
 
@@ -38,6 +35,6 @@ add_device() {  # <name> <role> <type> <platform> <interface type> <interfaces..
             '{device: $d, name: $n, type: $t}')" >/dev/null
     done
 }
-add_device srl1 spine 7220-ixr-d2l srlinux 25gbase-x-sfp28 mgmt0 ethernet-1/1 ethernet-1/2
-add_device "$STICK_CANARY_N1" leaf frr-container frr 1000base-t eth0 eth1 eth2 eth3
-add_device "$STICK_CANARY_N2" leaf frr-container frr 1000base-t eth0 eth1 eth2 eth3
+add_device frr1 leaf frr-container frr 1000base-t eth0 eth1 eth2 eth3
+add_device "$STICK_CANARY_N1" spine 7220-ixr-d2l srlinux 25gbase-x-sfp28 mgmt0 ethernet-1/1 ethernet-1/2
+add_device "$STICK_CANARY_N2" spine 7220-ixr-d2l srlinux 25gbase-x-sfp28 mgmt0 ethernet-1/1 ethernet-1/2
