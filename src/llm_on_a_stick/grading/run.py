@@ -3,13 +3,15 @@
 A run directory holds everything about one attempt:
     run.json       task id, task dir, canaries, rendered prompt, timestamps
     work/          the agent's workspace (files the task asks for go here)
-    baseline/      every router's config right after setup (for collateral-change checks)
+    baseline/      every router's config right after setup (for collateral-change checks), and
+                   netbox.json for tasks that need NetBox
     setup.log      output of the task's setup script, if any
     result.json    written later by `stick grade`
 """
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 from datetime import UTC, datetime
@@ -21,13 +23,24 @@ from pydantic import BaseModel
 
 from llm_on_a_stick import paths, services
 from llm_on_a_stick.grading import canaries as canary_mod
+from llm_on_a_stick.grading import netboxstate
 from llm_on_a_stick.grading.labstate import LabState, LabStateError
 from llm_on_a_stick.grading.template import render
+from llm_on_a_stick.services import lifecycle
+from llm_on_a_stick.services.lifecycle import ServiceError
+from llm_on_a_stick.services.seed import RestClient, RestError
 from llm_on_a_stick.tasks import Task
 
 
 class RunError(RuntimeError):
     pass
+
+
+def netbox_client() -> RestClient:
+    spec = services.load("netbox")
+    if spec.seed is None:
+        raise RunError("netbox service.yaml has no API settings")
+    return RestClient(spec.seed.base_url, spec.seed.headers)
 
 
 class RunInfo(BaseModel):
@@ -49,13 +62,22 @@ class RunInfo(BaseModel):
         return self.run_dir / "baseline"
 
 
-def service_urls() -> dict[str, dict[str, str]]:
-    """Base URL of each service as seen from the host, e.g. {"oxidized": {"url": "http://127.0.0.1:8888"}}."""
-    urls = {}
+def service_vars() -> dict[str, dict[str, str]]:
+    """Per service, as seen from the host (and the toolbox, which is on the host network): its base `url`,
+    and its API `auth` header and `token` when it has one, e.g.
+    {"netbox": {"url": "http://127.0.0.1:8081", "auth": "Bearer nbt_...", "token": "nbt_..."}}.
+    """
+    out = {}
     for name in services.available():
-        parsed = urlparse(services.load(name).health.url)
-        urls[name] = {"url": f"{parsed.scheme}://{parsed.netloc}"}
-    return urls
+        spec = services.load(name)
+        parsed = urlparse(spec.health.url)
+        values = {"url": f"{parsed.scheme}://{parsed.netloc}"}
+        auth = (spec.seed.headers if spec.seed else {}).get("Authorization", "")
+        if auth:
+            values["auth"] = auth
+            values["token"] = auth.split(" ", 1)[-1]  # without "Bearer " / "Token "
+        out[name] = values
+    return out
 
 
 def template_vars(info_canaries: dict[str, str], workspace: PurePath, lab: LabState) -> dict[str, Any]:
@@ -63,7 +85,7 @@ def template_vars(info_canaries: dict[str, str], workspace: PurePath, lab: LabSt
         "canaries": info_canaries,
         "workspace": str(workspace),
         "nodes": {n.name: {"mgmt_ip": n.mgmt_ipv4, "os": n.os} for n in lab.nodes().values()},
-        "services": service_urls(),
+        "services": service_vars(),
     }
 
 
@@ -79,6 +101,10 @@ def script_env(
         "STICK_TASK_DIR": str(task.directory),
         "STICK_LIB": str(paths.sections_dir() / "_lib"),
     }
+    for name, values in service_vars().items():  # e.g. STICK_NETBOX_URL, STICK_NETBOX_AUTH
+        for key in ("url", "auth"):
+            if key in values:
+                env[f"STICK_{name.upper()}_{key.upper()}"] = values[key]
     for n in lab.nodes().values():
         env[f"STICK_NODE_{n.name.upper()}"] = n.container
         env[f"STICK_NODE_{n.name.upper()}_IP"] = n.mgmt_ipv4
@@ -121,6 +147,11 @@ def start(
     # workdir is a path inside the (Linux) toolbox container: keep it POSIX, also on Windows hosts.
     shown: PurePath = PurePosixPath(workdir) if workdir else workspace
     prompt = render(task.prompt, template_vars(values, shown, lab))  # fail early on unknown names
+    for name in task.reset_services:  # back to the seeded snapshot, so every attempt starts the same
+        try:
+            lifecycle.restore_snapshot(services.load(name))
+        except (ServiceError, OSError) as exc:
+            raise RunError(f"cannot reset {name}: is it up? (`stick svc up {name}`) [{exc}]") from exc
     if task.setup:
         run_script(task, task.setup, "setup", run_dir, script_env(task, run_dir, workspace, values, lab))
 
@@ -136,6 +167,12 @@ def start(
                     f"cannot read {node.name}: is the lab running? (`stick env up`) [{exc}]"
                 ) from exc
             (baseline / f"{node.name}.cfg").write_text(config, encoding="utf-8")
+    if "netbox" in (task.requires.get("services") or []):
+        try:
+            snap = netboxstate.snapshot(netbox_client())
+        except RestError as exc:
+            raise RunError(f"cannot read NetBox: is it up? (`stick svc up netbox`) [{exc}]") from exc
+        (baseline / "netbox.json").write_text(json.dumps(snap, indent=1, sort_keys=True), encoding="utf-8")
 
     info = RunInfo(
         task_id=task.id,

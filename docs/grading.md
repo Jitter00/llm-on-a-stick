@@ -151,7 +151,8 @@ Use these in a task's `checks:` list. Parameters can use `{{ canaries.<name> }}`
 | `bgp_session` | `node`, `peer`, `state` (default `established`) | The BGP session to `peer` is in that state |
 | `no_change_outside` | `allowed` (list of nodes) | No other router changed since `stick task start` |
 | `oxidized_has_backup` | `node`, `min_versions`, `contains` | Oxidized has a successful backup (with that many versions, containing those lines) |
-| `netbox_object` | `endpoint`, `filters`, `count` or `min` | NetBox has exactly `count` (or at least `min`) matching objects |
+| `netbox_object` | `endpoint`, `filters`, `count` or `min`, or `expect` | NetBox has exactly `count` (or at least `min`) matching objects. With `expect` (`{"role.slug": leaf, "primary_ip4.address": ...}`), exactly one matches and has those values (dotted paths into the API's JSON; choice fields such as `status` compare their value) |
+| `netbox_unchanged` | `allow_new` (endpoints, e.g. `[dcim/devices]`) | Nothing in NetBox changed or was deleted since `stick task start`, and nothing was added except on `allow_new`. Needs `netbox` in the task's `requires.services` (the start saves `baseline/netbox.json`) |
 
 Example from a `task.yaml`:
 

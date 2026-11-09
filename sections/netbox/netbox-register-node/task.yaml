@@ -1,0 +1,67 @@
+id: netbox-register-node
+section: netbox
+title: Document a router in NetBox, with its interfaces and primary IP
+tier: intermediate
+tags: [tool:netbox, vendor:frr, iface:rest, iface:cli, skill:sot-update]
+prompt: |
+  NetBox is at {{ services.netbox.url }} (REST API under /api/, header "Authorization: Bearer {{ services.netbox.token }}").
+  The router frr2 runs FRRouting; you can reach it over SSH at {{ nodes.frr2.mgmt_ip }} (user admin, password admin).
+
+  frr2 is not in NetBox yet. Document it:
+    - a device named frr2: site stick-lab, role Leaf, device type "FRR container", platform FRR, status active;
+    - its interfaces eth0, eth1, eth2 and eth3, each with the description configured on the router (if any);
+    - its management IPv4 address, with its prefix length, as an IP address on interface eth0, set as the
+      device's primary IPv4 address.
+
+  Do not change anything else in NetBox, and do not change any configuration on the router.
+requires:
+  devices: [frr2]
+  services: [netbox]
+reset_services: [netbox]
+canaries:
+  eth1_desc: description
+  eth2_desc: description
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: netbox_object
+    name: frr2 exists with the right site, role, type, platform and primary IP
+    params:
+      endpoint: dcim/devices
+      filters: {name: frr2}
+      expect:
+        site.slug: stick-lab
+        role.slug: leaf
+        device_type.slug: frr-container
+        platform.slug: frr
+        status: active
+        primary_ip4.address: "{{ nodes.frr2.mgmt_ip }}/24"
+    weight: 2
+  - type: netbox_object
+    name: eth1 has the router's description
+    params:
+      endpoint: dcim/interfaces
+      filters: {device: frr2, name: eth1}
+      expect: {description: "{{ canaries.eth1_desc }}"}
+  - type: netbox_object
+    name: eth2 has the router's description
+    params:
+      endpoint: dcim/interfaces
+      filters: {device: frr2, name: eth2}
+      expect: {description: "{{ canaries.eth2_desc }}"}
+  - type: netbox_object
+    name: frr2 has interfaces eth0-eth3
+    params: {endpoint: dcim/interfaces, filters: {device: frr2}, count: 4}
+  - type: netbox_object
+    name: the management address is on eth0
+    params:
+      endpoint: ipam/ip-addresses
+      filters: {address: "{{ nodes.frr2.mgmt_ip }}/24"}
+      expect: {assigned_object.name: eth0, assigned_object.device.name: frr2}
+  - type: netbox_unchanged
+    name: nothing else was changed in NetBox
+    params: {allow_new: [dcim/devices, dcim/interfaces, ipam/ip-addresses]}
+  - type: no_change_outside
+    name: no configuration was changed
+    params: {allowed: []}
+limits: {turns: 30}

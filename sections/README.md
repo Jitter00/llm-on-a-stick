@@ -2,17 +2,28 @@
 
 Built-in tasks live here, one directory per task: `sections/<section>/<task-id>/task.yaml`.
 
-| Section | What it covers |
+A **section** is a set of tasks you run together (`stick run --section netbox ...`), with at most five tasks each.
+New tasks get one section per tool, so you can test only the tools you use; `cfg-mgmt` stays one section.
+
+| Section | Tasks | What it covers |
+|---|---|---|
+| `cfg-mgmt` | 5 | config retrieval over clear-text CLI and NETCONF, Oxidized backups |
+| `netbox` | 3 | NetBox 4.x REST API: queries, documenting a router, drift between NetBox and a device |
+
+## Groupings
+
+The wider areas the sections belong to, for orientation only (nothing in `task.yaml` refers to them):
+
+| Grouping | Sections (planned ones in italics) |
 |---|---|
-| `lab-mgmt` | containerlab (and later CML) lab lifecycle |
-| `cfg-mgmt` | config retrieval (clear-text CLI, NETCONF), changes, Oxidized, GitOps via Gitea |
-| `sot-ddi` | NetBox, Nautobot, PowerDNS, Kea |
-| `validation-observability` | Batfish, SuzieQ, pyATS (Cisco/CML only), gNMIc + Prometheus, syslog, LibreNMS, Zabbix |
-| `troubleshooting` | injected faults; correlating events across tools |
+| Lab management | *lab-mgmt* (containerlab, later CML) |
+| Configuration management | `cfg-mgmt`, *gitea* (GitOps) |
+| Source of truth and DDI | `netbox`, *nautobot*, *powerdns*, *kea* |
+| Validation and observability | *batfish*, *suzieq*, *gnmic-prometheus*, *syslog*, *librenms*, *zabbix*, *pyats* (Cisco/CML only) |
+| Troubleshooting | *troubleshooting*: injected faults, correlating events across tools |
 
 The schema is `src/llm_on_a_stick/data/task.schema.json`. Check tasks with `stick task lint`.
 Your own tasks can live anywhere: `stick task lint ./my-tests`.
 
-Tasks so far: five in `cfg-mgmt` (config retrieval over CLI and NETCONF), described in `docs/tasks.md`.
 `_lib/common.sh` holds helpers for setup and oracle scripts. Prove a task is sound with `stick task validate`.
 Which tasks are kept (at most five per section, none obvious): `docs/tasks.md`.
