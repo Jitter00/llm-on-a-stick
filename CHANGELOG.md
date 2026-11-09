@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.8.0...v0.9.0) (2026-11-09)
+
+
+### Features
+
+* **cloud:** add the aws and terraform sections on an emulated AWS account ([#23](https://github.com/Jitter00/llm-on-a-stick/issues/23)) ([3f7bed8](https://github.com/Jitter00/llm-on-a-stick/commit/3f7bed8f68d5761c77e8dd845cff8f7aba78325d))
+
 ## [0.8.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.7.0...v0.8.0) (2026-11-09)
 
 
