@@ -1,5 +1,6 @@
 # stick-frr: upstream FRRouting plus the bits the NetOps tool stack needs to talk to it:
-#   - sshd with an `admin` user whose login shell is vtysh (clear-text CLI, like a real router)
+#   - sshd with an `admin` user whose login shell is vtysh (clear-text CLI, like a real router), and a
+#     `netops` user with a Linux shell (lldpcli, ip, vtysh -c ...)
 #   - net-snmp (LibreNMS / Zabbix polling), lldpd (topology discovery), rsyslog (syslog export)
 # FRR is GPL-2.0, so this image can be published.
 ARG FRR_VERSION=10.7.1

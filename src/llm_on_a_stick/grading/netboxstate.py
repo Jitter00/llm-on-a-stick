@@ -20,9 +20,16 @@ ENDPOINTS = (
     "dcim/interfaces",
     "ipam/ip-addresses",
     "ipam/prefixes",
+    "dcim/cables",
 )
 # Fields that change without anyone editing the object.
 _VOLATILE = {"last_updated", "created", "url", "display", "display_url"}
+# Fields of an interface that a new cable sets on both ends. The cable itself is tracked (dcim/cables), so
+# ignoring them here doesn't hide anything.
+_CABLE_DERIVED = {
+    "cable", "cable_end", "link_peers", "link_peers_type", "_occupied",
+    "connected_endpoints", "connected_endpoints_type", "connected_endpoints_reachable",
+}  # fmt: skip
 
 Snapshot = dict[str, dict[str, dict[str, Any]]]  # endpoint -> object id -> object
 
@@ -33,7 +40,11 @@ class Getter(Protocol):
 
 def _stable(obj: dict[str, Any]) -> dict[str, Any]:
     # Counters (device_count, interface_count...) go up when a related object is added: not an edit.
-    return {k: v for k, v in obj.items() if k not in _VOLATILE and not k.endswith("_count")}
+    return {
+        k: v
+        for k, v in obj.items()
+        if k not in _VOLATILE and k not in _CABLE_DERIVED and not k.endswith("_count")
+    }
 
 
 def snapshot(client: Getter, endpoints: tuple[str, ...] = ENDPOINTS) -> Snapshot:

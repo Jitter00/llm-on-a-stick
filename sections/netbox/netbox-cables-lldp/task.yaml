@@ -1,0 +1,49 @@
+id: netbox-cables-lldp
+section: netbox
+title: Add a router's cables to NetBox from LLDP
+tier: intermediate
+tags: [tool:netbox, vendor:frr, iface:rest, iface:shell, skill:discovery, skill:sot-update]
+prompt: |
+  NetBox is at {{ services.netbox.url }} (REST API under /api/, header "Authorization: Bearer {{ services.netbox.token }}").
+  The router frr1 runs FRRouting on Linux. SSH to {{ nodes.frr1.mgmt_ip }} as user netops, password netops,
+  gives you a Linux shell on it (FRR's own CLI is vtysh).
+
+  frr1 and its neighbours are in NetBox with their interfaces, but without cables. The neighbours announce
+  themselves over LLDP with their NetBox device names. Using frr1's LLDP neighbours, add to NetBox a cable for
+  every data link between frr1 and an LLDP neighbour. The management network is not a cable.
+
+  Do not change anything else in NetBox, and do not change any configuration on any device.
+requires:
+  devices: [frr1, srl1, srl2]
+  services: [netbox]
+reset_services: [netbox]
+canaries:
+  n1: hostname
+  n2: hostname
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: netbox_object
+    name: frr1 eth1 is cabled to the right neighbour's port
+    params:
+      endpoint: dcim/interfaces
+      filters: {device: frr1, name: eth1}
+      expect: {link_peers.0.device.name: "{{ canaries.n1 }}", link_peers.0.name: ethernet-1/1}
+    weight: 2
+  - type: netbox_object
+    name: frr1 eth2 is cabled to the right neighbour's port
+    params:
+      endpoint: dcim/interfaces
+      filters: {device: frr1, name: eth2}
+      expect: {link_peers.0.device.name: "{{ canaries.n2 }}", link_peers.0.name: ethernet-1/1}
+    weight: 2
+  - type: netbox_object
+    name: no other cables (the management network is not one)
+    params: {endpoint: dcim/cables, count: 2}
+  - type: netbox_unchanged
+    name: nothing else was changed in NetBox
+    params: {allow_new: [dcim/cables]}
+  - type: no_change_outside
+    name: no configuration was changed
+    params: {allowed: []}
+limits: {turns: 25}

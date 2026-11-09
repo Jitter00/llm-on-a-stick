@@ -34,6 +34,18 @@ def test_frr_cli_output_is_clean(lab: None) -> None:
     assert "router bgp 65101" in res.stdout
 
 
+def test_frr_shell_user_reads_lldp(lab: None) -> None:
+    """`netops` has a Linux shell and may use lldpd's socket: frr1 hears an SR Linux neighbour on eth1."""
+    shell = dexec("frr1", "getent", "passwd", "netops")
+    assert shell.stdout.strip().endswith("/bin/bash")
+
+    def heard() -> bool:
+        res = dexec("frr1", "su", "-s", "/bin/sh", "netops", "-c", "lldpcli -f json show neighbors")
+        return res.returncode == 0 and '"eth1"' in res.stdout and "ethernet-1/1" in res.stdout
+
+    assert wait_for(heard, timeout=90), "frr1 heard no LLDP neighbour on eth1 (as netops)"
+
+
 def test_frr_snmp_answers(lab: None) -> None:
     res = dexec("frr1", "snmpget", "-v2c", "-c", "stick-ro", "127.0.0.1", "SNMPv2-MIB::sysName.0")
     assert "frr1" in res.stdout
