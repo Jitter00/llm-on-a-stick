@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.3.0...v0.4.0) (2026-11-09)
+
+
+### Features
+
+* **grading:** transcript hints (wrong-dialect, attempted-change, no-verification, ignored-error) ([#11](https://github.com/Jitter00/llm-on-a-stick/issues/11)) ([fb79e4f](https://github.com/Jitter00/llm-on-a-stick/commit/fb79e4f6236f7d8be7fab70bbf73626bf1a26e4b))
+
 ## [0.3.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.2.0...v0.3.0) (2026-11-09)
 
 
