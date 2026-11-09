@@ -136,6 +136,9 @@ jobs:
   release-dry-run:
     name: release (dry run)
     needs: build
+    # Explicit: the default success() also needs build's own needs, and integration is skipped on purpose
+    # in a release-only PR.
+    if: ${{ !cancelled() && needs.build.result == 'success' }}
     runs-on: ubuntu-24.04
     steps:
       - name: What would release-please do on main?
@@ -160,6 +163,7 @@ jobs:
   deploy-preview:
     name: deploy preview (docs)
     needs: build
+    if: ${{ !cancelled() && needs.build.result == 'success' }}  # see release-dry-run
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
