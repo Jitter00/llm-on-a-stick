@@ -31,10 +31,27 @@ FRRouting) and two interfaces (CLI and NETCONF), before it's ever asked to chang
 Requirements: the lab running (`uv run stick env up`); `consistency-cli-netconf-oxidized` also needs Oxidized
 (`uv run stick svc up oxidized`). `stick task start` refuses to start a task whose requirements aren't met.
 
+## netbox: the source of truth
+
+These tasks use NetBox 4.x through its REST API. Its API changed in ways that trip models trained on older
+versions: `role` instead of `device_role`, `nbt_` tokens sent as `Bearer`, required `status` fields, and an IP
+address that must be assigned to an interface before it can be a device's primary IP.
+
+| Task | Tier | What the agent must do | What can go wrong (and is detected) |
+|---|---|---|---|
+| `netbox-query-interface` | basic | Find the interface with a given description on a device, and its IP address | No token or the wrong header, the distractor address, a changed NetBox |
+| `netbox-register-node` | intermediate | Document frr2 in NetBox: device, interfaces with the router's descriptions, mgmt IP as primary IPv4 | Wrong role/type/platform, descriptions not read off the router, primary IP not set (or set before it's assigned), edits to the seed |
+| `netbox-drift` | intermediate | Report every difference between srl2 in NetBox and its running config | Missing the wrong address, inventing differences, "fixing" NetBox instead of reporting |
+
+Requirements: the lab and NetBox (`uv run stick env up`, `uv run stick svc up netbox`). Every attempt starts by
+restoring NetBox's seeded snapshot (`reset_services: [netbox]`, about 20 s), and `netbox_unchanged` fails
+attempts that change anything the task didn't ask for. Run them with `uv run stick run --section netbox ...`.
+
 ## Which tasks are kept
 
 Most models tested here run locally, where one attempt can take minutes, so every task has to earn its place.
-Each section has **at most five tasks**, and each one must tell models apart:
+Each section (a tool such as `netbox`, or a group such as `cfg-mgmt`; the wider groupings are in
+`sections/README.md`) has **at most five tasks**, and each one must tell models apart:
 
 - **No obvious tasks.** A task that every model tried passes every time measures nothing. The exception is one
   cheap "floor" task per section, kept on purpose: it shows that a model can use the tool at all, in seconds
@@ -58,7 +75,10 @@ Scripts get these environment variables:
 | `STICK_CANARY_<NAME>` | This run's canary values |
 | `STICK_WORKSPACE` | Where the agent writes its files (`oracle.sh` writes its answer here) |
 | `STICK_NODE_<NODE>` / `STICK_NODE_<NODE>_IP` | Container name / management IP of each lab node, e.g. `STICK_NODE_SRL1` |
-| `STICK_LIB` | Folder with shared helpers: `source "$STICK_LIB/common.sh"` gives `srl_set`, `srl_cli`, `frr_conf`, `frr_cli`, `netconf_get_config`, `oxidized_backup_now` |
+| `STICK_<SERVICE>_URL` / `STICK_<SERVICE>_AUTH` | A service's host URL and, if it has an API token, its `Authorization` header value, e.g. `STICK_NETBOX_URL` |
+| `STICK_LIB` | Folder with shared helpers: `source "$STICK_LIB/common.sh"` gives `srl_set`, `srl_cli`, `frr_conf`, `frr_cli`, `netconf_get_config`, `oxidized_backup_now`, `netbox_api`, `netbox_id` |
+
+Prompts can use `{{ services.<name>.url }}` and, for services with an API token, `{{ services.<name>.token }}`.
 
 Keep your own tasks in any folder and point `stick` at it with `--tasks-dir`:
 
@@ -78,3 +98,4 @@ Things learned while writing these tasks:
   top-level interfaces from directly under `<data>`.
 - Canaries stay on the devices until the lab is redeployed; a setup that adds rather than overwrites (like a loopback
   address) must remove earlier runs' canaries first.
+- NetBox doesn't need that care: `reset_services: [netbox]` restores the seeded snapshot before every setup.

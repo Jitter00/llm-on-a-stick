@@ -174,6 +174,13 @@ def test_builtin_tasks_are_complete() -> None:
         assert task.oracle, f"{task.id} has no oracle"
         assert task.canaries, f"{task.id} plants no canary"
         assert any(c.type == "no_change_outside" for c in task.checks), f"{task.id} doesn't check for changes"
-        assert "{{ workspace }}" in task.prompt or "{{workspace}}" in task.prompt
-    # Every attempt costs minutes on a local model: at most 5 tasks per section (docs/tasks.md).
+        if any("path" in c.params for c in task.checks):  # the agent writes a file: say where
+            assert "{{ workspace }}" in task.prompt or "{{workspace}}" in task.prompt, task.id
+        services = task.requires.get("services") or []
+        if "netbox" in services:  # NetBox tasks start from the seed and check nothing else changed there
+            assert "netbox" in task.reset_services, f"{task.id} doesn't reset NetBox"
+            assert any(c.type == "netbox_unchanged" for c in task.checks), f"{task.id} doesn't check NetBox"
+        assert set(task.reset_services) <= set(services), f"{task.id} resets a service it doesn't require"
+    # Every attempt costs minutes on a local model: at most 5 tasks per section, i.e. per tool or group such
+    # as netbox or cfg-mgmt (docs/tasks.md).
     assert max(per_section.values()) <= 5, per_section

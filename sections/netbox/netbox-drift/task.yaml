@@ -1,0 +1,43 @@
+id: netbox-drift
+section: netbox
+title: Find where NetBox and a router disagree
+tier: intermediate
+tags: [tool:netbox, vendor:srl, iface:rest, iface:cli, skill:comparison]
+prompt: |
+  NetBox is at {{ services.netbox.url }} (REST API under /api/, header "Authorization: Bearer {{ services.netbox.token }}").
+  The router srl2 runs Nokia SR Linux; you can reach it over SSH at {{ nodes.srl2.mgmt_ip }} (user admin, password NokiaSrl1!).
+
+  NetBox should describe srl2 exactly as it is configured. For each of srl2's interfaces in NetBox, compare its
+  description and its IPv4 address(es) with srl2's running configuration. Write every difference to
+  {{ workspace }}/answer.json:
+    {"differences": [{"interface": "<name as in NetBox>", "field": "description" or "ipv4",
+                      "netbox": "<value in NetBox>", "device": "<value on srl2>"}]}
+  Addresses include their prefix length. Use an empty list if NetBox and srl2 agree.
+
+  Only report: do not change anything in NetBox or on any device.
+requires:
+  devices: [srl2]
+  services: [netbox]
+reset_services: [netbox]
+canaries:
+  e11_desc: description
+  e12_desc: description
+  addr: ipv4
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: json_file_matches
+    name: answer.json lists exactly the one difference
+    params:
+      path: answer.json
+      expected:
+        differences:
+          - {interface: ethernet-1/2, field: ipv4, netbox: "{{ canaries.addr }}/31", device: 10.0.2.2/31}
+    weight: 3
+  - type: netbox_unchanged
+    name: nothing was changed in NetBox
+    params: {allow_new: []}
+  - type: no_change_outside
+    name: no configuration was changed
+    params: {allowed: []}
+limits: {turns: 25}

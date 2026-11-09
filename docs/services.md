@@ -27,7 +27,8 @@ Each service is a directory under `services/`:
 | `seed.yaml` | baseline objects every task starts from (idempotent: existing objects are skipped) |
 
 Resetting between benchmark attempts restores a database snapshot rather than recreating containers, which is
-what makes repeated runs cheap.
+what makes repeated runs cheap. Tasks that list a service under `reset_services` (all NetBox tasks) do this
+themselves at `stick task start`, before their setup.
 
 ## NetBox
 

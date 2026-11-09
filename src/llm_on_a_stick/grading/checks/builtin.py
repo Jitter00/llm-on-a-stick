@@ -14,6 +14,7 @@ from llm_on_a_stick.grading.checks import Verdict, check
 from llm_on_a_stick.grading.context import GradeContext
 from llm_on_a_stick.grading.labstate import ConfigFormat
 from llm_on_a_stick.grading.results import FailureHint
+from llm_on_a_stick.services.seed import RestError
 
 SAMPLE = 5  # how many example lines to show in a result
 
@@ -239,10 +240,35 @@ def netbox_object(
     filters: dict[str, Any] | None = None,
     count: int | None = None,
     min: int = 1,
+    expect: dict[str, Any] | None = None,
 ) -> Verdict:
-    """Objects matching `filters` exist at `endpoint` (e.g. dcim/devices): exactly `count`, or >= `min`."""
+    """Objects matching `filters` exist at `endpoint` (e.g. dcim/devices): exactly `count`, or >= `min`.
+    With `expect` ({"role.slug": "leaf", "primary_ip4.address": "..."}), exactly one must match, with those
+    field values (dotted paths into the API's JSON)."""
     query = urllib.parse.urlencode(filters or {}, doseq=True)
-    found = int(ctx.services.netbox().get(f"{endpoint.strip('/')}/?{query}")["count"])
+    try:
+        page = ctx.services.netbox().get(f"{endpoint.strip('/')}/?{query}")
+    except RestError as exc:
+        # A filter naming an object that doesn't exist (device=frr2 before frr2 is created) is a 400 with
+        # "Select a valid choice": nothing matches.
+        if "HTTP 400" not in str(exc) or "valid choice" not in str(exc):
+            raise
+        page = {"count": 0, "results": []}
+    found = int(page["count"])
+    if expect:
+        if found != 1:
+            return Verdict(
+                "fail", f"{endpoint} {filters or {}}: {found} match(es), expected exactly one",
+                expected=expect, observed=found, hints=["missing-object" if found == 0 else "wrong-config"],
+            )  # fmt: skip
+        obj = page["results"][0]
+        wrong = {path: got for path, want in expect.items() if (got := _dig(obj, path)) != _plain(want)}
+        if wrong:
+            return Verdict(
+                "fail", f"{endpoint} {filters or {}}: {len(wrong)} of {len(expect)} fields wrong",
+                expected=expect, observed=wrong, hints=["wrong-config"],
+            )  # fmt: skip
+        return Verdict("pass", f"{endpoint}: {len(expect)} field(s) as expected", expected=expect)
     expected = {"count": count} if count is not None else {"min": min}
     ok = found == count if count is not None else found >= min
     if ok:
@@ -251,3 +277,18 @@ def netbox_object(
         "fail", f"{endpoint} {filters or {}}: {found} match(es)", expected=expected, observed=found,
         hints=["missing-object"],
     )  # fmt: skip
+
+
+def _dig(obj: Any, path: str) -> Any:
+    """`obj["a"]["b"]` for "a.b"; NetBox choice fields ({"value": ..., "label": ...}) give their value."""
+    for key in path.split("."):
+        if not isinstance(obj, dict) or key not in obj:
+            return None
+        obj = obj[key]
+    if isinstance(obj, dict) and "value" in obj and "label" in obj:
+        obj = obj["value"]
+    return _plain(obj)
+
+
+def _plain(value: Any) -> Any:
+    return value if value is None or isinstance(value, bool) else str(value).strip()

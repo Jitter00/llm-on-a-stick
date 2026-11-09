@@ -9,7 +9,8 @@
   "properties": {
     "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
     "section": {
-      "enum": ["lab-mgmt", "cfg-mgmt", "sot-ddi", "validation-observability", "troubleshooting"]
+      "enum": ["lab-mgmt", "cfg-mgmt", "netbox", "validation-observability", "troubleshooting"],
+      "description": "The group of tasks it is run with (`stick run --section`): a tool such as netbox, or cfg-mgmt. Wider groupings (SoT/DDI...) are listed in sections/README.md."
     },
     "title": {"type": "string", "minLength": 3},
     "tier": {"enum": ["basic", "intermediate", "advanced"]},
@@ -48,6 +49,11 @@
           "weight": {"type": "number", "exclusiveMinimum": 0}
         }
       }
+    },
+    "reset_services": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Services restored to their seeded snapshot before setup (e.g. [netbox]), so every attempt starts the same."
     },
     "allowed_changes": {
       "type": "array",

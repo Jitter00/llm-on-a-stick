@@ -96,6 +96,7 @@ class Task(BaseModel):
     setup: str | None = None
     oracle: str | None = None
     allowed_changes: list[str] = Field(default_factory=list)
+    reset_services: list[str] = Field(default_factory=list)
     limits: dict[str, int] = Field(default_factory=dict)
     directory: Path = Path()
 

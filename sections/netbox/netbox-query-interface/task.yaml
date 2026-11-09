@@ -1,0 +1,36 @@
+id: netbox-query-interface
+section: netbox
+title: Find an interface and its IP address in NetBox
+tier: basic
+tags: [tool:netbox, iface:rest, skill:sot-query]
+prompt: |
+  NetBox is at {{ services.netbox.url }} (REST API under /api/, header "Authorization: Bearer {{ services.netbox.token }}").
+
+  In NetBox, the device {{ canaries.device }} has one interface whose description is "{{ canaries.desc }}".
+  Find that interface and the IPv4 address assigned to it, and write them to {{ workspace }}/answer.json:
+    {"interface": "<interface name>", "address": "<address with prefix length, as NetBox shows it>"}
+
+  Do not change anything in NetBox or on any device.
+requires:
+  services: [netbox]
+reset_services: [netbox]
+canaries:
+  device: hostname
+  desc: description
+  addr: ipv4
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: json_file_matches
+    name: answer.json names the interface and its address
+    params:
+      path: answer.json
+      expected: {interface: eth2, address: "{{ canaries.addr }}/24"}
+    weight: 2
+  - type: netbox_unchanged
+    name: nothing was changed in NetBox
+    params: {allow_new: []}
+  - type: no_change_outside
+    name: no configuration was changed
+    params: {allowed: []}
+limits: {turns: 15}
