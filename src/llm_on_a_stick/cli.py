@@ -567,3 +567,35 @@ def report_cmd(
                 f"{r.wall_s:.0f}s",
                 ", ".join(r.hints) or "-",
             )
+        console.print(table)
+
+
+@app.command("hints")
+def hints_cmd(
+    paths_: Annotated[
+        list[Path] | None, typer.Argument(help="Run folders, or folders of runs (default: runs/).")
+    ] = None,
+) -> None:
+    """Show the transcript hints of past attempts (read-only: result.json is not changed)."""
+    from llm_on_a_stick.grading.transcript import transcript_hints
+
+    found: list[Path] = []
+    for p in paths_ or [Path("runs")]:
+        found += (
+            [p]
+            if (p / "transcript.jsonl").exists()
+            else sorted(q.parent for q in p.glob("*/transcript.jsonl"))
+        )
+    if not found:
+        err.print("[yellow]no attempts with a transcript.jsonl found[/]")
+        raise typer.Exit(1)
+    table = Table("model", "run", "outcome", "recorded hints", "transcript hints")
+    for run_dir in found:
+        model, recorded, outcome = "-", "-", "?"
+        if (run_dir / "result.json").exists():
+            res = json.loads((run_dir / "result.json").read_text(encoding="utf-8"))
+            outcome, recorded = res.get("outcome", "?"), ", ".join(res.get("failure_hints", [])) or "-"
+            model = (res.get("metrics") or {}).get("model") or "-"
+        hints = ", ".join(transcript_hints(run_dir)) or "-"
+        table.add_row(model, run_dir.name, outcome, recorded, hints)
+    console.print(table)

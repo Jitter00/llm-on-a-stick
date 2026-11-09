@@ -27,6 +27,7 @@ from llm_on_a_stick.grading import run as run_mod
 from llm_on_a_stick.grading import validate as validate_mod
 from llm_on_a_stick.grading.labstate import LabState
 from llm_on_a_stick.grading.results import FailureHint, Result
+from llm_on_a_stick.grading.transcript import transcript_hints
 from llm_on_a_stick.runner import toolbox as toolbox_mod
 from llm_on_a_stick.runner.models import (
     Client,
@@ -391,6 +392,7 @@ def run_task(
     hints = _hints(m)
     if "no-output" in result.failure_hints and answer_in_reply(final_text, info.canaries):
         hints.append("answer-in-reply")
+    hints += transcript_hints(info.run_dir, m.stop_reason)  # hints only: outcome and score stay as graded
     for h in hints:
         if h not in result.failure_hints:
             result.failure_hints.append(h)

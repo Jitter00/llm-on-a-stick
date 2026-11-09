@@ -311,6 +311,13 @@ class FakeToolbox:
             _, name, canary = command.split()
             (self.workspace / name).write_text(FRR1.replace("stick-abc12345", canary))
             return toolbox.CommandResult(0, "", 0, False, 0.01)
+        if command.startswith("show-config ") and " > /work/" in command:  # show-config <canary> > /work/<f>
+            canary, name = command.split()[1], command.split("/work/")[1]
+            (self.workspace / name).write_text(FRR1.replace("stick-abc12345", canary))
+            return toolbox.CommandResult(0, "", 0, False, 0.01)
+        if command.startswith("cat /work/"):
+            text = (self.workspace / command.split("/work/")[1]).read_text()
+            return toolbox.CommandResult(0, text, len(text), False, 0.01)
         return toolbox.CommandResult(127, "bash: nope: command not found", 30, False, 0.01)
 
 
@@ -642,3 +649,26 @@ def test_wait_for_ram_recovers(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(loop, "available_ram_mb", lambda: next(readings))
     monkeypatch.setattr(loop.time, "sleep", lambda _s: None)
     assert loop.wait_for_ram(2048, wait_s=60) == 4000
+
+
+def test_transcript_hints_are_added_but_never_change_the_outcome(demo: Any, tmp_path: Path) -> None:
+    task, lab = demo
+
+    class Saving(ListClient):
+        def __init__(self, read_back: bool) -> None:
+            super().__init__([], "ollama/x")
+            self.read_back = read_back
+
+        def new_session(self, system: str, prompt: str, tools: Any, variables: dict[str, Any]) -> Any:
+            canary = variables["canaries"]["host_desc"]
+            calls = [_call(f"show-config {canary} > /work/frr1.cfg")]
+            if self.read_back:
+                calls.append(_call("cat /work/frr1.cfg", 2))
+            self.turns = [Turn("", calls, Usage(), "tool_use"), Turn("saved", [], Usage(), "stop")]
+            return super().new_session(system, prompt, tools, variables)
+
+    _, unchecked, _ = loop.run_task(task, Saving(read_back=False), lab, tmp_path / "a")
+    _, checked, _ = loop.run_task(task, Saving(read_back=True), lab, tmp_path / "b")
+    assert "no-verification" in unchecked.failure_hints
+    assert "no-verification" not in checked.failure_hints
+    assert (unchecked.outcome, unchecked.score) == (checked.outcome, checked.score)
