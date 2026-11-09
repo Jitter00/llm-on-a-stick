@@ -6,7 +6,7 @@ FROM python:3.13-slim-bookworm
 # hadolint ignore=DL3008
 RUN apt-get update \
     && apt-get install -y --no-install-recommends openssh-client sshpass curl jq iputils-ping netcat-openbsd \
-       dnsutils procps less \
+       dnsutils procps less snmp \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --no-cache-dir ncclient==0.7.1 netconf-console2==3.0.1 pyyaml==6.0.3 boto3==1.43.126
@@ -39,7 +39,7 @@ COPY ssh_config /etc/ssh/ssh_config.d/stick.conf
 
 # Raise together with TOOLBOX_VERSION in src/llm_on_a_stick/runner/toolbox.py when the image's tools change:
 # `stick run` rebuilds an older stick-toolbox:dev instead of running tasks without the new tools.
-LABEL stick.toolbox.version="2"
+LABEL stick.toolbox.version="3"
 
 ENV PAGER=cat TERM=dumb AWS_PAGER= CHECKPOINT_DISABLE=1 TF_IN_AUTOMATION=1
 WORKDIR /root

@@ -12,7 +12,13 @@ from dataclasses import dataclass
 
 from llm_on_a_stick import lab
 from llm_on_a_stick.services import seed as seeding
-from llm_on_a_stick.services.spec import HttpSnapshot, PostgresSnapshot, ServiceSpec, VolumesSnapshot
+from llm_on_a_stick.services.spec import (
+    HttpSnapshot,
+    MysqlSnapshot,
+    PostgresSnapshot,
+    ServiceSpec,
+    VolumesSnapshot,
+)
 
 
 class ServiceError(RuntimeError):
@@ -81,10 +87,22 @@ def has_snapshot(spec: ServiceSpec) -> bool:
     return res.returncode == 0
 
 
+def _mysql_argv(spec: ServiceSpec, snap: MysqlSnapshot, script: str) -> list[str]:
+    """A shell command in the database container, with the credentials in its environment (not its argv)."""
+    return compose_argv(
+        spec, "exec", "-T", "-e", f"MYSQL_PWD={snap.password}", "-e", f"SNAP_USER={snap.user}",
+        "-e", f"SNAP_DB={snap.database}", "-e", f"SNAP_PATH={snap.path}", snap.service, "sh", "-c", script,
+    )  # fmt: skip
+
+
 def take_snapshot(spec: ServiceSpec) -> None:
     snap = spec.snapshot
     if snap is None:
         raise ServiceError(f"{spec.name} has no snapshot configuration")
+    if snap.kind == "mysql":
+        dump = 'mariadb-dump -u"$SNAP_USER" --single-transaction --skip-lock-tables "$SNAP_DB" > "$SNAP_PATH"'
+        _run(_mysql_argv(spec, snap, dump))
+        return
     if snap.kind != "postgres":
         raise ServiceError(f"{spec.name}: its baseline is the empty service, there is nothing to snapshot")
     _run(
@@ -109,6 +127,18 @@ def _restore_postgres(spec: ServiceSpec, snap: PostgresSnapshot, log: Log) -> No
             "--single-transaction", snap.path,
         )
     )  # fmt: skip
+    for step in snap.after_restore:
+        _run(compose_argv(spec, "exec", "-T", step.service, *step.cmd))
+
+
+def _restore_mysql(spec: ServiceSpec, snap: MysqlSnapshot, log: Log) -> None:
+    if not has_snapshot(spec):
+        raise ServiceError(f"{spec.name}: no snapshot yet; run `stick svc up {spec.name}` first")
+    if snap.stop:
+        log(f"stopping {', '.join(snap.stop)}")
+        _run(compose_argv(spec, "stop", *snap.stop))
+    log("restoring database")
+    _run(_mysql_argv(spec, snap, 'mariadb -u"$SNAP_USER" "$SNAP_DB" < "$SNAP_PATH"'))
     for step in snap.after_restore:
         _run(compose_argv(spec, "exec", "-T", step.service, *step.cmd))
 
@@ -139,6 +169,11 @@ def restore_snapshot(spec: ServiceSpec, log: Log = _noop) -> None:
         return
     if snap.kind == "postgres":
         _restore_postgres(spec, snap, log)
+    elif snap.kind == "mysql":
+        _restore_mysql(spec, snap, log)
+        if not snap.stop:  # loaded into the running service: nothing to start again
+            wait_healthy(spec, spec.wait_timeout_s)
+            return
     else:
         _restore_volumes(spec, snap, log)
     log("starting services")
@@ -159,6 +194,12 @@ def up(spec: ServiceSpec, *, seed: bool = True, log: Log = _noop) -> UpResult:
         log(f"created network {lab.MGMT_NETWORK} ({lab.MGMT_SUBNET})")
     log(f"starting {spec.project} (first boot can take a few minutes)")
     _run(compose_argv(spec, "up", "-d", "--wait", "--wait-timeout", str(spec.wait_timeout_s)))
+    if spec.init is not None and not healthy(spec):  # first boot: create what compose can't
+        log("first boot: creating the admin user, API token and settings")
+        for step in spec.init.steps:
+            _run(compose_argv(spec, "exec", "-T", step.service, *step.cmd))
+        if spec.init.restart:
+            _run(compose_argv(spec, "restart", *spec.init.restart))
     wait_healthy(spec, spec.wait_timeout_s)
 
     result: seeding.SeedResult | None = None

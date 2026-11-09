@@ -39,9 +39,24 @@ class Seed(BaseModel):
     headers: dict[str, str] = Field(default_factory=dict)
 
 
+class Api(BaseModel):
+    """The service's REST API, for the grader and task scripts, when no seed carries the same settings."""
+
+    base_url: str
+    headers: dict[str, str] = Field(default_factory=dict)
+
+
 class ExecStep(BaseModel):
     service: str
     cmd: list[str]
+
+
+class Init(BaseModel):
+    """One-time setup that compose can't express (an admin user, an API token, settings): commands run in
+    the service's containers after the first boot, while the service isn't healthy yet, then a restart."""
+
+    steps: list[ExecStep]
+    restart: list[str] = Field(default_factory=list)
 
 
 class PostgresSnapshot(BaseModel):
@@ -72,7 +87,22 @@ class HttpSnapshot(BaseModel):
     method: Literal["POST", "PUT", "DELETE"] = "POST"
 
 
-Snapshot = Annotated[PostgresSnapshot | VolumesSnapshot | HttpSnapshot, Field(discriminator="kind")]
+class MysqlSnapshot(BaseModel):
+    """Baseline = a mariadb-dump taken after init; reset = load it back (MariaDB/MySQL services)."""
+
+    kind: Literal["mysql"]
+    service: str
+    database: str
+    user: str
+    password: str
+    path: str
+    stop: list[str] = Field(default_factory=list)
+    after_restore: list[ExecStep] = Field(default_factory=list)
+
+
+Snapshot = Annotated[
+    PostgresSnapshot | VolumesSnapshot | HttpSnapshot | MysqlSnapshot, Field(discriminator="kind")
+]
 
 
 class ServiceSpec(BaseModel):
@@ -88,12 +118,21 @@ class ServiceSpec(BaseModel):
     # toolbox and the setup/oracle scripts of a task that requires the service get them.
     env: dict[str, str] = Field(default_factory=dict)
     seed: Seed | None = None
+    api: Api | None = None
+    init: Init | None = None
     snapshot: Snapshot | None = None
     directory: Path = Path()
 
     @property
     def compose_file(self) -> Path:
         return self.directory / self.compose
+
+    @property
+    def api_settings(self) -> Api | None:
+        """Where the REST API is and how to authenticate: `api:`, else what the seed uses."""
+        if self.api is not None:
+            return self.api
+        return Api(base_url=self.seed.base_url, headers=self.seed.headers) if self.seed else None
 
     @property
     def seed_file(self) -> Path | None:

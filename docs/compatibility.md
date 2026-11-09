@@ -14,7 +14,7 @@ Legend: ✅ verified · ⚠️ partial (see notes) · ❌ doesn't work · ❓ no
 | arm64 image available | ✅ | ✅ | registry manifest lists |
 | SSH CLI | ✅ (`admin`/`NokiaSrl1!`; exec mode works) | ✅ (`admin` lands in vtysh; clean output) | `test_oxidized.py`, `test_frr_cli_output_is_clean` |
 | SSH Linux shell | – | ✅ (`netops`/`netops`: bash, `lldpcli`, `vtysh -c ...`) | `test_frr_shell_user_reads_lldp` |
-| SNMPv2c | ❓ | ✅ | `test_frr_snmp_answers` |
+| SNMPv2c | ✅ community `stick-ro` in the startup config (containerlab enables SNMP in `mgmt`); `ifAlias` = description | ✅ net-snmp; descriptions don't reach `ifAlias`, no BGP MIB | `test_srl_snmp_answers`, `test_frr_snmp_answers` |
 | NETCONF | ✅ port 830, base:1.0 framing, subtree filters (`get-config` on running) | ❌ (FRR has no NETCONF server) | `test_tasks_lab.py` (netconf tasks) |
 | gNMI | ❓ | ❌ (no native gNMI) | – |
 | Restore boot config without a restart (`stick task start`) | ✅ checkpoint `clab-initial` revert (~0.5 s) | ✅ `frr-reload.py` against the startup file (~0.15 s) | `test_restore_config_undoes_changes` |
@@ -31,7 +31,7 @@ Filled in as each service is added (Phase 0, step 3).
 | NetBox 4.7.4 | n/a | n/a | ✅ up, seeded, reachable from `stick-mgmt` at 172.30.30.100:8080; reset verified (`tests/integration/test_netbox.py`) |
 | Nautobot 3.2.8 | n/a | n/a | ✅ up, seeded, reachable from `stick-mgmt` at 172.30.30.102:8080; reset verified (`tests/integration/test_nautobot.py`) |
 | moto 5.2.5 (emulated AWS) | n/a | n/a | ✅ up, reachable from `stick-mgmt` at 172.30.30.103:5000; AWS CLI, boto3 and Terraform (offline provider) verified, reset verified (`tests/integration/test_moto.py`). Not verified: Terraform `aws_s3_bucket` (fails against an IP endpoint) |
-| LibreNMS (SNMP) | ❓ | ❓ | |
+| LibreNMS 26.10.2 | ✅ os `srlinux`, ports with descriptions | ✅ os `linux` (generic) | up, reachable from `stick-mgmt` at 172.30.30.104:8000; polls both, alert rules fire, reset verified (`tests/integration/test_librenms.py`) |
 | Zabbix (SNMP) | ❓ | ❓ | |
 | Oxidized 0.37.0 | ✅ custom model | ✅ custom model | Oxidized ships neither; ours are in `services/oxidized/model/` (`test_oxidized.py`) |
 | Batfish | ❓ (expected ❌) | ❓ (expected ⚠️) | Batfish isn't known to parse SR Linux; FRR support is partial |

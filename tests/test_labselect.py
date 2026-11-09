@@ -29,7 +29,7 @@ def test_a_service_selects_every_section_that_requires_it() -> None:
     s = sel("services/oxidized/router.db")
     assert s.services == {"oxidized"} and s.sections == {"cfg-mgmt"} and not s.core
     assert sel("tests/integration/test_netbox.py") == sel("services/netbox/seed.yaml")
-    assert sel("services/netbox/seed.yaml").sections == {"netbox"}
+    assert sel("services/netbox/seed.yaml").sections == {"netbox", "librenms"}  # librenms-netbox-sync
 
 
 def test_shared_code_selects_the_generic_tests_and_floor_tasks_only() -> None:
@@ -65,3 +65,10 @@ def test_the_cloud_sections_share_moto() -> None:
     assert s == Selection(sections={"aws", "terraform"}, services={"moto"}, core=False)
     assert sel("sections/terraform/tf-drift/setup.sh") == Selection(sections={"terraform"}, services={"moto"})
     assert sel("images/toolbox/aws_snapshot.py").core  # the image's tools are shared code
+
+
+def test_the_librenms_section_and_its_service() -> None:
+    s = sel("services/librenms/service.yaml")
+    assert s == Selection(sections={"librenms"}, services={"librenms", "netbox"}, core=False)
+    assert sel("sections/librenms/librenms-alert-rule/task.yaml").sections == {"librenms"}
+    assert sel("configs/srl/srl1.cli").core  # the boot config every section starts from

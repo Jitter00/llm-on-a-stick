@@ -135,3 +135,73 @@ TF_HEADER='terraform {
 }
 
 provider "aws" {}'
+
+# --- LibreNMS --------------------------------------------------------------
+# $STICK_LIBRENMS_URL comes from `stick task start`; the token is the service's default unless overridden.
+LIBRENMS_TOKEN="${STICK_LIBRENMS_TOKEN:-0123456789abcdef0123456789abcdef}"
+# librenms_api <METHOD> <path> [json]   e.g. librenms_api GET devices
+# Prints the response body; fails (with the body on stderr) on an HTTP error.
+librenms_api() {
+    local method=$1 path=$2 body=${3:-} out
+    local args=(-sS -X "$method" -H "X-Auth-Token: $LIBRENMS_TOKEN" -H "Accept: application/json")
+    [[ -n "$body" ]] && args+=(-H "Content-Type: application/json" --data "$body")
+    if ! out=$(curl "${args[@]}" -w '\n%{http_code}' "$STICK_LIBRENMS_URL/api/v0/${path#/}"); then
+        echo "librenms_api $method $path: request failed" >&2; return 1
+    fi
+    local code=${out##*$'\n'}
+    out=${out%$'\n'*}
+    if [[ "$code" -ge 400 ]]; then
+        echo "librenms_api $method $path: HTTP $code: $out" >&2; return 1
+    fi
+    printf '%s\n' "$out"
+}
+# Run `lnms <args>` in the LibreNMS container.
+librenms_lnms() { docker exec stick-librenms-librenms-1 lnms "$@"; }
+# librenms_poll <hostname|all>: discover and poll now, instead of waiting for the dispatcher. A device that
+# doesn't answer makes lnms exit non-zero, which is fine here.
+librenms_poll() {
+    librenms_lnms device:discover "$1" -q >/dev/null 2>&1 || true
+    librenms_lnms device:poll "$1" -q >/dev/null 2>&1 || true
+}
+# librenms_add_device <address> <community> [force]: add an SNMPv2c device, then discover and poll it.
+# With "force", LibreNMS takes it without checking that it answers.
+librenms_add_device() {
+    local force=false
+    [[ "${3:-}" == force ]] && force=true
+    librenms_api POST devices "$(jq -n --arg h "$1" --arg c "$2" --argjson f "$force" \
+        '{hostname: $h, version: "v2c", community: $c, force_add: $f}')" >/dev/null
+    librenms_poll "$1"
+}
+# librenms_wait_snmp <address> <community> <text>: wait until the device's SNMP agent shows <text> in its
+# system name or port descriptions. SR Linux takes a few seconds to publish a configuration change over
+# SNMP (up to a minute for a port description); adding the device before that would store the old values.
+librenms_wait_snmp() {
+    local oid out
+    for _ in $(seq 1 60); do
+        for oid in SNMPv2-MIB::sysName IF-MIB::ifAlias; do
+            # Into a variable, not a pipe: `grep -q` would close the pipe early and, with pipefail, fail.
+            out=$(docker exec stick-librenms-librenms-1 snmpbulkwalk -v2c -c "$2" -t 2 -r 0 -OQv "$1" "$oid" \
+                2>/dev/null || true)
+            grep -qF -- "$3" <<<"$out" && return 0
+        done
+        sleep 1
+    done
+    echo "$1 does not show '$3' over SNMP (community $2)" >&2
+    return 1
+}
+# librenms_add_devices <community> <address>...: the same for several devices, polled side by side.
+librenms_add_devices() {
+    local community=$1 ip pids=()
+    shift
+    for ip in "$@"; do
+        librenms_api POST devices "$(jq -n --arg h "$ip" --arg c "$community" \
+            '{hostname: $h, version: "v2c", community: $c}')" >/dev/null
+    done
+    for ip in "$@"; do librenms_poll "$ip" & pids+=($!); done
+    wait "${pids[@]}"
+}
+# Set the SNMP community of an SR Linux node (containerlab's default entry). `stick task start` puts the
+# boot value back: it is part of the configuration.
+srl_snmp_community() {
+    srl_set "$1" "set / system snmp access-group SNMPv2-RO-Community community-entry RO-Community community $2"
+}

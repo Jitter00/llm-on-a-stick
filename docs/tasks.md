@@ -19,13 +19,14 @@ Every attempt starts from the same state. The lab stays up between attempts, tas
 `stick env up` / `env down` deploy or remove it), so `stick task start` resets it first:
 
 1. the services the task lists under `reset_services` go back to their baseline (NetBox's seeded snapshot:
-   ~20 s, Nautobot's: ~25 s, moto's empty account: ~0.2 s);
+   ~20 s, Nautobot's: ~25 s, LibreNMS's empty database: ~1 s, moto's empty account: ~0.2 s);
 2. **every router goes back to the config it booted with**, without a restart, so BGP stays up:
    - SR Linux reverts to `clab-initial`, the checkpoint containerlab takes once the startup config is applied;
    - FRR runs `frr-reload.py` against its startup config, `configs/frr/<node>/frr.conf`;
    - it takes about 2 s for the four routers, and the times are in the run's `restore.log`;
 3. the task's `setup.sh` plants this run's canaries (or a fault);
-4. the baseline is taken, for `no_change_outside`, `netbox_unchanged`, `nautobot_unchanged` and `aws_unchanged`.
+4. the baseline is taken, for `no_change_outside`, `netbox_unchanged`, `nautobot_unchanged`, `librenms_unchanged`
+   and `aws_unchanged`.
 
 A task with `topology: none` (the `aws` and `terraform` sections) uses no lab device: step 2 is skipped, and the
 lab doesn't need to be running at all.
@@ -121,6 +122,25 @@ itself, and reads the account.
 
 Requirements: moto only. Run them with `uv run stick run --section terraform ...`.
 
+## librenms: monitoring
+
+LibreNMS polls the routers over SNMP (see [Services](services.md#librenms)). These tasks drive it through its
+REST API, and most of them relate what the NMS shows to what the devices do. The grader forces a poll before it
+looks, so results never depend on the poller's timing.
+
+| Task | Tier | What the agent must do | What can go wrong (and is detected) |
+|---|---|---|---|
+| `librenms-query-port` | basic | Find the port with a given description among the monitored devices; report the device's system name, the port name and its ifIndex | Wrong token header, the distractor port with another description, changing anything |
+| `librenms-add-device` | intermediate | Add srl1 over SNMPv2c with this run's community, so that LibreNMS really polls it | A wrong payload (`hostname`, `version`, `community`), `force_add` hiding a wrong community (device listed but down), touching frr1 |
+| `librenms-fix-monitoring` | intermediate | One router is down in LibreNMS since its community was changed on the device: find which, and fix LibreNMS's entry | Deleting and re-adding the device (new id, history lost), changing the router instead, "fixing" a healthy device |
+| `librenms-alert-rule` | advanced | Create a critical rule for ports with a given description that are down; it must fire for exactly one port (another port with the description is up, dozens of undescribed ports are down) | A rule that never fires (bad builder JSON), one that fires for every down port, a duplicate rule after the API's misleading error, wrong severity |
+| `librenms-netbox-sync` | advanced | Add to LibreNMS every device NetBox lists as active (random names, real addresses), by primary IPv4 | Adding the planned device, re-adding the one already monitored, using NetBox names LibreNMS can't resolve, changing NetBox |
+
+Requirements: the lab and LibreNMS (`uv run stick env up`, `uv run stick svc up librenms`); `librenms-netbox-sync`
+also needs NetBox. Every attempt starts from an empty LibreNMS (`reset_services: [librenms]`, about a second),
+and `librenms_unchanged` fails attempts that add, change or delete anything the task didn't ask for. Run them
+with `uv run stick run --section librenms ...`.
+
 ## Which tasks are kept
 
 Most models tested here run locally, where one attempt can take minutes, so every task has to earn its place.
@@ -152,9 +172,10 @@ Scripts get these environment variables:
 | `STICK_NODE_<NODE>` / `STICK_NODE_<NODE>_IP` | Container name / management IP of each lab node, e.g. `STICK_NODE_SRL1` |
 | `STICK_<SERVICE>_URL` / `STICK_<SERVICE>_AUTH` | A service's host URL and, if it has an API token, its `Authorization` header value, e.g. `STICK_NETBOX_URL` |
 | `AWS_ENDPOINT_URL`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION` | Only for tasks that require `moto`: what the AWS tools need to reach the emulator |
-| `STICK_LIB` | Folder with shared helpers: `source "$STICK_LIB/common.sh"` gives `srl_set`, `srl_cli`, `frr_conf`, `frr_cli`, `netconf_get_config`, `oxidized_backup_now`, `netbox_api`, `netbox_id`, `nautobot_api`, `nautobot_id`, and for the cloud sections `toolbox_run`, `aws_cli`, `tf` and `$TF_HEADER` |
+| `STICK_LIB` | Folder with shared helpers: `source "$STICK_LIB/common.sh"` gives `srl_set`, `srl_cli`, `frr_conf`, `frr_cli`, `netconf_get_config`, `oxidized_backup_now`, `netbox_api`, `netbox_id`, `nautobot_api`, `nautobot_id`, `librenms_api`, `librenms_add_device(s)`, `librenms_poll`, `librenms_wait_snmp`, `srl_snmp_community` |
 
-Prompts can use `{{ services.<name>.url }}` and, for services with an API token, `{{ services.<name>.token }}`.
+Prompts can use `{{ services.<name>.url }}` and, for services with an API token, `{{ services.<name>.token }}`
+(the value after `Bearer`/`Token`, or the whole `X-Auth-Token` for LibreNMS).
 
 Keep your own tasks in any folder and point `stick` at it with `--tasks-dir`:
 
@@ -174,6 +195,10 @@ second), so a setup with many commands sends one script instead:
 Things learned while writing these tasks:
 
 - On SR Linux, `sr_cli -ed "set ..."` does not commit; use `sr_cli -ec` (`srl_set` does).
+- SR Linux startup configs (`configs/srl/*.cli`) take no `#` comment lines: containerlab stops applying the
+  file at the first one, silently.
+- SR Linux publishes a configuration change (a description, a community) over SNMP a few seconds later;
+  `librenms_wait_snmp` waits for it before LibreNMS reads the device.
 - A full NETCONF reply from SR Linux is ~300 KB: pass it through files, not environment variables.
 - SR Linux has `<interface>` elements in several places (network-instances, LLDP...) reusing interface names; take
   top-level interfaces from directly under `<data>`.

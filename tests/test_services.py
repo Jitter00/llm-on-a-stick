@@ -120,11 +120,12 @@ def test_every_service_joins_the_lab_network_at_its_fixed_ip() -> None:
             for svc in compose["services"].values()
             if isinstance(svc.get("networks"), dict) and lab.MGMT_NETWORK in svc["networks"]
         ]
-        assert ips == [lab.SERVICE_IPS[name]], name
+        assert ips == [lab.SERVICE_IPS[name], *lab.SERVICE_EXTRA_IPS.get(name, [])], name
 
 
 def test_service_ips_are_unique() -> None:
-    assert len(set(lab.SERVICE_IPS.values())) == len(lab.SERVICE_IPS)
+    ips = [*lab.SERVICE_IPS.values(), *(ip for extra in lab.SERVICE_EXTRA_IPS.values() for ip in extra)]
+    assert len(set(ips)) == len(ips)
 
 
 # --------------------------------------------------------------------------- oxidized

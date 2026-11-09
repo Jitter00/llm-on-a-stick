@@ -53,6 +53,7 @@ def _load() -> None:
     from llm_on_a_stick.grading.checks import (  # noqa: F401  (registers built-ins)
         aws,
         builtin,
+        librenms,
         netbox,
         retrieval,
     )

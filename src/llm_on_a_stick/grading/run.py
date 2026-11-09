@@ -4,7 +4,8 @@ A run directory holds everything about one attempt:
     run.json       task id, task dir, canaries, rendered prompt, timestamps
     work/          the agent's workspace (files the task asks for go here)
     baseline/      every router's config right after setup (for collateral-change checks), and
-                   <service>.json for tasks that need NetBox, Nautobot or moto (the emulated AWS account)
+                   <service>.json for tasks that need NetBox, Nautobot, LibreNMS or moto (the emulated AWS
+                   account)
     restore.log    how long putting each router back to its boot config took
     setup.log      output of the task's setup script, if any
     result.json    written later by `stick grade`
@@ -16,6 +17,7 @@ import json
 import os
 import subprocess
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path, PurePath, PurePosixPath
 from typing import Any
@@ -24,7 +26,7 @@ from urllib.parse import urlparse
 from pydantic import BaseModel
 
 from llm_on_a_stick import paths, services
-from llm_on_a_stick.grading import awsstate, sotstate
+from llm_on_a_stick.grading import awsstate, librenmsstate, sotstate
 from llm_on_a_stick.grading import canaries as canary_mod
 from llm_on_a_stick.grading.labstate import LabState, LabStateError
 from llm_on_a_stick.grading.template import render
@@ -56,10 +58,19 @@ def restore_routers(lab: LabState, log: Path) -> None:
 
 def rest_client(name: str) -> RestClient:
     """The REST API client of a source-of-truth service (netbox, nautobot), from its service.yaml."""
-    spec = services.load(name)
-    if spec.seed is None:
+    api = services.load(name).api_settings
+    if api is None:
         raise RunError(f"{name} service.yaml has no API settings")
-    return RestClient(spec.seed.base_url, spec.seed.headers)
+    return RestClient(api.base_url, api.headers)
+
+
+# Per service, how to read the state that `<service>_unchanged` compares later (baseline/<service>.json).
+BASELINES: dict[str, Callable[[], Any]] = {
+    "netbox": lambda: sotstate.snapshot(rest_client("netbox"), sotstate.ENDPOINTS["netbox"]),
+    "nautobot": lambda: sotstate.snapshot(rest_client("nautobot"), sotstate.ENDPOINTS["nautobot"]),
+    "librenms": lambda: librenmsstate.snapshot(rest_client("librenms")),
+    "moto": lambda: awsstate.snapshot(),  # the emulated AWS account, through the toolbox's tools
+}
 
 
 class RunInfo(BaseModel):
@@ -91,10 +102,12 @@ def service_vars() -> dict[str, dict[str, str]]:
         spec = services.load(name)
         parsed = urlparse(spec.health.url)
         values = {"url": f"{parsed.scheme}://{parsed.netloc}"}
-        auth = (spec.seed.headers if spec.seed else {}).get("Authorization", "")
-        if auth:
+        headers = spec.api_settings.headers if spec.api_settings else {}
+        if auth := headers.get("Authorization", ""):
             values["auth"] = auth
             values["token"] = auth.split(" ", 1)[-1]  # without "Bearer " / "Token "
+        elif token := headers.get("X-Auth-Token", ""):  # LibreNMS: the token is the whole header value
+            values["token"] = token
         out[name] = values
     return out
 
@@ -201,19 +214,11 @@ def start(
                 ) from exc
             (baseline / f"{node.name}.cfg").write_text(config, encoding="utf-8")
     for name in task.requires.get("services") or []:  # baseline/<name>.json, for <name>_unchanged
-        if name == awsstate.SERVICE:  # the emulated AWS account, for aws_unchanged
-            try:
-                state = awsstate.snapshot()
-            except awsstate.AwsStateError as exc:
-                raise RunError(f"cannot read {name}: is it up? (`stick svc up {name}`) [{exc}]") from exc
-            (baseline / f"{name}.json").write_text(
-                json.dumps(state, indent=1, sort_keys=True), encoding="utf-8"
-            )
-        if name not in sotstate.ENDPOINTS:
+        if name not in BASELINES:
             continue
         try:
-            snap = sotstate.snapshot(rest_client(name), sotstate.ENDPOINTS[name])
-        except RestError as exc:
+            snap = BASELINES[name]()
+        except (RestError, awsstate.AwsStateError) as exc:
             raise RunError(f"cannot read {name}: is it up? (`stick svc up {name}`) [{exc}]") from exc
         (baseline / f"{name}.json").write_text(json.dumps(snap, indent=1, sort_keys=True), encoding="utf-8")
 

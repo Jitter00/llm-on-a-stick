@@ -49,8 +49,9 @@ API keys are only read from the environment. They are never written to the run f
 - **The task's prompt**, with this run's addresses, file paths and canaries filled in. Paths in the workspace are
   written `/work/...`: short, so a model can't fail a task by mistyping a long folder name.
 - **One tool, `run_command`**, which runs a bash command in the **toolbox** container: `ssh`, `sshpass`, `curl`,
-  `jq`, `python3` with `ncclient` and `boto3`, `netconf-console2`, and for the cloud sections `aws` and `terraform`
-  (with its AWS provider, so `terraform init` needs no download). The toolbox shares the host's network, so it reaches the lab
+  `jq`, `python3` with `ncclient` and `boto3`, `netconf-console2`, `snmpget` and `snmpwalk`, and for the cloud
+  sections `aws` and `terraform` (with its AWS provider, so `terraform init` needs no download). The toolbox shares
+  the host's network, so it reaches the lab
   and the tools exactly like you do from your machine; the run's workspace folder (`<run>/work` on your machine)
   is mounted at `/work`.
 

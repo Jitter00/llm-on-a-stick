@@ -29,10 +29,10 @@ class Services:
     def rest(self, name: str) -> RestClient:
         """The REST API client of a service whose service.yaml has API settings (netbox, nautobot)."""
         if name not in self._rest:
-            spec = services.load(name)
-            if spec.seed is None:
+            api = services.load(name).api_settings
+            if api is None:
                 raise ServiceUnavailable(f"{name} service.yaml has no API settings")
-            self._rest[name] = RestClient(spec.seed.base_url, spec.seed.headers)
+            self._rest[name] = RestClient(api.base_url, api.headers)
         return self._rest[name]
 
     def netbox(self) -> RestClient:

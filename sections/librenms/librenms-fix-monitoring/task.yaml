@@ -1,0 +1,36 @@
+id: librenms-fix-monitoring
+section: librenms
+title: Get a router that LibreNMS reports down monitored again
+tier: intermediate
+tags: [tool:librenms, iface:rest, skill:nms-troubleshooting]
+prompt: |
+  LibreNMS is at {{ services.librenms.url }} (REST API under /api/v0/, header "X-Auth-Token: {{ services.librenms.token }}").
+
+  LibreNMS has reported one of its routers as down since the network team changed that router's SNMP
+  community to {{ canaries.community }}. The router itself works. Find out which router it is and make
+  LibreNMS monitor it again.
+
+  Keep the router's entry in LibreNMS (its history must not be lost: don't delete it and add it again).
+  Do not change the other devices in LibreNMS, or any router.
+requires:
+  devices: [srl1, srl2, frr1, frr2]
+  services: [librenms]
+reset_services: [librenms]
+canaries:
+  community: description
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: librenms_device
+    name: LibreNMS reaches the router again, with the new community
+    params:
+      hostname: "{{ nodes.srl2.mgmt_ip }}"
+      expect: {status: 1, community: "{{ canaries.community }}"}
+    weight: 3
+  - type: librenms_unchanged
+    name: the entry was kept and no other device was changed
+    params: {allow_changed: ["devices:{{ nodes.srl2.mgmt_ip }}"]}
+  - type: no_change_outside
+    name: no router was changed
+    params: {allowed: []}
+limits: {turns: 20}

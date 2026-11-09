@@ -181,7 +181,9 @@ def test_builtin_tasks_are_complete() -> None:
         services = task.requires.get("services") or []
         # Source-of-truth tasks start from the seed and check that nothing else changed there.
         # The same for the emulated AWS account (moto), whose check is aws_unchanged.
-        for sot, unchanged in (("netbox", "netbox"), ("nautobot", "nautobot"), ("moto", "aws")):
+        for sot, unchanged in (
+            ("netbox", "netbox"), ("nautobot", "nautobot"), ("moto", "aws"), ("librenms", "librenms"),
+        ):  # fmt: skip
             if sot in services:
                 assert sot in task.reset_services, f"{task.id} doesn't reset {sot}"
                 assert any(c.type == f"{unchanged}_unchanged" for c in task.checks), (
