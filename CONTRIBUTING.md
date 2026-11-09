@@ -59,3 +59,6 @@ To run the same selection locally:
 eval "$(uv run python -m llm_on_a_stick.labselect origin/main HEAD | grep ^STICK_LAB_ | sed 's/^/export /')"
 uv run pytest -m lab
 ```
+
+The `aws` and `terraform` tasks need no lab devices (`topology: none`): when only they are selected, the lab is
+not deployed, only the moto container.

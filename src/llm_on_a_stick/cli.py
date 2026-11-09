@@ -430,6 +430,14 @@ def run_cmd(
     effort: Annotated[
         str | None, typer.Option(help="Anthropic effort: low, medium, high, xhigh, max.")
     ] = None,
+    no_thinking: Annotated[
+        bool,
+        typer.Option(
+            "--no-thinking",
+            help="Anthropic models: turn thinking off (it is on by default on recent models). The weakest "
+            "setting, for checking that a task is hard enough; some models reject it.",
+        ),
+    ] = False,
     min_free_ram: Annotated[
         int,
         typer.Option(
@@ -448,7 +456,9 @@ def run_cmd(
         raise typer.Exit(2)
     try:
         selected = _select_tasks(task_refs, section, all_, _task_roots(tasks_dir))
-        clients = [models.make_client(m, base_url, temperature, effort) for m in model]
+        clients = [
+            models.make_client(m, base_url, temperature, effort, thinking=not no_thinking) for m in model
+        ]
         local = [c.spec.spec for c in clients if c.spec.endpoint.local and c.spec.provider != "script"]
         if len(local) > 1:
             raise models.ModelError(

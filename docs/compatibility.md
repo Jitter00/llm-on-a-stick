@@ -30,6 +30,7 @@ Filled in as each service is added (Phase 0, step 3).
 |---|---|---|---|
 | NetBox 4.7.4 | n/a | n/a | ✅ up, seeded, reachable from `stick-mgmt` at 172.30.30.100:8080; reset verified (`tests/integration/test_netbox.py`) |
 | Nautobot 3.2.8 | n/a | n/a | ✅ up, seeded, reachable from `stick-mgmt` at 172.30.30.102:8080; reset verified (`tests/integration/test_nautobot.py`) |
+| moto 5.2.5 (emulated AWS) | n/a | n/a | ✅ up, reachable from `stick-mgmt` at 172.30.30.103:5000; AWS CLI, boto3 and Terraform (offline provider) verified, reset verified (`tests/integration/test_moto.py`). Not verified: Terraform `aws_s3_bucket` (fails against an IP endpoint) |
 | LibreNMS (SNMP) | ❓ | ❓ | |
 | Zabbix (SNMP) | ❓ | ❓ | |
 | Oxidized 0.37.0 | ✅ custom model | ✅ custom model | Oxidized ships neither; ours are in `services/oxidized/model/` (`test_oxidized.py`) |

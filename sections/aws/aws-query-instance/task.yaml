@@ -1,0 +1,39 @@
+id: aws-query-instance
+section: aws
+title: Find an EC2 instance's address, subnet and security group
+tier: basic
+floor: true  # the section's cheap floor task: CI validates it on every shared-code change
+tags: [tool:aws-cli, iface:rest, skill:cloud-query]
+topology: none
+prompt: |
+  An AWS account is ready in your toolbox: `aws` and boto3 work as they are (the credentials, the region
+  eu-west-1 and the API endpoint, an emulator, are set in the environment).
+
+  One EC2 instance has the Name tag {{ canaries.host }}. Find its private IPv4 address, the CIDR block of the
+  subnet it is in, and the name of its security group, and write them to {{ workspace }}/answer.json:
+    {"private_ip": "<address>", "subnet_cidr": "<CIDR block>", "security_group": "<group name>"}
+
+  Do not change anything in the account.
+requires:
+  services: [moto]
+reset_services: [moto]
+canaries:
+  vpc: net16
+  host: hostname
+  other: hostname
+  sg: hostname
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: json_file_matches
+    name: answer.json has the instance's address, subnet and security group
+    params:
+      path: answer.json
+      expected:
+        private_ip: "{{ canaries.vpc }}.1.10"
+        subnet_cidr: "{{ canaries.vpc }}.1.0/24"
+        security_group: "{{ canaries.sg }}"
+    weight: 2
+  - type: aws_unchanged
+    name: nothing was changed in the AWS account
+limits: {turns: 15}

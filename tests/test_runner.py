@@ -260,7 +260,7 @@ def test_anthropic_session_passes_content_back_unchanged() -> None:
 
     client = models.AnthropicClient.__new__(models.AnthropicClient)
     client.spec = models.parse_spec("anthropic/claude-sonnet-5-5")
-    client.effort, client.max_output_tokens = "high", 16000
+    client.effort, client.max_output_tokens, client.thinking = "high", 16000, True
     client.sdk = SimpleNamespace(APIError=RuntimeError)  # type: ignore[assignment]
     client.client = SimpleNamespace(messages=SimpleNamespace(create=create))  # type: ignore[assignment]
 
@@ -270,8 +270,11 @@ def test_anthropic_session_passes_content_back_unchanged() -> None:
     assert turn.tool_calls[0].arguments == {"command": "ls"}
     assert turn.usage.input_tokens == 100  # uncached + cache reads: what the model actually read
     assert calls[0]["output_config"] == {"effort": "high"}
-    assert "temperature" not in calls[0]
+    assert "temperature" not in calls[0] and "thinking" not in calls[0]  # thinking: the model's default
     s.add_results([ToolResult("tu1", "file1")])
+    client.thinking = False  # --no-thinking
+    s.step()
+    assert calls[1]["thinking"] == {"type": "disabled"}
     assert s.messages[1]["content"] is blocks  # thinking blocks go back as received
     assert s.messages[2]["content"][0]["tool_use_id"] == "tu1"
 
@@ -295,8 +298,10 @@ class FakeToolbox:
 
     instances: ClassVar[list[FakeToolbox]] = []
 
-    def __init__(self, workspace: Path, name: str, max_output: int = 16000) -> None:
-        self.workspace, self.commands = workspace, []
+    def __init__(
+        self, workspace: Path, name: str, max_output: int = 16000, env: dict[str, str] | None = None
+    ) -> None:
+        self.workspace, self.commands, self.env = workspace, [], env or {}
         FakeToolbox.instances.append(self)
 
     def __enter__(self) -> FakeToolbox:

@@ -49,12 +49,15 @@ API keys are only read from the environment. They are never written to the run f
 - **The task's prompt**, with this run's addresses, file paths and canaries filled in. Paths in the workspace are
   written `/work/...`: short, so a model can't fail a task by mistyping a long folder name.
 - **One tool, `run_command`**, which runs a bash command in the **toolbox** container: `ssh`, `sshpass`, `curl`,
-  `jq`, `python3` with `ncclient`, and `netconf-console2`. The toolbox shares the host's network, so it reaches the lab
+  `jq`, `python3` with `ncclient` and `boto3`, `netconf-console2`, and for the cloud sections `aws` and `terraform`
+  (with its AWS provider, so `terraform init` needs no download). The toolbox shares the host's network, so it reaches the lab
   and the tools exactly like you do from your machine; the run's workspace folder (`<run>/work` on your machine)
   is mounted at `/work`.
 
-The model never runs anything on your machine itself. The toolbox image is built automatically the first time
-(`uv run stick image build toolbox` builds it by hand).
+The model never runs anything on your machine itself. The toolbox image is built automatically the first time,
+and again when a new version of `stick` changes its tools (`uv run stick image build toolbox` builds it by hand).
+It is about 1.5 GB, most of it the AWS CLI and Terraform's AWS provider. For a task that requires a service with
+client settings (moto: `AWS_ENDPOINT_URL`, credentials, region), the toolbox gets them as environment variables.
 
 ### Keeping the input small
 
@@ -112,7 +115,9 @@ Missing a model, or a value out of date? Add or fix its entry in `data/sampling.
 open a pull request.
 
 Claude models don't take a temperature; use `--effort low|medium|high|xhigh|max` instead (default: the model's
-own).
+own). Recent Claude models also think before answering by default; `--no-thinking` turns that off (on models that
+allow it, such as Claude Haiku 5.5 and only up to effort `high`), which gives the weakest Claude run: useful to
+check that a task is hard enough. Both are recorded with the attempt.
 
 ## What gets recorded
 

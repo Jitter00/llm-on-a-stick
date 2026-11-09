@@ -11,12 +11,14 @@ import os
 import subprocess
 import time
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from types import TracebackType
 
 from llm_on_a_stick.env import containerlab
 
 IMAGE = os.environ.get("STICK_TOOLBOX_IMAGE", "stick-toolbox:dev")
+# The `stick.toolbox.version` label of images/toolbox/Dockerfile. 2: adds aws, boto3 and terraform.
+TOOLBOX_VERSION = "2"
 
 
 class ToolboxError(RuntimeError):
@@ -49,13 +51,19 @@ def shorten(text: str, limit: int) -> str:
 
 
 def ensure_image(log: object = print) -> None:
-    res = subprocess.run(["docker", "image", "inspect", IMAGE], capture_output=True, check=False)
-    if res.returncode == 0:
-        return
-    if IMAGE != "stick-toolbox:dev":
+    """Build stick-toolbox:dev if it is missing or older than this code expects (see TOOLBOX_VERSION)."""
+    label = '{{ index .Config.Labels "stick.toolbox.version" }}'
+    res = subprocess.run(
+        ["docker", "image", "inspect", "--format", label, IMAGE], capture_output=True, text=True, check=False
+    )
+    found = res.returncode == 0
+    if found and (IMAGE != "stick-toolbox:dev" or res.stdout.strip() == TOOLBOX_VERSION):
+        return  # your own image (STICK_TOOLBOX_IMAGE) is used as it is
+    if not found and IMAGE != "stick-toolbox:dev":
         raise ToolboxError(f"toolbox image {IMAGE} not found")
     if callable(log):
-        log("building the toolbox image (once, about a minute) ...")
+        why = "its tools changed" if found else "once"
+        log(f"building the toolbox image ({why}; a few minutes: it downloads the AWS CLI and Terraform) ...")
     containerlab.build_image("toolbox")
 
 
@@ -63,11 +71,47 @@ def ensure_image(log: object = print) -> None:
 WORKDIR = "/work"
 
 
+def _env_args(env: dict[str, str] | None) -> list[str]:
+    return [arg for key, value in (env or {}).items() for arg in ("-e", f"{key}={value}")]
+
+
+def run_once(
+    command: str,
+    env: dict[str, str] | None = None,
+    workspace: Path | None = None,
+    cwd: str = "",
+    timeout_s: int = 120,
+) -> subprocess.CompletedProcess[str]:
+    """Run one bash command in a throwaway toolbox container, as the calling user: how the grader uses the
+    image's tools (aws, terraform) without needing them on the host. `workspace` is mounted at /work, and
+    `cwd` is a directory under it."""
+    argv = ["docker", "run", "--rm", "--network", "host", "-e", "HOME=/tmp", *_env_args(env)]
+    if hasattr(os, "getuid"):  # files it writes in the workspace stay the user's
+        argv += ["--user", f"{os.getuid()}:{os.getgid()}"]
+    if workspace is not None:
+        argv += ["-v", f"{workspace.resolve()}:{WORKDIR}", "-w", str(PurePosixPath(WORKDIR) / cwd)]
+    argv += [IMAGE, "timeout", "-k", "5", str(timeout_s), "bash", "-c", command]
+    try:
+        return subprocess.run(
+            argv,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=timeout_s + 30,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+        raise ToolboxError(f"cannot run `{command[:80]}` in the toolbox: {exc}") from exc
+
+
 class Toolbox:
-    def __init__(self, workspace: Path, name: str, max_output: int = 4000) -> None:
+    def __init__(
+        self, workspace: Path, name: str, max_output: int = 4000, env: dict[str, str] | None = None
+    ) -> None:
         self.workspace = workspace.resolve()
         self.name = name
         self.max_output = max_output
+        self.env = env or {}  # e.g. AWS_ENDPOINT_URL, from the services the task requires
 
     def __enter__(self) -> Toolbox:
         self.start()
@@ -92,6 +136,7 @@ class Toolbox:
                 "host",
                 "--label",
                 "stick-toolbox=1",
+                *_env_args(self.env),
                 "-v",
                 f"{ws}:{WORKDIR}",
                 "-w",

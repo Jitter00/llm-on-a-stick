@@ -42,7 +42,12 @@ class LabState(Protocol):
     def bgp_sessions(self, node: str) -> dict[str, str]: ...
 
 
+NO_LAB = "none"  # a task's `topology: none`: it needs no lab devices (e.g. the cloud sections)
+
+
 def load_nodes(topology: str = "base") -> dict[str, Node]:
+    if topology == NO_LAB:
+        return {}
     path = paths.topology_path(topology)
     topo = yaml.safe_load(path.read_text(encoding="utf-8"))
     lab = topo["name"]

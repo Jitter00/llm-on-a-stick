@@ -50,7 +50,12 @@ def _load() -> None:
     if _loaded:
         return
     _loaded = True
-    from llm_on_a_stick.grading.checks import builtin, netbox, retrieval  # noqa: F401  (registers built-ins)
+    from llm_on_a_stick.grading.checks import (  # noqa: F401  (registers built-ins)
+        aws,
+        builtin,
+        netbox,
+        retrieval,
+    )
 
     for ep in entry_points(group=ENTRY_POINT_GROUP):
         ep.load()

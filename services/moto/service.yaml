@@ -1,0 +1,29 @@
+# How `stick svc` drives moto (an emulated AWS account). No seed: each task's setup creates what it needs.
+name: moto
+description: moto 5.2 AWS API emulator (EC2, VPC, IAM, S3...) for the aws CLI, boto3 and Terraform
+compose: compose.yaml
+project: stick-moto
+wait_timeout_s: 120
+
+health:
+  url: http://127.0.0.1:${STICK_MOTO_PORT:-8083}/moto-api/
+
+endpoints:
+  aws api (host): http://127.0.0.1:${STICK_MOTO_PORT:-8083}
+  aws api (lab mgmt network): http://172.30.30.103:5000
+  dashboard: http://127.0.0.1:${STICK_MOTO_PORT:-8083}/moto-api/
+
+credentials:
+  aws: any access key and secret (moto doesn't check them); account 123456789012
+
+# Given to the toolbox and to task scripts: the aws CLI, boto3 and Terraform's AWS provider all read these.
+env:
+  AWS_ENDPOINT_URL: http://127.0.0.1:${STICK_MOTO_PORT:-8083}
+  AWS_ACCESS_KEY_ID: testing
+  AWS_SECRET_ACCESS_KEY: testing
+  AWS_DEFAULT_REGION: eu-west-1
+
+# The baseline is an empty account; reset drops everything in memory (well under a second).
+snapshot:
+  kind: http
+  url: http://127.0.0.1:${STICK_MOTO_PORT:-8083}/moto-api/reset

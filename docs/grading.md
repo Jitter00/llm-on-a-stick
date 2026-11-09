@@ -84,6 +84,7 @@ config from memory or inventing a plausible one.
 | `description` | `stick-3fa9c01e` | interface or neighbour descriptions |
 | `hostname` | `stick-qkzpta` | device names (NetBox, LLDP system names) |
 | `net24` | `198.19.117` | the first three octets of a /24 pool: `{{ canaries.pool }}.0/24` (198.19.0.0/16, never overlaps `ipv4`) |
+| `net16` | `10.93` | the first two octets of a /16 for a VPC: `{{ canaries.vpc }}.0.0/16` (10.64 to 10.127) |
 
 ## Outcomes and scores
 
@@ -164,6 +165,14 @@ Use these in a task's `checks:` list. Parameters can use `{{ canaries.<name> }}`
 | `nautobot_object` | as `netbox_object` | The same, against Nautobot. Related objects are expanded one level (`?depth=1`), so `expect` names them (`{"role.name": Leaf, "status.name": Active}`); `filters: {depth: 2}` goes one level further (`cable_peer.device.name`) |
 | `nautobot_unchanged` | `allow_new` | As `netbox_unchanged`, for Nautobot (`baseline/nautobot.json`; e.g. `allow_new: [ipam/ip-address-to-interface]`) |
 | `nautobot_graphql` | `path`, `must_contain`, `must_not_contain` | The workspace file `path` holds a GraphQL query that Nautobot answers without errors, and its result holds every `must_contain` value and none of `must_not_contain` (any field, anywhere in the result) |
+| `aws_query` | `command`, `query` (JMESPath), and one of `expect`, `count`, `min` | `aws <command>` against the emulated account, reduced with `query`, equals `expect` (lists in any order), or is a list of exactly `count` or at least `min` items. An AWS error (no such resource) fails. The command runs in bash, so it can look up an id: `--filters Name=vpc-id,Values=$(aws ec2 describe-vpcs ... --output text)` |
+| `aws_policy_grants` | `command`, `query`, `grants` (list of `[effect, action, resource or principal]`) | The IAM policy document found there grants exactly those permissions: none missing, none more (a wildcard is more). Statements may be split or merged; conditions are ignored. Works for a trust policy: `[Allow, "sts:AssumeRole", ec2.amazonaws.com]` |
+| `aws_unchanged` | `allow_new`, `allow_changed`, `allow_deleted` | Nothing in the account was added, changed or deleted since `stick task start`, except what the lists allow: a kind (`ec2/subnets`) or one resource as `kind:label` (`ec2/security-groups:web`), the label being its Name tag, else its name, else its id. Kinds: `ec2/vpcs`, `subnets`, `route-tables`, `internet-gateways`, `security-groups`, `instances`, `volumes`, `addresses`; `iam/roles`, `policies`, `instance-profiles`, `users`; `s3/buckets`. Needs `moto` in `requires.services` (`baseline/moto.json`) |
+| `terraform_plan_clean` | `path` (a workspace directory) | `terraform plan` there reports no changes: configuration, state and account agree (it refreshes, so manual changes show). A plan that fails (not initialised, invalid) fails the check |
+| `terraform_state_has` | `path`, `addresses`, `types`, `count` | The state there manages every address (`aws_subnet.app["a"]`), at least that many resources of each type (`{aws_subnet: 2}`, whatever their names), and exactly `count` resources |
+
+The cloud checks have no AWS client of their own: they run `aws`, `terraform` and a boto3 script in a throwaway
+container of the toolbox image, so the grader reads the account independently of the attempt's container.
 
 Example from a `task.yaml`:
 

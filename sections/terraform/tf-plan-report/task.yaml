@@ -1,0 +1,55 @@
+id: tf-plan-report
+section: terraform
+title: Report what a Terraform configuration change would do
+tier: basic
+floor: true  # the section's cheap floor task: CI validates it on every shared-code change
+tags: [tool:terraform, iface:cli, skill:iac-plan]
+topology: none
+prompt: |
+  Terraform and its AWS provider (hashicorp/aws) are installed in your toolbox; `terraform init` needs no
+  download. An AWS account is ready: the credentials, the region eu-west-1 and the API endpoint, an emulator,
+  are set in the environment, so `provider "aws" {}` needs no arguments (`aws` and boto3 work too).
+
+  The Terraform configuration in {{ workspace }}/net was applied, and then edited. Work out what applying
+  it now would do to each resource, without applying anything, and write the resource addresses to
+  {{ workspace }}/answer.json:
+    {"create": [...], "update": [...], "replace": [...], "delete": [...]}
+  "update" is a change in place, "replace" a resource that is destroyed and created again, "delete" one
+  that is only destroyed. Leave out resources that stay as they are.
+
+  Do not change anything in the account or in the Terraform state.
+requires:
+  services: [moto]
+reset_services: [moto]
+canaries:
+  vpc: net16
+  keep: hostname
+  moved: hostname
+  added: hostname
+  gone: hostname
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: json_file_matches
+    name: answer.json names what would be created, updated, replaced and deleted
+    params:
+      path: answer.json
+      expected:
+        create: ["aws_subnet.{{ canaries.added }}"]
+        update: [aws_vpc.main]
+        replace: ["aws_subnet.{{ canaries.moved }}"]
+        delete: ["aws_security_group.{{ canaries.gone }}"]
+    weight: 3
+  - type: terraform_state_has
+    name: the Terraform state was not changed
+    params:
+      path: net
+      addresses:
+        - aws_vpc.main
+        - "aws_subnet.{{ canaries.keep }}"
+        - "aws_subnet.{{ canaries.moved }}"
+        - "aws_security_group.{{ canaries.gone }}"
+      count: 4
+  - type: aws_unchanged
+    name: nothing was changed in the AWS account
+limits: {turns: 15}

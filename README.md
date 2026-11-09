@@ -228,7 +228,7 @@ uv run stick run running-config-cli-frr --model ollama/qwen3:14b
 
 The model gets the task's instructions and one tool: running shell commands in a small "toolbox" container that can
 reach the lab. When it says it's done (or runs out of turns or time), the grader scores the attempt. The first run
-builds the toolbox image, which takes about a minute.
+builds the toolbox image, which takes a few minutes (about 1.5 GB: it includes the AWS CLI and Terraform).
 
 **3. Compare two models on all five tasks**, three attempts each (models don't always do the same thing twice).
 **Run local models one after another, never at the same time**: they share your GPU and memory. Finish the first
@@ -368,7 +368,8 @@ model on my own machine and compare it to a frontier model".
 2. ~~**First tasks**~~: done. Seven config-retrieval tasks over CLI and NETCONF ([docs/tasks.md](docs/tasks.md)).
 3. ~~**Running models**~~: done. Local (Ollama, LM Studio, vLLM, Strata...) and paid models, compared with
    `stick report` ([docs/runner.md](docs/runner.md)).
-4. **More tools**: Nautobot, Gitea, syslog, telemetry, DNS/DHCP, LibreNMS, Zabbix, SuzieQ, Batfish.
+4. **More tools**: ~~Nautobot~~, ~~AWS CLI and Terraform (against an emulated AWS account)~~, Gitea, syslog,
+   telemetry, DNS/DHCP, LibreNMS, Zabbix, SuzieQ, Batfish.
 
 The detailed list is in [TODO.md](TODO.md). Supported platforms: [docs/platforms.md](docs/platforms.md). Which tools
 work with which devices: [docs/compatibility.md](docs/compatibility.md).

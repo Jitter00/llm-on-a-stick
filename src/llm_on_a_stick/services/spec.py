@@ -64,7 +64,15 @@ class VolumesSnapshot(BaseModel):
     volumes: list[str]
 
 
-Snapshot = Annotated[PostgresSnapshot | VolumesSnapshot, Field(discriminator="kind")]
+class HttpSnapshot(BaseModel):
+    """Baseline = the empty service; reset = one HTTP request to it (e.g. moto's /moto-api/reset)."""
+
+    kind: Literal["http"]
+    url: str
+    method: Literal["POST", "PUT", "DELETE"] = "POST"
+
+
+Snapshot = Annotated[PostgresSnapshot | VolumesSnapshot | HttpSnapshot, Field(discriminator="kind")]
 
 
 class ServiceSpec(BaseModel):
@@ -76,6 +84,9 @@ class ServiceSpec(BaseModel):
     health: Health
     endpoints: dict[str, str] = Field(default_factory=dict)
     credentials: dict[str, str] = Field(default_factory=dict)
+    # Environment variables that point client tools at the service (e.g. AWS_ENDPOINT_URL for moto). The
+    # toolbox and the setup/oracle scripts of a task that requires the service get them.
+    env: dict[str, str] = Field(default_factory=dict)
     seed: Seed | None = None
     snapshot: Snapshot | None = None
     directory: Path = Path()

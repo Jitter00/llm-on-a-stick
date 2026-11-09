@@ -18,6 +18,9 @@ _KINDS: dict[str, Callable[[random.Random], str]] = {
     # The first three octets of a /24, for pools: "{{ canaries.pool }}.0/24". In 198.19.0.0/16, the other half
     # of the benchmarking range, so it never overlaps an ipv4 canary.
     "net24": lambda r: f"198.19.{r.randint(0, 255)}",
+    # The first two octets of a /16, for a VPC: "{{ canaries.vpc }}.0.0/16". Private space (10.64-10.127), as
+    # a VPC needs, and away from the 10.0 and 10.1 that every example uses.
+    "net16": lambda r: f"10.{r.randint(64, 127)}",
 }
 
 KINDS = tuple(_KINDS)
