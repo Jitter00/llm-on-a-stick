@@ -63,9 +63,11 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
       (document SNMP as its path). Verify counters appear in Prometheus.
 - [ ] **DDI (PowerDNS + Kea).** Authoritative zone for the lab (`stick.lab`) with API enabled; Kea DHCP on the host subnets.
       This means h1/h2 switch from static IPs to DHCP (a topology change, so update the integration tests).
-- [ ] **LibreNMS.** SNMP polling; FRR snmpd uses community `stick-ro`. SR Linux SNMP must be enabled in its startup config.
-      Check which MIBs each OS exposes. FRR BGP MIBs need AgentX (only if FRR is built with SNMP support; verify).
-- [ ] **Zabbix.** Same SNMP findings as LibreNMS; seed host groups and templates via the API.
+- [x] **LibreNMS.** Done: 26.10.2 with a dispatcher, MariaDB snapshot loaded live (~1 s reset), `init` steps for the
+      admin user, token and settings, five tasks in `sections/librenms/`. SR Linux: SNMP was on already (containerlab),
+      the startup config sets the community and the host name. FRR: generic `linux`, no BGP MIB (FRR isn't built with
+      SNMP), descriptions don't reach `ifAlias`.
+- [ ] **Zabbix.** Same SNMP findings as LibreNMS (docs/services.md); seed host groups and templates via the API.
 - [ ] **SuzieQ.** Poller against SR Linux and FRR; check which of the two it supports.
 - [ ] **Batfish.** Expected: no SR Linux support, partial FRR. Record the actual result. It becomes fully useful once cEOS or Junos are added.
 - [ ] **Compatibility spike leftovers.** SR Linux SSH CLI, NETCONF and gNMI, LLDP on both OSes, remote syslog
@@ -113,6 +115,8 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
 - [x] **aws and terraform tasks** (5 + 5), against moto, with no lab devices (`topology: none`). Graded on
       resource state only: the emulator enforces nothing. Later: a second cloud only if a broad emulator
       appears (Azurite covers Azure storage only, GCP has per-product emulators); OpenTofu next to Terraform.
+- [x] **librenms tasks** (5 of 5): query a port, add a device with a rotated community, fix a device that went
+      down, an alert rule graded by what it fires, sync from NetBox. Graded after a poll the grader forces.
 - [ ] **At most 5 tasks for each of the other sections, none obvious** (rules: docs/tasks.md, "Which tasks are
       kept"; pick the ones local models are likely to get wrong). New sections are per tool (powerdns, kea,
       ...); the groupings are in sections/README.md. Also `lab-mgmt` and `troubleshooting` (fault injection:
@@ -135,6 +139,7 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
 
 ## Known gotchas (learned so far)
 
+- SR Linux startup `.cli` files take no `#` comments: containerlab stops at the first one, silently.
 - `snmpd -c` *adds* a config file to the default search path; use `-C -c` or it binds udp:161 twice and crashes the container.
 - FRR config is mounted read-only under `/etc/stick` and copied in at boot, so `write memory` can't modify the repo (a test enforces this).
 - NetBox 4.5+ only creates a v2 token (`Bearer nbt_<key>.<token>`) when `API_TOKEN_PEPPER_1`, a 12-char `SUPERUSER_API_KEY`

@@ -1,0 +1,90 @@
+# LibreNMS for llm-on-a-stick: the web/API container, a dispatcher (it discovers and polls devices within
+# seconds of their being added), MariaDB and Valkey.
+#   - lab-only credentials, overridable from the shell
+#   - LibreNMS joins the lab's management network at a fixed address: it polls the devices over SNMP from there
+#   - the admin user, the API token and the settings are created by `stick svc up librenms` (service.yaml: init)
+name: stick-librenms
+
+x-librenms-env: &librenms-env
+  TZ: UTC
+  DB_HOST: db
+  DB_NAME: librenms
+  DB_USER: librenms
+  DB_PASSWORD: ${STICK_LIBRENMS_DB_PASSWORD:-stick-librenms-db}
+  DB_TIMEOUT: "120"
+  REDIS_HOST: redis
+
+services:
+  librenms:
+    image: docker.io/librenms/librenms:26.10.2
+    hostname: librenms
+    depends_on:
+      db: {condition: service_healthy}
+      redis: {condition: service_started}
+    environment: *librenms-env
+    healthcheck:
+      # Answers (with a redirect to the first-run wizard, until init has run) once the migrations are done.
+      test: curl -fsS -o /dev/null http://localhost:8000/login || exit 1
+      start_period: 300s
+      timeout: 5s
+      interval: 3s
+    ports:
+      - "127.0.0.1:${STICK_LIBRENMS_PORT:-8084}:8000"
+    networks:
+      default: {}
+      stick-mgmt:
+        ipv4_address: 172.30.30.104
+    volumes:
+      - librenms-data:/data
+
+  dispatcher:
+    image: docker.io/librenms/librenms:26.10.2
+    hostname: librenms-dispatcher
+    depends_on:
+      librenms: {condition: service_healthy}
+    environment:
+      <<: *librenms-env
+      DISPATCHER_NODE_ID: stick-dispatcher
+      SIDECAR_DISPATCHER: "1"
+    networks:
+      default: {}
+      # It is the one that sends the SNMP requests. A fixed address too: a dynamic one could take a lab node's.
+      stick-mgmt:
+        ipv4_address: 172.30.30.105
+    volumes:
+      - librenms-data:/data
+
+  db:
+    image: docker.io/library/mariadb:11.8
+    command:
+      - mariadbd
+      - --innodb-file-per-table=1
+      - --lower-case-table-names=0
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    environment:
+      MARIADB_RANDOM_ROOT_PASSWORD: "yes"
+      MARIADB_DATABASE: librenms
+      MARIADB_USER: librenms
+      MARIADB_PASSWORD: ${STICK_LIBRENMS_DB_PASSWORD:-stick-librenms-db}
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      start_period: 30s
+      timeout: 5s
+      interval: 3s
+      retries: 20
+    volumes:
+      - librenms-db:/var/lib/mysql
+      - librenms-snapshots:/snapshots
+
+  redis:
+    image: docker.io/valkey/valkey:9.1.3-alpine
+
+networks:
+  stick-mgmt:
+    external: true
+
+volumes:
+  librenms-data:
+  librenms-db:
+  librenms-snapshots:

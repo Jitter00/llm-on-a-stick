@@ -368,8 +368,8 @@ model on my own machine and compare it to a frontier model".
 2. ~~**First tasks**~~: done. Seven config-retrieval tasks over CLI and NETCONF ([docs/tasks.md](docs/tasks.md)).
 3. ~~**Running models**~~: done. Local (Ollama, LM Studio, vLLM, Strata...) and paid models, compared with
    `stick report` ([docs/runner.md](docs/runner.md)).
-4. **More tools**: ~~Nautobot~~, ~~AWS CLI and Terraform (against an emulated AWS account)~~, Gitea, syslog,
-   telemetry, DNS/DHCP, LibreNMS, Zabbix, SuzieQ, Batfish.
+4. **More tools**: ~~Nautobot~~, ~~AWS CLI and Terraform (against an emulated AWS account)~~, ~~LibreNMS~~,
+   Gitea, syslog, telemetry, DNS/DHCP, Zabbix, SuzieQ, Batfish.
 
 The detailed list is in [TODO.md](TODO.md). Supported platforms: [docs/platforms.md](docs/platforms.md). Which tools
 work with which devices: [docs/compatibility.md](docs/compatibility.md).

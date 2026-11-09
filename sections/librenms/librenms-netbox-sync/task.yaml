@@ -1,0 +1,50 @@
+id: librenms-netbox-sync
+section: librenms
+title: Make LibreNMS monitor the devices NetBox lists as active
+tier: advanced
+tags: [tool:librenms, tool:netbox, iface:rest, skill:sot-driven-change]
+prompt: |
+  LibreNMS is at {{ services.librenms.url }} (REST API under /api/v0/, header "X-Auth-Token: {{ services.librenms.token }}").
+  NetBox is at {{ services.netbox.url }} (REST API under /api/, header "Authorization: Bearer {{ services.netbox.token }}").
+
+  NetBox is the source of truth for what must be monitored: every device whose status in NetBox is active,
+  and no other. Bring LibreNMS in line with it:
+    - add each active device that LibreNMS doesn't monitor yet, by its primary IPv4 address in NetBox, over
+      SNMP version 2c with the community stick-ro;
+    - devices with another status must not be in LibreNMS;
+    - leave devices that are already monitored correctly as they are.
+
+  Do not change anything in NetBox or on any router.
+requires:
+  devices: [srl1, srl2, frr1, frr2]
+  services: [librenms, netbox]
+reset_services: [librenms, netbox]
+canaries:
+  n1: hostname
+  n2: hostname
+  n3: hostname
+  n4: hostname
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: librenms_device
+    name: the first active device was added and is reached
+    params: {hostname: "{{ nodes.srl1.mgmt_ip }}", expect: {status: 1, os: srlinux}}
+    weight: 2
+  - type: librenms_device
+    name: the second active device was added and is reached
+    params: {hostname: "{{ nodes.frr1.mgmt_ip }}", expect: {status: 1}}
+    weight: 2
+  - type: librenms_absent
+    name: the planned device is not monitored
+    params: {hostname: "{{ nodes.srl2.mgmt_ip }}"}
+  - type: librenms_unchanged
+    name: the device already monitored was left alone
+    params: {allow_new: ["devices:{{ nodes.srl1.mgmt_ip }}", "devices:{{ nodes.frr1.mgmt_ip }}"]}
+  - type: netbox_unchanged
+    name: nothing was changed in NetBox
+    params: {allow_new: []}
+  - type: no_change_outside
+    name: no router was changed
+    params: {allowed: []}
+limits: {turns: 25}

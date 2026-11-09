@@ -12,6 +12,7 @@ New tasks get one section per tool, so you can test only the tools you use; `cfg
 | `nautobot` | 5 | Nautobot 3.x REST and GraphQL APIs: queries, documenting a router, one GraphQL query for a location, cables from LLDP, the next free IP in a namespace configured on a router |
 | `aws` | 5 | AWS with the `aws` CLI or boto3, against an emulated account (moto): queries, building a VPC, tightening a security group, cleaning up unused resources, a least-privilege IAM role |
 | `terraform` | 5 | Terraform against the same account: reading a plan, writing a configuration, importing, reconciling drift, refactoring with `moved` |
+| `librenms` | 5 | LibreNMS 26.10 REST API over SNMP-polled routers: a port query, adding a device, fixing a device that went down, an alert rule that must fire for the right port, adding what NetBox lists as active |
 
 ## Groupings
 
@@ -22,7 +23,7 @@ The wider areas the sections belong to, for orientation only (nothing in `task.y
 | Lab management | *lab-mgmt* (containerlab, later CML) |
 | Configuration management | `cfg-mgmt`, *gitea* (GitOps) |
 | Source of truth and DDI | `netbox`, `nautobot`, *powerdns*, *kea* |
-| Validation and observability | *batfish*, *suzieq*, *gnmic-prometheus*, *syslog*, *librenms*, *zabbix*, *pyats* (Cisco/CML only) |
+| Validation and observability | `librenms`, *batfish*, *suzieq*, *gnmic-prometheus*, *syslog*, *zabbix*, *pyats* (Cisco/CML only) |
 | Cloud | `aws`, `terraform` (no lab devices: `topology: none`) |
 | Troubleshooting | *troubleshooting*: injected faults, correlating events across tools |
 

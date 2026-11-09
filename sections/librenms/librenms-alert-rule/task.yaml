@@ -1,0 +1,40 @@
+id: librenms-alert-rule
+section: librenms
+title: Create a LibreNMS alert rule that fires for the right ports only
+tier: advanced
+tags: [tool:librenms, iface:rest, skill:nms-alerting]
+prompt: |
+  LibreNMS is at {{ services.librenms.url }} (REST API under /api/v0/, header "X-Auth-Token: {{ services.librenms.token }}").
+
+  Create an alert rule in LibreNMS, named {{ canaries.rule }}, with severity critical, that applies to all
+  devices and raises an alert for every port whose description is exactly "{{ canaries.desc }}" and whose
+  operational status is down. It must not alert for any other port.
+
+  Ports with that description exist already, on more than one device. The rule is checked by what it does:
+  after the next poll it must have raised exactly the alerts it should. Create one rule only, and do not
+  change anything else in LibreNMS or on any device.
+requires:
+  devices: [srl1, srl2]
+  services: [librenms]
+reset_services: [librenms]
+canaries:
+  rule: hostname
+  desc: description
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: librenms_alert
+    name: the rule raises one alert, for the described port that is down
+    params:
+      rule: "{{ canaries.rule }}"
+      severity: critical
+      devices: ["{{ nodes.srl1.mgmt_ip }}"]
+      count: 1
+    weight: 3
+  - type: librenms_unchanged
+    name: nothing else was changed in LibreNMS
+    params: {allow_new: ["rules:{{ canaries.rule }}"]}
+  - type: no_change_outside
+    name: no router was changed
+    params: {allowed: []}
+limits: {turns: 25}

@@ -1,0 +1,66 @@
+# How `stick svc` drives LibreNMS. ${VAR:-default} is expanded from the environment, using the same variables
+# and defaults as compose.yaml.
+name: librenms
+description: LibreNMS 26.10 network monitoring (SNMP polling, alert rules; REST API v0)
+compose: compose.yaml
+project: stick-librenms
+wait_timeout_s: 420
+
+# Healthy = the API answers with the token, which only exists once `init` below has run.
+health:
+  url: http://127.0.0.1:${STICK_LIBRENMS_PORT:-8084}/api/v0/system
+  headers:
+    X-Auth-Token: ${STICK_LIBRENMS_TOKEN:-0123456789abcdef0123456789abcdef}
+
+endpoints:
+  web (host): http://127.0.0.1:${STICK_LIBRENMS_PORT:-8084}
+  api (lab mgmt network): http://172.30.30.104:8000/api/v0/
+
+credentials:
+  username: admin
+  password: ${STICK_LIBRENMS_PASSWORD:-Stick-lab-9x!Qz}
+  api_token (X-Auth-Token): ${STICK_LIBRENMS_TOKEN:-0123456789abcdef0123456789abcdef}
+
+api:
+  base_url: http://127.0.0.1:${STICK_LIBRENMS_PORT:-8084}/api/v0/
+  headers:
+    X-Auth-Token: ${STICK_LIBRENMS_TOKEN:-0123456789abcdef0123456789abcdef}
+
+# Run once, after the first boot (while the service isn't healthy yet). The image starts with its first-run
+# wizard on when the database is empty; the restart at the end turns it off.
+init:
+  steps:
+    # LibreNMS wants 8+ characters and refuses passwords found in breach lists ("admin", "librenms"...).
+    - service: librenms
+      cmd: [sh, -c, 'lnms user:add admin -p "${STICK_LIBRENMS_PASSWORD:-Stick-lab-9x!Qz}" -r admin -e admin@stick.invalid -n || true']
+    # A fixed API token: tokens are stored as their SHA-256.
+    - service: db
+      cmd:
+        - sh
+        - -c
+        - >-
+          mariadb -u"$MARIADB_USER" -p"$MARIADB_PASSWORD" "$MARIADB_DATABASE" -e "INSERT IGNORE INTO
+          personal_access_tokens (tokenable_type, tokenable_id, name, token, abilities, created_at, updated_at)
+          SELECT CONCAT('App', CHAR(92), 'Models', CHAR(92), 'User'), user_id, 'stick',
+          SHA2('${STICK_LIBRENMS_TOKEN:-0123456789abcdef0123456789abcdef}', 256), '[\"*\"]', NOW(), NOW()
+          FROM users WHERE username = 'admin'"
+    # No fallback community: by default LibreNMS retries a failed device with "public" and adds it anyway.
+    - service: librenms
+      cmd: [lnms, "config:set", snmp.community, '["not-a-lab-community"]']
+    # Only devices someone adds are monitored: no neighbours discovered from LLDP, BGP or OSPF.
+    - service: librenms
+      cmd: [sh, -c, 'for k in xdp bgp ospf ospfv3; do lnms config:set autodiscovery.$k false || exit 1; done']
+  restart: [librenms, dispatcher]
+
+# The baseline is the database right after init (no devices, no alert rules); reset loads it back into the
+# running service (about a second) and empties the dispatcher's queues.
+snapshot:
+  kind: mysql
+  service: db
+  database: librenms
+  user: librenms
+  password: ${STICK_LIBRENMS_DB_PASSWORD:-stick-librenms-db}
+  path: /snapshots/baseline.sql
+  after_restore:
+    - service: redis
+      cmd: [valkey-cli, FLUSHALL]

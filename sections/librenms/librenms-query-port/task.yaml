@@ -1,0 +1,38 @@
+id: librenms-query-port
+section: librenms
+title: Find a port by its description in LibreNMS
+tier: basic
+floor: true  # the section's cheap floor task: CI validates it on every shared-code change
+tags: [tool:librenms, iface:rest, skill:nms-query]
+prompt: |
+  LibreNMS is at {{ services.librenms.url }} (REST API under /api/v0/, header "X-Auth-Token: {{ services.librenms.token }}").
+
+  One port on one of the devices that LibreNMS monitors has the description "{{ canaries.desc }}".
+  Find it in LibreNMS and write to {{ workspace }}/answer.json:
+    {"device": "<the device's system name (sysName)>", "port": "<the port's name (ifName)>", "ifindex": <its ifIndex>}
+
+  Do not change anything in LibreNMS or on any device.
+requires:
+  devices: [srl1, srl2, frr1]
+  services: [librenms]
+reset_services: [librenms]
+canaries:
+  desc: description
+  other: description
+  n1: hostname
+  n2: hostname
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: json_file_matches
+    name: answer.json names the device, the port and its ifIndex
+    params:
+      path: answer.json
+      expected: {device: "{{ canaries.n2 }}", port: ethernet-1/7, ifindex: 32780}
+    weight: 2
+  - type: librenms_unchanged
+    name: nothing was changed in LibreNMS
+  - type: no_change_outside
+    name: no configuration was changed
+    params: {allowed: []}
+limits: {turns: 15}

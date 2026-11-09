@@ -170,6 +170,11 @@ Use these in a task's `checks:` list. Parameters can use `{{ canaries.<name> }}`
 | `aws_unchanged` | `allow_new`, `allow_changed`, `allow_deleted` | Nothing in the account was added, changed or deleted since `stick task start`, except what the lists allow: a kind (`ec2/subnets`) or one resource as `kind:label` (`ec2/security-groups:web`), the label being its Name tag, else its name, else its id. Kinds: `ec2/vpcs`, `subnets`, `route-tables`, `internet-gateways`, `security-groups`, `instances`, `volumes`, `addresses`; `iam/roles`, `policies`, `instance-profiles`, `users`; `s3/buckets`. Needs `moto` in `requires.services` (`baseline/moto.json`) |
 | `terraform_plan_clean` | `path` (a workspace directory) | `terraform plan` there reports no changes: configuration, state and account agree (it refreshes, so manual changes show). A plan that fails (not initialised, invalid) fails the check |
 | `terraform_state_has` | `path`, `addresses`, `types`, `count` | The state there manages every address (`aws_subnet.app["a"]`), at least that many resources of each type (`{aws_subnet: 2}`, whatever their names), and exactly `count` resources |
+| `librenms_device` | `hostname`, `expect`, `poll` (default true) | LibreNMS monitors the device (the address it was added with) and, after a poll the grader forces, its fields have those values (`{status: 1, os: srlinux, community: ...}`; `status: 1` = reached over SNMP) |
+| `librenms_absent` | `hostname` | LibreNMS does not monitor it |
+| `librenms_alert` | `rule`, `devices`, `count`, `severity` | Exactly one rule has that name (and severity), and after a poll of every device it has active alerts on exactly those devices, `count` in all (one per matching port) |
+| `librenms_unchanged` | `allow_new`, `allow_changed`, `allow_deleted` | Devices (how they are monitored), alert rules and device groups match `baseline/librenms.json`, except what the lists allow: a kind (`devices`, `rules`, `groups`) or `kind:label` (`devices:172.30.30.11`, `rules:name`). A device deleted and re-added counts as deleted. Needs `librenms` in `requires.services` |
+
 
 The cloud checks have no AWS client of their own: they run `aws`, `terraform` and a boto3 script in a throwaway
 container of the toolbox image, so the grader reads the account independently of the attempt's container.

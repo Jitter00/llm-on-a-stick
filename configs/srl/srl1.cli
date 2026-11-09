@@ -28,3 +28,6 @@ set / network-instance default protocols bgp neighbor 10.0.1.1 peer-group leaves
 set / network-instance default protocols bgp neighbor 10.0.1.1 peer-as 65101
 set / network-instance default protocols bgp neighbor 10.0.1.3 peer-group leaves
 set / network-instance default protocols bgp neighbor 10.0.1.3 peer-as 65102
+
+set / system snmp access-group SNMPv2-RO-Community community-entry RO-Community community stick-ro
+set / system name host-name srl1

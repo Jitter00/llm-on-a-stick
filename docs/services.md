@@ -23,16 +23,19 @@ Each service is a directory under `services/`:
 | File | Purpose |
 |---|---|
 | `compose.yaml` | containers, health checks, fixed `stick-mgmt` address; credentials are lab defaults, overridable with `STICK_*` environment variables |
-| `service.yaml` | how `stick` drives it: health URL, endpoints, credentials, seed data, snapshot/restore, and the environment variables its client tools need (`env:`, given to the toolbox and to task scripts) |
+| `service.yaml` | how `stick` drives it: health URL, endpoints, credentials, seed data or API settings, one-time `init` steps, snapshot/restore, and the environment variables its client tools need (`env:`, given to the toolbox and to task scripts) |
 | `seed.yaml` | baseline objects every task starts from (idempotent: existing objects are skipped) |
 
 Resetting between benchmark attempts restores a database snapshot rather than recreating containers, which is
-what makes repeated runs cheap. Tasks that list a service under `reset_services` (all NetBox, Nautobot, aws and
-terraform tasks) do this themselves at `stick task start`, before their setup.
+what makes repeated runs cheap. Tasks that list a service under `reset_services` (all NetBox, Nautobot, aws,
+terraform and LibreNMS tasks) do this themselves at `stick task start`, before their setup.
 
-A reset is one of three kinds (`snapshot.kind` in `service.yaml`): `postgres` restores a database dump (NetBox,
-Nautobot), `volumes` deletes the service's volumes and recreates it (Oxidized), and `http` sends one request to the
-running service (moto).
+A reset is one of four kinds (`snapshot.kind` in `service.yaml`): `postgres` restores a database dump (NetBox,
+Nautobot), `mysql` loads a `mariadb-dump` back into the running database (LibreNMS), `volumes` deletes the
+service's volumes and recreates it (Oxidized), and `http` sends one request to the running service (moto).
+
+A service that can't be configured from compose alone (LibreNMS: its admin user, API token and settings)
+lists `init` steps: commands run in its containers once, after the first boot, followed by a restart.
 
 ## NetBox
 
@@ -126,6 +129,39 @@ downloaded.
       S3 Control at `<account>.127.0.0.1`), so the terraform tasks use VPC, EC2 and IAM resources. S3 works with
       the AWS CLI and boto3;
     - the grader looks at one region (eu-west-1): resources created elsewhere count as not created.
+
+## LibreNMS
+
+| | |
+|---|---|
+| Version | LibreNMS 26.10.2 (`librenms/librenms:26.10.2`, web + dispatcher), MariaDB 11.8, Valkey 9.1.3 |
+| Web UI (host) | <http://127.0.0.1:8084> (`STICK_LIBRENMS_PORT`), user `admin` / `Stick-lab-9x!Qz` |
+| API (from the lab) | `http://172.30.30.104:8000/api/v0/`; the dispatcher polls from 172.30.30.105 |
+| API token | `X-Auth-Token: 0123456789abcdef0123456789abcdef` (`STICK_LIBRENMS_TOKEN`) |
+| RAM (measured) | ~830 MiB with 3 devices: dispatcher 426 MiB, web 212 MiB, MariaDB 189 MiB, Valkey 5 MiB |
+| Timings (measured) | cold first boot ~30 s on a desktop (plus the images); `svc reset` ~1 s; discover + poll one SR Linux ~6 s |
+
+No seed: the baseline is an empty LibreNMS, and each task's setup adds the devices it needs over SNMPv2c
+(community `stick-ro` on every router, set in `images/frr/snmpd.conf` and `configs/srl/*.cli`). The dispatcher
+discovers and polls a device within seconds of its being added through the API, so a model can see the result
+of its work; the grader doesn't wait for it and runs `lnms device:poll` itself. Settings made by `init`:
+no fallback community (by default LibreNMS retries a failing device with `public` and adds it anyway), and no
+automatic discovery of neighbours over LLDP, BGP or OSPF.
+
+What LibreNMS makes of the lab: SR Linux is detected as `srlinux` (hardware `7220 IXR-D2L`), its port
+descriptions become `ifAlias`, and it needs a few seconds to show a configuration change over SNMP. FRR is
+`linux` (net-snmp): interface descriptions set in FRR do **not** reach `ifAlias`, and there is no BGP MIB.
+
+!!! note "What trips models"
+    - the token header is `X-Auth-Token`, not `Authorization`; there is also a newer `/api/v1` with a
+      different shape, and most knowledge is about `/api/v0`;
+    - `POST /devices` checks SNMP reachability and refuses a wrong community; `force_add: true` adds the
+      device anyway, as down;
+    - `POST /rules` creates the rule and still answers an error about transports (26.10): a retry makes a
+      duplicate, and the alert checks want exactly one rule of that name;
+    - alert rules take effect at the next poll of each device; `GET /alerts?state=1` lists what fired;
+    - a device deleted and added again has a new id and no history: the `librenms_unchanged` check counts
+      that as deleting it.
 
 ## Oxidized
 

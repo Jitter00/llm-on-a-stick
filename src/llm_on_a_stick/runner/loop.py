@@ -43,12 +43,14 @@ from llm_on_a_stick.tasks import Task
 # Version 2: the workspace is /work (not a long host path), and the reply is said not to be graded.
 # Version 3: shorter (every token is re-read on every turn, which is slow for local models); command output
 # is capped at 4000 characters (was 16000).
-# Version 4: names the cloud tools (aws, boto3, terraform), added for the aws and terraform sections.
+# Version 4: names the cloud tools (aws, boto3, terraform) and the SNMP tools (snmpget, snmpwalk), added for
+# the aws, terraform and librenms sections.
 SYSTEM_PROMPT_VERSION = 4
 SYSTEM_PROMPT = """\
 You are a network engineer in a lab. Your one tool, run_command, runs a bash command (no terminal, \
 {cmd_timeout}s timeout) on a Linux toolbox on the lab's management network, with ssh, sshpass, curl, jq, \
-python3 + ncclient and boto3, netconf-console2, aws and terraform. Your working directory is {workdir}.
+python3 + ncclient and boto3, netconf-console2, aws, terraform, snmpget and snmpwalk. Your working directory \
+is {workdir}.
 
 - Nothing can prompt you for input: pass passwords and commands as arguments.
 - You see at most {max_output} characters of each command's output: save long output to a file and read \
