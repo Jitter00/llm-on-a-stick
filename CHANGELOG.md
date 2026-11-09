@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.6.0...v0.7.0) (2026-11-09)
+
+
+### Features
+
+* **netbox:** restore routers at task start and add netbox-next-ip ([#19](https://github.com/Jitter00/llm-on-a-stick/issues/19)) ([b912ed8](https://github.com/Jitter00/llm-on-a-stick/commit/b912ed8f835932be7ede045910f2975c4f8e3d1b))
+
 ## [0.6.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.5.0...v0.6.0) (2026-11-09)
 
 
