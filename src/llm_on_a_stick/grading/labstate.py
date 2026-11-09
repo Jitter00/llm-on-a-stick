@@ -16,6 +16,10 @@ import yaml
 from llm_on_a_stick import paths
 
 NodeOS = Literal["srlinux", "frr", "host"]
+
+# What a router is restored to at `stick task start` (see DockerLabState.restore_config).
+SRL_CHECKPOINT = "clab-initial"  # taken by containerlab after applying the startup config
+FRR_STARTUP_CONFIG = "/etc/stick/frr.conf"  # read-only mount of configs/frr/<node>/frr.conf
 ConfigFormat = Literal["flat", "tree"]
 
 
@@ -34,6 +38,7 @@ class Node:
 class LabState(Protocol):
     def nodes(self) -> dict[str, Node]: ...
     def running_config(self, node: str, fmt: ConfigFormat = "flat") -> str: ...
+    def restore_config(self, node: str) -> None: ...
     def bgp_sessions(self, node: str) -> dict[str, str]: ...
 
 
@@ -86,6 +91,27 @@ class DockerLabState:
         if n.os == "frr":
             return self._exec(n, "vtysh", "-c", "show running-config")
         raise LabStateError(f"{node} is a host; it has no running config")
+
+    def restore_config(self, node: str) -> None:
+        """Put a router back to the config the lab booted with, without restarting it (BGP stays up).
+
+        SR Linux: revert to `clab-initial`, the checkpoint containerlab takes once the startup config is
+        applied. FRR: frr-reload against the read-only startup config the node booted from.
+        """
+        n = self._node(node)
+        if n.os == "srlinux":
+            out = self._exec(
+                n, "sr_cli", "-d", f"/tools system configuration checkpoint {SRL_CHECKPOINT} revert"
+            )
+            if "Successfully reverted" not in out:
+                raise LabStateError(
+                    f"{node}: could not revert to checkpoint {SRL_CHECKPOINT!r} "
+                    f"(redeploy with `stick env up`): {out.strip()[:300]}"
+                )
+        elif n.os == "frr":
+            self._exec(n, "/usr/lib/frr/frr-reload.py", "--reload", FRR_STARTUP_CONFIG)
+        else:
+            raise LabStateError(f"{node} is a host; it has no config to restore")
 
     def bgp_sessions(self, node: str) -> dict[str, str]:
         """peer address -> session state, lower-cased (established, active, idle, ...)."""

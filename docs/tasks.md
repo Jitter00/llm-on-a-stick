@@ -15,6 +15,17 @@ uv run stick task start running-config-cli-frr   # prints the instructions; then
 uv run stick grade                           # grades the attempt
 ```
 
+Every attempt starts from the same state. The lab stays up between attempts, tasks, sections and models (only
+`stick env up` / `env down` deploy or remove it), so `stick task start` resets it first:
+
+1. the services the task lists under `reset_services` go back to their seeded snapshot (NetBox: ~20 s);
+2. **every router goes back to the config it booted with**, without a restart, so BGP stays up:
+   - SR Linux reverts to `clab-initial`, the checkpoint containerlab takes once the startup config is applied;
+   - FRR runs `frr-reload.py` against its startup config, `configs/frr/<node>/frr.conf`;
+   - it takes about 2 s for the four routers, and the times are in the run's `restore.log`;
+3. the task's `setup.sh` plants this run's canaries (or a fault);
+4. the baseline is taken, for `no_change_outside` and `netbox_unchanged`.
+
 ## cfg-mgmt: getting configuration right
 
 These five tasks test whether a model can *retrieve* configuration correctly, across two vendors (Nokia SR Linux and
@@ -97,11 +108,13 @@ Things learned while writing these tasks:
 - A full NETCONF reply from SR Linux is ~300 KB: pass it through files, not environment variables.
 - SR Linux has `<interface>` elements in several places (network-instances, LLDP...) reusing interface names; take
   top-level interfaces from directly under `<data>`.
-- Canaries stay on the devices until the lab is redeployed; a setup that adds rather than overwrites (like a loopback
-  address) must remove earlier runs' canaries first.
-- NetBox doesn't need that care: `reset_services: [netbox]` restores the seeded snapshot before every setup.
+- Setups don't need to clean up after earlier runs: routers are restored to their boot config, and NetBox to its
+  seeded snapshot (`reset_services: [netbox]`), before every setup.
+- FRR's running config shows some defaults the startup file doesn't have. frr-reload then flips them on every
+  reload (FRR 10.7: `use-underlays-nexthop-weight` / `bgp deterministic-med`). Listing the default in
+  `configs/frr/*/frr.conf` keeps the restore stable.
 - LLDP: every node also sees every other node on the management network (`mgmt0` / `eth0`). FRR has no LLDP
   of its own: `lldpd` runs beside it, read with `lldpcli` as the `netops` shell user (vtysh can't). FRR's
   `lldpd` sends its MAC as the port ID unless `lldpcli configure lldp portidsubtype ifname` is set. SR Linux
   sends its host name as the LLDP system name, every 30 s, so a setup that renames it waits up to a minute
-  for the neighbours to hear it. Host names set by a setup last until the lab is redeployed.
+  for the neighbours to hear it.

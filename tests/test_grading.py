@@ -13,7 +13,7 @@ from llm_on_a_stick.grading import canaries, configdiff, run
 from llm_on_a_stick.grading import grade as grade_mod
 from llm_on_a_stick.grading.checks import available, run_check
 from llm_on_a_stick.grading.context import GradeContext
-from llm_on_a_stick.grading.labstate import Node, load_nodes
+from llm_on_a_stick.grading.labstate import LabStateError, Node, load_nodes
 from llm_on_a_stick.grading.results import CheckResult, summarise
 from llm_on_a_stick.grading.template import TemplateError, render, render_value
 from llm_on_a_stick.tasks import CheckSpec, find_task, load_task
@@ -46,6 +46,7 @@ class FakeLab:
     def __init__(self) -> None:
         self.configs = {"frr1": FRR1, "srl2": SRL2}
         self.sessions = {"frr1": {"10.0.1.0": "established", "10.0.2.0": "active"}}
+        self.restored: list[str] = []
         self._nodes = {
             "frr1": Node("frr1", "frr", "172.30.30.21", "clab-stick-base-frr1"),
             "srl2": Node("srl2", "srlinux", "172.30.30.12", "clab-stick-base-srl2"),
@@ -57,6 +58,9 @@ class FakeLab:
 
     def running_config(self, node: str, fmt: str = "flat") -> str:
         return self.configs[node]
+
+    def restore_config(self, node: str) -> None:
+        self.restored.append(node)
 
     def bgp_sessions(self, node: str) -> dict[str, str]:
         return self.sessions[node]
@@ -292,3 +296,28 @@ def test_result_schema_file_is_up_to_date() -> None:
     shipped = json.loads(path.read_text())
     shipped.pop("$id")
     assert shipped == Result.model_json_schema(), "regenerate result.schema.json (see docs/grading.md)"
+
+
+def test_start_restores_every_router_before_setup(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    task = load_task(DEMO)
+    lab = FakeLab()
+    events: list[str] = []
+    monkeypatch.setattr(lab, "restore_config", lambda node: events.append(f"restore {node}"))
+    monkeypatch.setattr(run, "run_script", lambda task, script, kind, *_: events.append(kind))
+    info = run.start(task, tmp_path / "runs", lab, seed=1)  # type: ignore[arg-type]
+    assert events == ["restore frr1", "restore srl2", "setup"]  # hosts aren't touched
+    log = (info.run_dir / "restore.log").read_text()
+    assert "frr1: restored to its boot config in" in log and "h1" not in log
+
+
+def test_start_explains_a_router_that_cannot_be_restored(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    lab = FakeLab()
+
+    def fail(node: str) -> None:
+        raise LabStateError(f"{node}: could not revert to checkpoint 'clab-initial'")
+
+    monkeypatch.setattr(lab, "restore_config", fail)
+    with pytest.raises(run.RunError, match="cannot restore frr1's config"):
+        run.start(load_task(DEMO), tmp_path / "runs", lab)  # type: ignore[arg-type]

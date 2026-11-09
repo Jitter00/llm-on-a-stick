@@ -5,6 +5,7 @@ A run directory holds everything about one attempt:
     work/          the agent's workspace (files the task asks for go here)
     baseline/      every router's config right after setup (for collateral-change checks), and
                    netbox.json for tasks that need NetBox
+    restore.log    how long putting each router back to its boot config took
     setup.log      output of the task's setup script, if any
     result.json    written later by `stick grade`
 """
@@ -14,6 +15,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import time
 from datetime import UTC, datetime
 from pathlib import Path, PurePath, PurePosixPath
 from typing import Any
@@ -34,6 +36,22 @@ from llm_on_a_stick.tasks import Task
 
 class RunError(RuntimeError):
     pass
+
+
+def restore_routers(lab: LabState, log: Path) -> None:
+    """Every router back to the config the lab booted with: earlier attempts, other tasks and their canaries
+    leave nothing behind. The lab itself stays up (a redeploy would take minutes)."""
+    lines = []
+    for node in lab.nodes().values():
+        if node.os == "host":
+            continue
+        t0 = time.monotonic()
+        try:
+            lab.restore_config(node.name)
+        except LabStateError as exc:
+            raise RunError(f"cannot restore {node.name}'s config: is the lab running? [{exc}]") from exc
+        lines.append(f"{node.name}: restored to its boot config in {time.monotonic() - t0:.1f}s")
+    log.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def netbox_client() -> RestClient:
@@ -152,6 +170,7 @@ def start(
             lifecycle.restore_snapshot(services.load(name))
         except (ServiceError, OSError) as exc:
             raise RunError(f"cannot reset {name}: is it up? (`stick svc up {name}`) [{exc}]") from exc
+    restore_routers(lab, run_dir / "restore.log")
     if task.setup:
         run_script(task, task.setup, "setup", run_dir, script_env(task, run_dir, workspace, values, lab))
 
