@@ -245,27 +245,57 @@ def netbox_object(
     """Objects matching `filters` exist at `endpoint` (e.g. dcim/devices): exactly `count`, or >= `min`.
     With `expect` ({"role.slug": "leaf", "primary_ip4.address": "..."}), exactly one must match, with those
     field values (dotted paths into the API's JSON)."""
+    return sot_object(ctx, "netbox", endpoint, filters, count, min, expect)
+
+
+@check("nautobot_object")
+def nautobot_object(
+    ctx: GradeContext,
+    endpoint: str,
+    filters: dict[str, Any] | None = None,
+    count: int | None = None,
+    min: int = 1,
+    expect: dict[str, Any] | None = None,
+) -> Verdict:
+    """Like `netbox_object`, against Nautobot. Related objects are expanded one level (`?depth=1`), so
+    `expect` can name them: {"role.name": "Leaf", "status.name": "Active", "location.name": "stick-lab"};
+    `filters: {depth: 2}` goes one level further (e.g. "cable_peer.device.name")."""
+    return sot_object(ctx, "nautobot", endpoint, {"depth": 1, **(filters or {})}, count, min, expect)
+
+
+def sot_object(
+    ctx: GradeContext,
+    service: str,
+    endpoint: str,
+    filters: dict[str, Any] | None,
+    count: int | None,
+    min: int,
+    expect: dict[str, Any] | None,
+) -> Verdict:
     query = urllib.parse.urlencode(filters or {}, doseq=True)
+    shown = {k: v for k, v in (filters or {}).items() if k != "depth"}
     try:
-        page = ctx.services.netbox().get(f"{endpoint.strip('/')}/?{query}")
+        page = ctx.services.rest(service).get(f"{endpoint.strip('/')}/?{query}")
     except RestError as exc:
         # A filter naming an object that doesn't exist (device=frr2 before frr2 is created) is a 400 with
-        # "Select a valid choice": nothing matches.
-        if "HTTP 400" not in str(exc) or "valid choice" not in str(exc):
+        # "Select a valid choice" (NetBox) or "... does not exist" / "not found" (Nautobot): nothing matches.
+        if "HTTP 400" not in str(exc) or not any(
+            text in str(exc) for text in ("valid choice", "does not exist", "not found")
+        ):
             raise
         page = {"count": 0, "results": []}
     found = int(page["count"])
     if expect:
         if found != 1:
             return Verdict(
-                "fail", f"{endpoint} {filters or {}}: {found} match(es), expected exactly one",
+                "fail", f"{endpoint} {shown}: {found} match(es), expected exactly one",
                 expected=expect, observed=found, hints=["missing-object" if found == 0 else "wrong-config"],
             )  # fmt: skip
         obj = page["results"][0]
         wrong = {path: got for path, want in expect.items() if (got := _dig(obj, path)) != _plain(want)}
         if wrong:
             return Verdict(
-                "fail", f"{endpoint} {filters or {}}: {len(wrong)} of {len(expect)} fields wrong",
+                "fail", f"{endpoint} {shown}: {len(wrong)} of {len(expect)} fields wrong",
                 expected=expect, observed=wrong, hints=["wrong-config"],
             )  # fmt: skip
         return Verdict("pass", f"{endpoint}: {len(expect)} field(s) as expected", expected=expect)
@@ -274,7 +304,7 @@ def netbox_object(
     if ok:
         return Verdict("pass", f"{endpoint}: {found} match(es)", expected=expected, observed=found)
     return Verdict(
-        "fail", f"{endpoint} {filters or {}}: {found} match(es)", expected=expected, observed=found,
+        "fail", f"{endpoint} {shown}: {found} match(es)", expected=expected, observed=found,
         hints=["missing-object"],
     )  # fmt: skip
 

@@ -65,25 +65,45 @@ jobs:
     needs: [lint, scope]
     if: needs.scope.outputs.release-only != 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    # Only the lab tests this PR needs (llm_on_a_stick.labselect): the sections it touches, plus each section's
+    # floor task when shared code changes. The worst case is shared code plus one section (~30 min).
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0  # the selection diffs the PR against its base
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
         with:
           enable-cache: true
       - run: uv sync --locked
+      - name: Select the lab tests this PR needs
+        id: select
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          uv run python -m llm_on_a_stick.labselect "$BASE" "$HEAD" 2> >(tee -a "$GITHUB_STEP_SUMMARY" >&2) > selection
+          grep '^STICK_LAB_' selection >> "$GITHUB_ENV"
+          grep '^run=' selection >> "$GITHUB_OUTPUT"
+          cat selection
       - name: Install containerlab
+        if: steps.select.outputs.run == 'true'
         run: bash -c "$(curl -sL https://get.containerlab.dev)" -- --version "$CONTAINERLAB_VERSION"
       - name: Install sshpass (the NETCONF task oracles use it)
+        if: steps.select.outputs.run == 'true'
         run: sudo apt-get install -y --no-install-recommends sshpass
       - name: Build stick-frr
+        if: steps.select.outputs.run == 'true'
         run: uv run stick image build frr
       - name: Build stick-toolbox (where models' commands run)
+        if: steps.select.outputs.run == 'true'
         run: uv run stick image build toolbox
       - name: stick doctor
+        if: steps.select.outputs.run == 'true'
         run: uv run stick doctor
-      - name: Deploy base lab and run lab tests
-        # containerlab needs root on the runner; keep the uv environment.
+      - name: Deploy base lab and run the selected lab tests
+        if: steps.select.outputs.run == 'true'
+        # containerlab needs root on the runner; keep the uv environment (and the STICK_LAB_* selection).
         run: sudo -E env "PATH=$PATH" uv run pytest -m lab -v
       - name: Task lint
         run: uv run stick task lint

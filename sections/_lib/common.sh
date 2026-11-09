@@ -86,3 +86,24 @@ netbox_api() {
 }
 # netbox_id <path with filters>  -> id of the first match, e.g. netbox_id "dcim/devices/?name=srl2"
 netbox_id() { netbox_api GET "$1" | jq -er '.results[0].id'; }
+
+# --- Nautobot --------------------------------------------------------------
+# $STICK_NAUTOBOT_URL and $STICK_NAUTOBOT_AUTH ("Token <hex>") come from `stick task start`.
+# nautobot_api <METHOD> <path> [json]   e.g. nautobot_api POST dcim/devices/ '{"name": "x", ...}'
+# Prints the response body; fails (with the body on stderr) on an HTTP error.
+nautobot_api() {
+    local method=$1 path=$2 body=${3:-} out
+    local args=(-sS -X "$method" -H "Authorization: $STICK_NAUTOBOT_AUTH" -H "Accept: application/json")
+    [[ -n "$body" ]] && args+=(-H "Content-Type: application/json" --data "$body")
+    if ! out=$(curl "${args[@]}" -w '\n%{http_code}' "$STICK_NAUTOBOT_URL/api/${path#/}"); then
+        echo "nautobot_api $method $path: request failed" >&2; return 1
+    fi
+    local code=${out##*$'\n'}
+    out=${out%$'\n'*}
+    if [[ "$code" -ge 400 ]]; then
+        echo "nautobot_api $method $path: HTTP $code: $out" >&2; return 1
+    fi
+    printf '%s\n' "$out"
+}
+# nautobot_id <path with filters>  -> UUID of the first match, e.g. nautobot_id "dcim/devices/?name=srl2"
+nautobot_id() { nautobot_api GET "$1" | jq -er '.results[0].id'; }

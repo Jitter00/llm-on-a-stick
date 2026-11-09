@@ -1,0 +1,61 @@
+# Baseline Nautobot objects every task starts from. Deliberately NOT the lab's devices:
+# documenting the lab in Nautobot is itself a task. Each entry is created only if
+# `lookup` doesn't find it already, so seeding is idempotent.
+# Nautobot 2.x/3.x has no slugs: foreign keys are natural-key lookups, e.g. role: {name: Leaf}.
+# Statuses (Active, Planned, ...) and the Global namespace ship with Nautobot.
+
+- endpoint: dcim/location-types
+  lookup: name
+  data: {name: Site, nestable: false, content_types: [dcim.device, ipam.prefix, ipam.vlan, circuits.circuittermination]}
+- endpoint: dcim/locations
+  lookup: name
+  data: {name: stick-lab, location_type: {name: Site}, status: {name: Active}, description: llm-on-a-stick base lab}
+
+- endpoint: dcim/manufacturers
+  lookup: name
+  data: {name: Nokia}
+- endpoint: dcim/manufacturers
+  lookup: name
+  data: {name: FRRouting}
+- endpoint: dcim/manufacturers
+  lookup: name
+  data: {name: Generic}
+
+- endpoint: extras/roles
+  lookup: name
+  data: {name: Spine, color: 2196f3, content_types: [dcim.device]}
+- endpoint: extras/roles
+  lookup: name
+  data: {name: Leaf, color: 4caf50, content_types: [dcim.device]}
+- endpoint: extras/roles
+  lookup: name
+  data: {name: Host, color: 9e9e9e, content_types: [dcim.device]}
+
+- endpoint: dcim/platforms
+  lookup: name
+  data: {name: SR Linux, manufacturer: {name: Nokia}, network_driver: nokia_srl}
+- endpoint: dcim/platforms
+  lookup: name
+  data: {name: FRR, manufacturer: {name: FRRouting}}
+- endpoint: dcim/platforms
+  lookup: name
+  data: {name: Linux, manufacturer: {name: Generic}, network_driver: linux}
+
+- endpoint: dcim/device-types
+  lookup: model
+  data: {model: 7220 IXR-D2L, manufacturer: {name: Nokia}}
+- endpoint: dcim/device-types
+  lookup: model
+  data: {model: FRR container, manufacturer: {name: FRRouting}}
+- endpoint: dcim/device-types
+  lookup: model
+  data: {model: Linux host, manufacturer: {name: Generic}}
+
+# IPAM: the lab's management network lives in a namespace of its own, so an address
+# created in the default Global namespace (a NetBox habit) has no parent prefix there.
+- endpoint: ipam/namespaces
+  lookup: name
+  data: {name: stick-lab, description: llm-on-a-stick lab addressing}
+- endpoint: ipam/prefixes
+  lookup: prefix
+  data: {prefix: 172.30.30.0/24, namespace: {name: stick-lab}, status: {name: Active}, type: network, description: lab management network}

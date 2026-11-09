@@ -11,7 +11,7 @@ from typing import Any
 import pytest
 
 from llm_on_a_stick import paths
-from llm_on_a_stick.grading import netboxstate, run
+from llm_on_a_stick.grading import run, sotstate
 from llm_on_a_stick.grading.context import GradeContext
 from llm_on_a_stick.services.seed import RestError
 from llm_on_a_stick.tasks import load_task
@@ -55,6 +55,9 @@ class FakeNetBox:
 class FakeServices:
     def __init__(self, nb: FakeNetBox) -> None:
         self.nb = nb
+
+    def rest(self, name: str) -> FakeNetBox:
+        return self.nb
 
     def netbox(self) -> FakeNetBox:
         return self.nb
@@ -119,7 +122,7 @@ def test_netbox_object_expect_needs_exactly_one_match(tmp_path: Path) -> None:
 
 
 def baseline(ctx: GradeContext, nb: FakeNetBox) -> None:
-    snap = netboxstate.snapshot(nb, ("dcim/device-roles", "dcim/devices", "ipam/ip-addresses"))
+    snap = sotstate.snapshot(nb, ("dcim/device-roles", "dcim/devices", "ipam/ip-addresses"))
     (ctx.run.baseline_dir / "netbox.json").write_text(json.dumps(snap))
 
 
@@ -160,7 +163,7 @@ def test_netbox_unchanged_without_baseline_is_an_env_error(tmp_path: Path) -> No
 
 def test_snapshot_follows_pages() -> None:
     nb = FakeNetBox({"dcim/devices": [{"id": i, "name": f"d{i}"} for i in range(5)]}, page_size=2)
-    assert sorted(netboxstate.snapshot(nb, ("dcim/devices",))["dcim/devices"]) == ["0", "1", "2", "3", "4"]
+    assert sorted(sotstate.snapshot(nb, ("dcim/devices",))["dcim/devices"]) == ["0", "1", "2", "3", "4"]
 
 
 # --------------------------------------------------------------------------- task start
@@ -180,7 +183,7 @@ def test_start_resets_netbox_before_setup_and_saves_a_baseline(
     events: list[str] = []
     monkeypatch.setattr(run.lifecycle, "restore_snapshot", lambda spec: events.append(f"reset {spec.name}"))
     monkeypatch.setattr(run, "run_script", lambda task, script, kind, *_: events.append(kind))
-    monkeypatch.setattr(run, "netbox_client", lambda: FakeNetBox(seeded()))
+    monkeypatch.setattr(run, "rest_client", lambda name: FakeNetBox(seeded()))
     info = run.start(task, tmp_path / "runs", FakeLab())  # type: ignore[arg-type]
     assert events == ["reset netbox", "setup"]
     snap = json.loads((info.baseline_dir / "netbox.json").read_text())
@@ -259,7 +262,7 @@ def test_netbox_object_expect_reads_list_items(tmp_path: Path) -> None:
 
 def test_netbox_unchanged_allows_a_cable_only_where_allowed(tmp_path: Path) -> None:
     ctx, nb = nb_ctx(tmp_path, cabled())
-    snap = netboxstate.snapshot(nb, ("dcim/interfaces", "dcim/cables"))
+    snap = sotstate.snapshot(nb, ("dcim/interfaces", "dcim/cables"))
     (ctx.run.baseline_dir / "netbox.json").write_text(json.dumps(snap))
     connect(nb.data)
     # The interfaces' cable fields changed on both ends: that's the cable, not an edit.
@@ -275,7 +278,7 @@ def test_netbox_unchanged_ignores_ip_counters_on_interfaces(tmp_path: Path) -> N
     data = cabled()
     data["dcim/interfaces"][0]["count_ipaddresses"] = 0
     ctx, nb = nb_ctx(tmp_path, data)
-    snap = netboxstate.snapshot(nb, ("dcim/interfaces",))
+    snap = sotstate.snapshot(nb, ("dcim/interfaces",))
     (ctx.run.baseline_dir / "netbox.json").write_text(json.dumps(snap))
     nb.data["dcim/interfaces"][0]["count_ipaddresses"] = 1  # an IP was assigned to it: not an edit
     assert check(ctx, "netbox_unchanged").status == "pass"

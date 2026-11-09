@@ -1,0 +1,37 @@
+id: nautobot-query-interface
+section: nautobot
+title: Find an interface and its IP address in Nautobot
+tier: basic
+floor: true  # the section's cheap floor task: CI validates it on every shared-code change
+tags: [tool:nautobot, iface:rest, skill:sot-query]
+prompt: |
+  Nautobot is at {{ services.nautobot.url }} (REST API under /api/, header "Authorization: Token {{ services.nautobot.token }}").
+
+  In Nautobot, the device {{ canaries.device }} has one interface whose description is "{{ canaries.desc }}".
+  Find that interface and the IPv4 address assigned to it, and write them to {{ workspace }}/answer.json:
+    {"interface": "<interface name>", "address": "<address with prefix length, as Nautobot shows it>"}
+
+  Do not change anything in Nautobot or on any device.
+requires:
+  services: [nautobot]
+reset_services: [nautobot]
+canaries:
+  device: hostname
+  desc: description
+  addr: ipv4
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: json_file_matches
+    name: answer.json names the interface and its address
+    params:
+      path: answer.json
+      expected: {interface: eth2, address: "{{ canaries.addr }}/24"}
+    weight: 2
+  - type: nautobot_unchanged
+    name: nothing was changed in Nautobot
+    params: {allow_new: []}
+  - type: no_change_outside
+    name: no configuration was changed
+    params: {allowed: []}
+limits: {turns: 15}

@@ -1,0 +1,50 @@
+id: nautobot-cables-lldp
+section: nautobot
+title: Add a router's cables to Nautobot from LLDP
+tier: intermediate
+tags: [tool:nautobot, vendor:frr, iface:rest, iface:shell, skill:discovery, skill:sot-update]
+prompt: |
+  Nautobot is at {{ services.nautobot.url }} (REST API under /api/, header "Authorization: Token {{ services.nautobot.token }}").
+  The router frr1 runs FRRouting on Linux. SSH to {{ nodes.frr1.mgmt_ip }} as user netops, password netops,
+  gives you a Linux shell on it (FRR's own CLI is vtysh).
+
+  frr1 and its neighbours are in Nautobot with their interfaces, but without cables. The neighbours announce
+  themselves over LLDP with their Nautobot device names. Using frr1's LLDP neighbours, add to Nautobot a cable,
+  status Connected, for every data link between frr1 and an LLDP neighbour. The management network is not a
+  cable.
+
+  Do not change anything else in Nautobot, and do not change any configuration on any device.
+requires:
+  devices: [frr1, srl1, srl2]
+  services: [nautobot]
+reset_services: [nautobot]
+canaries:
+  n1: hostname
+  n2: hostname
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: nautobot_object
+    name: frr1 eth1 is cabled to the right neighbour's port
+    params:
+      endpoint: dcim/interfaces
+      filters: {device: frr1, name: eth1, depth: 2}
+      expect: {cable_peer.device.name: "{{ canaries.n1 }}", cable_peer.name: ethernet-1/1}
+    weight: 2
+  - type: nautobot_object
+    name: frr1 eth2 is cabled to the right neighbour's port
+    params:
+      endpoint: dcim/interfaces
+      filters: {device: frr1, name: eth2, depth: 2}
+      expect: {cable_peer.device.name: "{{ canaries.n2 }}", cable_peer.name: ethernet-1/1}
+    weight: 2
+  - type: nautobot_object
+    name: no other cables (the management network is not one)
+    params: {endpoint: dcim/cables, count: 2}
+  - type: nautobot_unchanged
+    name: nothing else was changed in Nautobot
+    params: {allow_new: [dcim/cables]}
+  - type: no_change_outside
+    name: no configuration was changed
+    params: {allowed: []}
+limits: {turns: 25}

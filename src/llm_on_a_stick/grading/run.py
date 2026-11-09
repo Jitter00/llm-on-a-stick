@@ -4,7 +4,7 @@ A run directory holds everything about one attempt:
     run.json       task id, task dir, canaries, rendered prompt, timestamps
     work/          the agent's workspace (files the task asks for go here)
     baseline/      every router's config right after setup (for collateral-change checks), and
-                   netbox.json for tasks that need NetBox
+                   <service>.json for tasks that need NetBox or Nautobot
     restore.log    how long putting each router back to its boot config took
     setup.log      output of the task's setup script, if any
     result.json    written later by `stick grade`
@@ -25,7 +25,7 @@ from pydantic import BaseModel
 
 from llm_on_a_stick import paths, services
 from llm_on_a_stick.grading import canaries as canary_mod
-from llm_on_a_stick.grading import netboxstate
+from llm_on_a_stick.grading import sotstate
 from llm_on_a_stick.grading.labstate import LabState, LabStateError
 from llm_on_a_stick.grading.template import render
 from llm_on_a_stick.services import lifecycle
@@ -54,10 +54,11 @@ def restore_routers(lab: LabState, log: Path) -> None:
     log.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def netbox_client() -> RestClient:
-    spec = services.load("netbox")
+def rest_client(name: str) -> RestClient:
+    """The REST API client of a source-of-truth service (netbox, nautobot), from its service.yaml."""
+    spec = services.load(name)
     if spec.seed is None:
-        raise RunError("netbox service.yaml has no API settings")
+        raise RunError(f"{name} service.yaml has no API settings")
     return RestClient(spec.seed.base_url, spec.seed.headers)
 
 
@@ -186,12 +187,14 @@ def start(
                     f"cannot read {node.name}: is the lab running? (`stick env up`) [{exc}]"
                 ) from exc
             (baseline / f"{node.name}.cfg").write_text(config, encoding="utf-8")
-    if "netbox" in (task.requires.get("services") or []):
+    for name in task.requires.get("services") or []:  # baseline/<name>.json, for <name>_unchanged
+        if name not in sotstate.ENDPOINTS:
+            continue
         try:
-            snap = netboxstate.snapshot(netbox_client())
+            snap = sotstate.snapshot(rest_client(name), sotstate.ENDPOINTS[name])
         except RestError as exc:
-            raise RunError(f"cannot read NetBox: is it up? (`stick svc up netbox`) [{exc}]") from exc
-        (baseline / "netbox.json").write_text(json.dumps(snap, indent=1, sort_keys=True), encoding="utf-8")
+            raise RunError(f"cannot read {name}: is it up? (`stick svc up {name}`) [{exc}]") from exc
+        (baseline / f"{name}.json").write_text(json.dumps(snap, indent=1, sort_keys=True), encoding="utf-8")
 
     info = RunInfo(
         task_id=task.id,

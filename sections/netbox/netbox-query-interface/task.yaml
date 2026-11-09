@@ -2,6 +2,7 @@ id: netbox-query-interface
 section: netbox
 title: Find an interface and its IP address in NetBox
 tier: basic
+floor: true  # the section's cheap floor task: CI validates it on every shared-code change
 tags: [tool:netbox, iface:rest, skill:sot-query]
 prompt: |
   NetBox is at {{ services.netbox.url }} (REST API under /api/, header "Authorization: Bearer {{ services.netbox.token }}").

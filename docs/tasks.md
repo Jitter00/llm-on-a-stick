@@ -18,13 +18,14 @@ uv run stick grade                           # grades the attempt
 Every attempt starts from the same state. The lab stays up between attempts, tasks, sections and models (only
 `stick env up` / `env down` deploy or remove it), so `stick task start` resets it first:
 
-1. the services the task lists under `reset_services` go back to their seeded snapshot (NetBox: ~20 s);
+1. the services the task lists under `reset_services` go back to their seeded snapshot (NetBox: ~20 s,
+   Nautobot: ~25 s);
 2. **every router goes back to the config it booted with**, without a restart, so BGP stays up:
    - SR Linux reverts to `clab-initial`, the checkpoint containerlab takes once the startup config is applied;
    - FRR runs `frr-reload.py` against its startup config, `configs/frr/<node>/frr.conf`;
    - it takes about 2 s for the four routers, and the times are in the run's `restore.log`;
 3. the task's `setup.sh` plants this run's canaries (or a fault);
-4. the baseline is taken, for `no_change_outside` and `netbox_unchanged`.
+4. the baseline is taken, for `no_change_outside`, `netbox_unchanged` and `nautobot_unchanged`.
 
 ## cfg-mgmt: getting configuration right
 
@@ -60,6 +61,26 @@ Requirements: the lab and NetBox (`uv run stick env up`, `uv run stick svc up ne
 restoring NetBox's seeded snapshot (`reset_services: [netbox]`, about 20 s), and `netbox_unchanged` fails
 attempts that change anything the task didn't ask for. Run them with `uv run stick run --section netbox ...`.
 
+## nautobot: the other source of truth
+
+The same jobs as the NetBox section, against Nautobot 3.x. Nautobot forked from NetBox but its data model has
+moved on (see [Services](services.md#nautobot)), so a model that answers from NetBox habits fails here: `Bearer`
+instead of `Token`, sites instead of locations, choice strings instead of Status objects, IP addresses outside a
+namespace, NetBox's `assigned_object_*` fields (silently ignored), and NetBox 4's cable payload. The drift task is
+replaced by a GraphQL one, a Nautobot feature that NetBox's tasks don't cover.
+
+| Task | Tier | What the agent must do | What can go wrong (and is detected) |
+|---|---|---|---|
+| `nautobot-query-interface` | basic | Find the interface with a given description on a device, and its IP address (linked through `ip-address-to-interface`, so the interface list doesn't show it) | `Bearer` instead of `Token`, the distractor address, a changed Nautobot |
+| `nautobot-register-node` | intermediate | Document frr2: device in location stick-lab, interfaces with the router's descriptions, mgmt IP in the stick-lab namespace as primary IPv4 | No status on the device or interfaces, `site` instead of `location`, the address in the wrong namespace, `assigned_object_*` (address left unlinked, so it can't be the primary IP) |
+| `nautobot-graphql` | intermediate | Save one GraphQL query returning every device at a location with its interfaces and addresses, and list the addresses in answer.json | NetBox's GraphQL schema (`device_list`, `site`, `device_role`), a query without the location filter (a distractor device), REST instead (the saved query is run) |
+| `nautobot-cables-lldp` | intermediate | Add Nautobot cables for frr1's data links, from its LLDP neighbours (random host names, as in the NetBox task) | Guessing instead of reading LLDP, a cable for the management network, NetBox 4's `a_terminations`, a missing or lower-case status |
+| `nautobot-next-ip` | advanced | Take the lowest free address of the stick-lab loopback pool, record it as a /32 on frr2's `lo`, and configure it on frr2 | The same /24 in the Global namespace (more addresses taken there), "the highest plus one" (the pool has a gap), the /24 instead of /32, only one side done |
+
+Requirements: the lab and Nautobot (`uv run stick env up`, `uv run stick svc up nautobot`). Every attempt starts
+by restoring Nautobot's seeded snapshot (`reset_services: [nautobot]`, about 25 s), and `nautobot_unchanged` fails
+attempts that change anything the task didn't ask for. Run them with `uv run stick run --section nautobot ...`.
+
 ## Which tasks are kept
 
 Most models tested here run locally, where one attempt can take minutes, so every task has to earn its place.
@@ -68,7 +89,8 @@ Each section (a tool such as `netbox`, or a group such as `cfg-mgmt`; the wider 
 
 - **No obvious tasks.** A task that every model tried passes every time measures nothing. The exception is one
   cheap "floor" task per section, kept on purpose: it shows that a model can use the tool at all, in seconds
-  (in cfg-mgmt, `running-config-cli-frr`).
+  (in cfg-mgmt, `running-config-cli-frr`). It is marked `floor: true` in its `task.yaml` (a test checks there is
+  exactly one per section), and CI validates it whenever shared code changes.
 - **No task that a harder one already covers.** Keep the harder one.
 - **Re-check after each comparison** and remove tasks that stopped telling models apart.
 
@@ -89,7 +111,7 @@ Scripts get these environment variables:
 | `STICK_WORKSPACE` | Where the agent writes its files (`oracle.sh` writes its answer here) |
 | `STICK_NODE_<NODE>` / `STICK_NODE_<NODE>_IP` | Container name / management IP of each lab node, e.g. `STICK_NODE_SRL1` |
 | `STICK_<SERVICE>_URL` / `STICK_<SERVICE>_AUTH` | A service's host URL and, if it has an API token, its `Authorization` header value, e.g. `STICK_NETBOX_URL` |
-| `STICK_LIB` | Folder with shared helpers: `source "$STICK_LIB/common.sh"` gives `srl_set`, `srl_cli`, `frr_conf`, `frr_cli`, `netconf_get_config`, `oxidized_backup_now`, `netbox_api`, `netbox_id` |
+| `STICK_LIB` | Folder with shared helpers: `source "$STICK_LIB/common.sh"` gives `srl_set`, `srl_cli`, `frr_conf`, `frr_cli`, `netconf_get_config`, `oxidized_backup_now`, `netbox_api`, `netbox_id`, `nautobot_api`, `nautobot_id` |
 
 Prompts can use `{{ services.<name>.url }}` and, for services with an API token, `{{ services.<name>.token }}`.
 

@@ -1,0 +1,47 @@
+id: nautobot-next-ip
+section: nautobot
+title: Take the next free loopback from Nautobot and configure it on a router
+tier: advanced
+tags: [tool:nautobot, vendor:frr, iface:rest, iface:cli, skill:ipam, skill:sot-driven-change]
+prompt: |
+  Nautobot is at {{ services.nautobot.url }} (REST API under /api/, header "Authorization: Token {{ services.nautobot.token }}").
+  The router frr2 runs FRRouting; SSH to {{ nodes.frr2.mgmt_ip }} as admin/admin lands in its CLI (vtysh), and
+  as netops/netops in a Linux shell.
+
+  In Nautobot, the prefix {{ canaries.pool }}.0/24 in the namespace stick-lab is the lab's loopback pool. Take
+  the next free address in it, the way Nautobot hands them out: the lowest usable address (not the prefix's
+  network address) that Nautobot has not recorded in that pool yet. Then:
+    - record it in Nautobot as a /32 in the stick-lab namespace, status Active, assigned to frr2's interface lo;
+    - configure the same /32 on frr2's interface lo, keeping the address lo already has.
+
+  Do not change anything else in Nautobot or on any device.
+requires:
+  devices: [frr2]
+  services: [nautobot]
+reset_services: [nautobot]
+canaries:
+  pool: net24
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: nautobot_object
+    name: the next free address is recorded in the stick-lab pool, on frr2's lo
+    params:
+      endpoint: ipam/ip-addresses
+      filters: {address: "{{ canaries.pool }}.4/32", namespace: stick-lab, device: frr2, interfaces: lo}
+      expect: {status.name: Active, parent.prefix: "{{ canaries.pool }}.0/24"}
+    weight: 2
+  - type: nautobot_object
+    name: exactly one address was added, in either namespace
+    params: {endpoint: ipam/ip-addresses, filters: {prefix: "{{ canaries.pool }}.0/24"}, count: 11}
+  - type: running_config_contains
+    name: frr2's lo has the new address
+    params: {node: frr2, lines: ["ip address {{ canaries.pool }}.4/32"]}
+    weight: 2
+  - type: nautobot_unchanged
+    name: nothing else was changed in Nautobot
+    params: {allow_new: [ipam/ip-addresses, ipam/ip-address-to-interface]}
+  - type: no_change_outside
+    name: no other router was changed
+    params: {allowed: [frr2]}
+limits: {turns: 25}

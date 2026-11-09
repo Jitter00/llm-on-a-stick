@@ -26,6 +26,18 @@ def test_netbox_is_available_and_valid() -> None:
     assert spec.health.headers["Authorization"].startswith("Bearer nbt_stickadmin01.")
 
 
+def test_nautobot_is_available_and_valid() -> None:
+    assert "nautobot" in services.available()
+    spec = services.load("nautobot", env={})
+    assert spec.project == "stick-nautobot"
+    assert spec.compose_file.is_file()
+    assert spec.seed_file is not None
+    assert spec.seed_file.is_file()
+    assert spec.seed is not None
+    assert spec.seed.kind == "rest"
+    assert spec.health.headers["Authorization"].startswith("Token ")  # not NetBox 4's "Bearer nbt_..."
+
+
 def test_every_service_has_a_footprint() -> None:
     fp = footprints.load()
     for name in services.available():
@@ -77,11 +89,23 @@ def test_seed_is_idempotent() -> None:
     assert all(path.endswith("/") for path, _ in client.posts)
 
 
-def test_seed_file_has_unique_lookups() -> None:
-    spec = services.load("netbox", env={})
+def test_seed_files_have_unique_lookups() -> None:
+    for name in ("netbox", "nautobot"):
+        spec = services.load(name, env={})
+        assert spec.seed_file is not None
+        keys = [(e.endpoint, e.data[e.lookup]) for e in seed.load_entries(spec.seed_file)]
+        assert len(keys) == len(set(keys)), name
+
+
+def test_nautobot_seed_creates_what_it_refers_to_first() -> None:
+    """Nautobot resolves {name: ...} references when the object is created, so the seed must be ordered."""
+    spec = services.load("nautobot", env={})
     assert spec.seed_file is not None
-    keys = [(e.endpoint, e.data[e.lookup]) for e in seed.load_entries(spec.seed_file)]
-    assert len(keys) == len(set(keys))
+    order = [e.endpoint for e in seed.load_entries(spec.seed_file)]
+    assert order.index("dcim/location-types") < order.index("dcim/locations")
+    assert order.index("dcim/manufacturers") < order.index("dcim/platforms")
+    assert order.index("dcim/manufacturers") < order.index("dcim/device-types")
+    assert order.index("ipam/namespaces") < order.index("ipam/prefixes")
 
 
 # --------------------------------------------------------------------------- all services

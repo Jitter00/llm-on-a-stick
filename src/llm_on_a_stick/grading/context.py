@@ -24,15 +24,22 @@ class Services:
     """HTTP access to the tool stack, created lazily (a task that needs no service needs none running)."""
 
     def __init__(self) -> None:
-        self._netbox: RestClient | None = None
+        self._rest: dict[str, RestClient] = {}
+
+    def rest(self, name: str) -> RestClient:
+        """The REST API client of a service whose service.yaml has API settings (netbox, nautobot)."""
+        if name not in self._rest:
+            spec = services.load(name)
+            if spec.seed is None:
+                raise ServiceUnavailable(f"{name} service.yaml has no API settings")
+            self._rest[name] = RestClient(spec.seed.base_url, spec.seed.headers)
+        return self._rest[name]
 
     def netbox(self) -> RestClient:
-        if self._netbox is None:
-            spec = services.load("netbox")
-            if spec.seed is None:
-                raise ServiceUnavailable("netbox service.yaml has no API settings")
-            self._netbox = RestClient(spec.seed.base_url, spec.seed.headers)
-        return self._netbox
+        return self.rest("netbox")
+
+    def nautobot(self) -> RestClient:
+        return self.rest("nautobot")
 
     def oxidized(self, path: str) -> Any:
         base = services.load("oxidized").health.url.rsplit("/", 1)[0]
