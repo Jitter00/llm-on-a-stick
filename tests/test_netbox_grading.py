@@ -214,3 +214,58 @@ def test_netbox_object_filter_on_a_missing_device_means_no_match(tmp_path: Path)
     assert res.status == "fail" and res.hints == ["missing-object"]
     res = check(ctx, "netbox_object", endpoint="dcim/interfaces", filters={"device": "frr2"}, expect={"a": 1})
     assert res.status == "fail" and res.hints == ["missing-object"]
+
+
+# --------------------------------------------------------------------------- cables
+
+
+def cabled() -> dict[str, list[dict[str, Any]]]:
+    return {
+        "dcim/interfaces": [
+            {"id": 1, "name": "ethernet-1/1", "device": {"name": "srl1"}, "cable": None, "link_peers": [],
+             "_occupied": False, "description": ""},
+            {"id": 2, "name": "eth1", "device": {"name": "n1"}, "cable": None, "link_peers": [],
+             "_occupied": False, "description": ""},
+        ],
+        "dcim/cables": [],
+    }  # fmt: skip
+
+
+def connect(data: dict[str, list[dict[str, Any]]]) -> None:
+    """What NetBox does when a cable is added between interfaces 1 and 2."""
+    a, b = data["dcim/interfaces"]
+    data["dcim/cables"].append(
+        {"id": 5, "a_terminations": [{"object_id": 1}], "b_terminations": [{"object_id": 2}]}
+    )
+    for one, other in ((a, b), (b, a)):
+        one.update(
+            cable={"id": 5}, _occupied=True, link_peers=[{"name": other["name"], "device": other["device"]}]
+        )
+
+
+def test_netbox_object_expect_reads_list_items(tmp_path: Path) -> None:
+    data = cabled()
+    connect(data)
+    ctx, _ = nb_ctx(tmp_path, data)
+    filters = {"device": "srl1", "name": "ethernet-1/1"}
+    good = {"link_peers.0.device.name": "n1", "link_peers.0.name": "eth1"}
+    assert (
+        check(ctx, "netbox_object", endpoint="dcim/interfaces", filters=filters, expect=good).status == "pass"
+    )
+    res = check(ctx, "netbox_object", endpoint="dcim/interfaces", filters=filters,
+                expect={"link_peers.1.name": "eth1"})  # fmt: skip
+    assert res.status == "fail" and res.observed == {"link_peers.1.name": None}
+
+
+def test_netbox_unchanged_allows_a_cable_only_where_allowed(tmp_path: Path) -> None:
+    ctx, nb = nb_ctx(tmp_path, cabled())
+    snap = netboxstate.snapshot(nb, ("dcim/interfaces", "dcim/cables"))
+    (ctx.run.baseline_dir / "netbox.json").write_text(json.dumps(snap))
+    connect(nb.data)
+    # The interfaces' cable fields changed on both ends: that's the cable, not an edit.
+    assert check(ctx, "netbox_unchanged", allow_new=["dcim/cables"]).status == "pass"
+    res = check(ctx, "netbox_unchanged", allow_new=[])
+    assert res.status == "fail" and res.observed == ["dcim/cables: added id 5"]
+    nb.data["dcim/interfaces"][0]["description"] = "edited"
+    res = check(ctx, "netbox_unchanged", allow_new=["dcim/cables"])
+    assert res.status == "fail" and "changed ethernet-1/1 (description)" in res.observed[0]

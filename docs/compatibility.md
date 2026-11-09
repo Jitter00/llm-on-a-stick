@@ -16,7 +16,7 @@ Legend: ✅ verified · ⚠️ partial (see notes) · ❌ doesn't work · ❓ no
 | SNMPv2c | ❓ | ✅ | `test_frr_snmp_answers` |
 | NETCONF | ✅ port 830, base:1.0 framing, subtree filters (`get-config` on running) | ❌ (FRR has no NETCONF server) | `test_tasks_lab.py` (netconf tasks) |
 | gNMI | ❓ | ❌ (no native gNMI) | – |
-| LLDP | ❓ | ❓ | – |
+| LLDP | ✅ on by default; neighbours in `show system lldp neighbor` | ✅ `lldpd` (`lldpcli show neighbors`); port ID is the MAC unless `portidsubtype ifname` is set | `test_tasks_lab.py` (`netbox-cables-lldp`) |
 | Remote syslog | ❓ | ❓ | – |
 | Measured RAM (idle) | 1870 MiB | 31 MiB | cgroup `memory.current` |
 

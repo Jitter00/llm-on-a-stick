@@ -8,7 +8,7 @@ New tasks get one section per tool, so you can test only the tools you use; `cfg
 | Section | Tasks | What it covers |
 |---|---|---|
 | `cfg-mgmt` | 5 | config retrieval over clear-text CLI and NETCONF, Oxidized backups |
-| `netbox` | 3 | NetBox 4.x REST API: queries, documenting a router, drift between NetBox and a device |
+| `netbox` | 4 | NetBox 4.x REST API: queries, documenting a router, drift between NetBox and a device, cables from LLDP |
 
 ## Groupings
 

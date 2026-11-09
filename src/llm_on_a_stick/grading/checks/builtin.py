@@ -280,11 +280,17 @@ def netbox_object(
 
 
 def _dig(obj: Any, path: str) -> Any:
-    """`obj["a"]["b"]` for "a.b"; NetBox choice fields ({"value": ..., "label": ...}) give their value."""
+    """`obj["a"]["b"]` for "a.b", and list items by index ("link_peers.0.name"); NetBox choice fields
+    ({"value": ..., "label": ...}) give their value."""
     for key in path.split("."):
-        if not isinstance(obj, dict) or key not in obj:
+        if isinstance(obj, list) and key.isdigit():
+            if int(key) >= len(obj):
+                return None
+            obj = obj[int(key)]
+        elif isinstance(obj, dict) and key in obj:
+            obj = obj[key]
+        else:
             return None
-        obj = obj[key]
     if isinstance(obj, dict) and "value" in obj and "label" in obj:
         obj = obj["value"]
     return _plain(obj)
