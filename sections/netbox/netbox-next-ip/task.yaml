@@ -1,0 +1,46 @@
+id: netbox-next-ip
+section: netbox
+title: Take the next free loopback from NetBox and configure it on a router
+tier: advanced
+tags: [tool:netbox, vendor:frr, iface:rest, iface:cli, skill:ipam, skill:sot-driven-change]
+prompt: |
+  NetBox is at {{ services.netbox.url }} (REST API under /api/, header "Authorization: Bearer {{ services.netbox.token }}").
+  The router frr2 runs FRRouting; SSH to {{ nodes.frr2.mgmt_ip }} as admin/admin lands in its CLI (vtysh), and
+  as netops/netops in a Linux shell.
+
+  In NetBox, the prefix {{ canaries.pool }}.0/24 is the loopback pool. Take the next free address in it: the
+  lowest one NetBox has not recorded yet. Then:
+    - record it in NetBox as a /32, status active, assigned to frr2's interface lo;
+    - configure the same /32 on frr2's interface lo, keeping the address lo already has.
+
+  Do not change anything else in NetBox or on any device.
+requires:
+  devices: [frr2]
+  services: [netbox]
+reset_services: [netbox]
+canaries:
+  pool: net24
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: netbox_object
+    name: the next free address is recorded on frr2's lo
+    params:
+      endpoint: ipam/ip-addresses
+      filters: {address: "{{ canaries.pool }}.4/32"}
+      expect: {assigned_object.device.name: frr2, assigned_object.name: lo, status: active}
+    weight: 2
+  - type: netbox_object
+    name: exactly one address was added to the pool
+    params: {endpoint: ipam/ip-addresses, filters: {parent: "{{ canaries.pool }}.0/24"}, count: 5}
+  - type: running_config_contains
+    name: frr2's lo has the new address
+    params: {node: frr2, lines: ["ip address {{ canaries.pool }}.4/32"]}
+    weight: 2
+  - type: netbox_unchanged
+    name: nothing else was changed in NetBox
+    params: {allow_new: [ipam/ip-addresses]}
+  - type: no_change_outside
+    name: no other router was changed
+    params: {allowed: [frr2]}
+limits: {turns: 25}

@@ -31,7 +31,7 @@
     "canaries": {
       "type": "object",
       "description": "Random values seeded per run so memorised or invented answers fail.",
-      "additionalProperties": {"enum": ["asn", "ipv4", "description", "hostname"]}
+      "additionalProperties": {"enum": ["asn", "ipv4", "description", "hostname", "net24"]}
     },
     "setup": {"type": "string", "description": "Script (relative to the task dir) that prepares the initial state."},
     "oracle": {"type": "string", "description": "Reference solution script; `stick task validate` requires it to PASS."},

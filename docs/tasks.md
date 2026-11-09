@@ -54,6 +54,7 @@ address that must be assigned to an interface before it can be a device's primar
 | `netbox-register-node` | intermediate | Document frr2 in NetBox: device, interfaces with the router's descriptions, mgmt IP as primary IPv4 | Wrong role/type/platform, descriptions not read off the router, primary IP not set (or set before it's assigned), edits to the seed |
 | `netbox-drift` | intermediate | Report every difference between srl2 in NetBox and its running config | Missing the wrong address, inventing differences, "fixing" NetBox instead of reporting |
 | `netbox-cables-lldp` | intermediate | Add NetBox cables for frr1's data links, from its LLDP neighbours (read with `lldpcli` over a Linux shell; the SR Linux neighbours carry this run's random host names in LLDP and in NetBox) | Guessing instead of reading LLDP, a cable for the management network, the pre-4.x cable payload (`termination_a_type`) instead of `a_terminations` |
+| `netbox-next-ip` | advanced | Take the lowest free address of a NetBox loopback pool, record it as a /32 on frr2's `lo` in NetBox, and configure it on frr2 | Taking "the highest plus one" (the pool has a gap), the prefix's /24 instead of /32, recording it in NetBox but not on the router (or the other way round), touching anything else |
 
 Requirements: the lab and NetBox (`uv run stick env up`, `uv run stick svc up netbox`). Every attempt starts by
 restoring NetBox's seeded snapshot (`reset_services: [netbox]`, about 20 s), and `netbox_unchanged` fails
