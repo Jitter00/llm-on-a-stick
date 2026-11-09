@@ -13,5 +13,6 @@ Built-in tasks live here, one directory per task: `sections/<section>/<task-id>/
 The schema is `src/llm_on_a_stick/data/task.schema.json`. Check tasks with `stick task lint`.
 Your own tasks can live anywhere: `stick task lint ./my-tests`.
 
-Tasks so far: seven in `cfg-mgmt` (config retrieval over CLI and NETCONF), described in `docs/tasks.md`.
+Tasks so far: five in `cfg-mgmt` (config retrieval over CLI and NETCONF), described in `docs/tasks.md`.
 `_lib/common.sh` holds helpers for setup and oracle scripts. Prove a task is sound with `stick task validate`.
+Which tasks are kept (at most five per section, none obvious): `docs/tasks.md`.

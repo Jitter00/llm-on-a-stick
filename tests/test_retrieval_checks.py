@@ -166,10 +166,14 @@ def test_requirements(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_builtin_tasks_are_complete() -> None:
     found = tasks.discover([paths.sections_dir()])
-    assert len(found) >= 7
+    assert len(found) >= 5
+    per_section: dict[str, int] = {}
     for path in found:
         task = tasks.load_task(path)
+        per_section[task.section] = per_section.get(task.section, 0) + 1
         assert task.oracle, f"{task.id} has no oracle"
         assert task.canaries, f"{task.id} plants no canary"
         assert any(c.type == "no_change_outside" for c in task.checks), f"{task.id} doesn't check for changes"
         assert "{{ workspace }}" in task.prompt or "{{workspace}}" in task.prompt
+    # Every attempt costs minutes on a local model: at most 5 tasks per section (docs/tasks.md).
+    assert max(per_section.values()) <= 5, per_section

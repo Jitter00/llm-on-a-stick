@@ -26,6 +26,7 @@ dependencies = [
     "pydantic>=2.14",
     "psutil>=7.2",
     "jsonschema>=4.26",
+    "anthropic>=2.6",
 ]
 
 [project.scripts]

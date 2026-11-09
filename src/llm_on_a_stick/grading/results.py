@@ -12,8 +12,7 @@ SCHEMA_VERSION = 1
 CheckStatus = Literal["pass", "fail", "error"]
 Outcome = Literal["pass", "partial", "fail", "error"]
 
-# Failure hints a check can attach. The transcript-based classifier (later) adds more,
-# e.g. cli-syntax, wrong-dialect, loop, gave-up.
+# Failure hints: checks attach the first group; the runner adds the second from the transcript.
 FailureHint = Literal[
     "no-output",  # expected file/artefact missing or empty
     "truncated-output",  # output is a strict subset of what the device has (pager, cut-off)
@@ -25,6 +24,18 @@ FailureHint = Literal[
     "collateral-change",  # something outside the allowed scope changed
     "missing-object",  # expected object (NetBox, Oxidized backup...) not found
     "env-error",  # the grader or lab failed; not the model's fault
+    # Added by the runner from the transcript (`stick run`):
+    "max-turns",  # the model was still working when it ran out of turns
+    "timeout",  # the run hit its token limit or the safety time limit
+    "model-error",  # the model server failed (HTTP error, unreachable); not a task failure as such
+    "refusal",  # the model declined the task
+    "tool-call-error",  # malformed tool calls (invalid JSON arguments, unknown tool)
+    "no-tool-use",  # the model answered without running a single command
+    "output-limit",  # a reply hit the output-token cap (the model got one nudge to continue)
+    "repetition-loop",  # ...and the cut-off reply was the model repeating itself
+    "empty-reply",  # a reply with no text and no tool call (the model got one nudge to continue)
+    "context-full",  # the conversation filled the model's context window; the attempt ended there
+    "answer-in-reply",  # no output, but the final reply quotes this attempt's canary: found, not delivered
 ]
 
 

@@ -9,14 +9,14 @@ example one running in Ollama) with a paid one. It tells you **why** a model fai
 fields, changing things it shouldn't), not just a score.
 
 > **Status: early days.** What works today: the virtual lab, the `stick` command, two tools (NetBox and
-> Oxidized), the **grader**, which checks an attempt at a task and explains what went wrong, and the **first seven
-> tasks** (getting router configs right over CLI and NETCONF). You can already
-> [be the agent yourself](#try-the-grader-be-the-agent). What doesn't exist yet: connecting AI models to run the
-> tasks. That comes next. See [Roadmap](#roadmap).
+> Oxidized), the **grader**, which checks an attempt at a task and explains what went wrong, the **first five
+> tasks** (getting router configs right over CLI and NETCONF), and the **runner**, which lets AI models attempt
+> them and compares the results. You can [be the agent yourself](#try-the-grader-be-the-agent) or
+> [run a model](#run-a-model). More tools and tasks come next. See [Roadmap](#roadmap).
 
 **Contents:** [What you need](#what-you-need) · [Install](#install-step-by-step) ·
 [Your first lab](#your-first-lab-about-10-minutes) · [Try the grader](#try-the-grader-be-the-agent) ·
-[Cheat sheet](#cheat-sheet) ·
+[Run a model](#run-a-model) · [Cheat sheet](#cheat-sheet) ·
 [Run the tests](#run-the-tests-yourself) · [Troubleshooting](#troubleshooting) · [Glossary](#glossary)
 
 ## The lab
@@ -204,9 +204,53 @@ into `result.json` in the run folder.
 **4. Now fail on purpose** and grade again: delete half of the lines in `frr2.cfg`, or add a line that isn't on the
 router. The grader tells you what's missing or invented (`truncated-output`, `hallucinated-value`).
 
-**5. Try a harder one.** `uv run stick task list` shows all seven tasks, from saving a config to comparing CLI,
+**5. Try a harder one.** `uv run stick task list` shows all five tasks, from saving a config to comparing CLI,
 NETCONF and Oxidized. What each one tests: [docs/tasks.md](docs/tasks.md). How grading works and how to write your
 own checks: [docs/grading.md](docs/grading.md).
+
+## Run a model
+
+Now let an AI model do the same tasks. You need a model server running on your machine, for example
+[Ollama](https://ollama.com) (`ollama pull qwen3:14b`), LM Studio, or Strata, or an API key for a paid model. The
+model must support **tool calling**.
+
+**1. Check that `stick` sees your model server:**
+
+```bash
+uv run stick doctor          # lists the model servers it finds and the models they serve
+```
+
+**2. Run one task with one model:**
+
+```bash
+uv run stick run running-config-cli-frr --model ollama/qwen3:14b
+```
+
+The model gets the task's instructions and one tool: running shell commands in a small "toolbox" container that can
+reach the lab. When it says it's done (or runs out of turns or time), the grader scores the attempt. The first run
+builds the toolbox image, which takes about a minute.
+
+**3. Compare two models on all five tasks**, three attempts each (models don't always do the same thing twice).
+**Run local models one after another, never at the same time**: they share your GPU and memory. Finish the first
+model, stop its server, then run the second:
+
+```bash
+uv run stick run --section cfg-mgmt --model strata/deepseek-v4.1-flash --repeat 3 --runs-dir runs/compare
+# now stop Strata (close its window), then:
+uv run stick run --section cfg-mgmt --model ollama/qwen3:14b --repeat 3 --runs-dir runs/compare
+uv run stick report runs/compare
+```
+
+`stick run` refuses two local models in one command for this reason. A local model and a paid API model can go in one
+command (`--model ollama/qwen3:14b --model anthropic/claude-sonnet-5-5`).
+
+`stick report` shows, per model, how many attempts passed, the mean score, tokens, cost, time and the most common
+problems. Every attempt's full conversation is in `transcript.jsonl` in its run folder.
+
+Model names are `provider/model`: `ollama/...`, `lmstudio/...`, `strata/...`, `vllm/...`, `openai/...`,
+`anthropic/...`, or `openai-compat/<model> --base-url http://host:port/v1` for any other OpenAI-compatible server.
+Paid models read their key from an environment variable (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`). Server on a different
+port: `--base-url http://127.0.0.1:9000/v1`. All options and what's recorded: [docs/runner.md](docs/runner.md).
 
 ## Cheat sheet
 
@@ -233,6 +277,8 @@ own checks: [docs/grading.md](docs/grading.md).
 | `uv run stick task list` | Lists the tasks (`--tasks-dir <folder>` adds your own) |
 | `uv run stick task start <task>` | Prepares an attempt and prints the instructions |
 | `uv run stick grade` | Grades the latest attempt and writes `result.json` |
+| `uv run stick run <task> --model <provider/model>` | Lets a model attempt a task, then grades it (`--section`, `--all`, `--repeat`) |
+| `uv run stick report` | Compares model runs: passes, score, tokens, cost, time, common problems |
 
 ## Run the tests yourself
 
@@ -244,7 +290,7 @@ The project checks itself with automated tests. There are two kinds.
 uv run pytest
 ```
 
-These check the code and configuration files. The last line should look like `84 passed, 28 deselected`
+These check the code and configuration files. The last line should look like `122 passed, 28 deselected`
 ("deselected" are the lab tests below, which are skipped by default).
 
 ### Lab tests (about 5 minutes, more the first time)
@@ -258,7 +304,7 @@ uv run stick image build frr     # only needed once, or after updating the code
 uv run pytest -m lab -v
 ```
 
-Each test prints `PASSED` or `FAILED` as it runs; the last line is the summary, for example `28 passed`. The first
+Each test prints `PASSED` or `FAILED` as it runs; the last line is the summary, for example `30 passed`. The first
 run takes longer because of image downloads and NetBox's first start.
 
 To test just one area, name its file:
@@ -269,6 +315,7 @@ uv run pytest -m lab -v tests/integration/test_netbox.py     # NetBox
 uv run pytest -m lab -v tests/integration/test_oxidized.py   # Oxidized
 uv run pytest -m lab -v tests/integration/test_grading_lab.py # the grader
 uv run pytest -m lab -v tests/integration/test_tasks_lab.py   # every task can be solved, and can't be faked
+uv run pytest -m lab -v tests/integration/test_runner_lab.py  # the runner and its toolbox
 ```
 
 > **Note:** the lab tests redeploy the lab from scratch and reset NetBox and Oxidized to their starting state, so
@@ -291,6 +338,9 @@ uv run pytest -m lab -v tests/integration/test_tasks_lab.py   # every task can b
 | NetBox seems stuck on its first start | It's creating its database; this takes about 2.5 minutes (up to ~6 on a small machine). `uv run stick svc status` shows when it's healthy. |
 | `ssh: Could not resolve hostname clab-stick-base-...` | The lab isn't running (`uv run stick env up`), or use the IP from the [cheat sheet](#cheat-sheet). |
 | Not enough memory | `uv run stick doctor` shows your budget. Start only the tools you need. |
+| `stick run` says `cannot reach http://127.0.0.1:...` | The model server isn't running, or it's on another port: add `--base-url http://127.0.0.1:<port>/v1`. |
+| `stick run` says the server `doesn't serve` the model | Use one of the names it lists (for Ollama, `ollama list`), e.g. `ollama/qwen3:14b`. |
+| Every attempt ends with `model-error` | Look at `error` in the run's `metrics.json`. Often the model doesn't support tool calling: try another model. |
 | I want to start completely fresh | `uv run stick svc down netbox oxidized --volumes`, then `uv run stick env down`. |
 
 ## Glossary
@@ -303,6 +353,8 @@ uv run pytest -m lab -v tests/integration/test_tasks_lab.py   # every task can b
 - **FRR (FRRouting)**: open-source routing software (BGP, OSPF...) with a Cisco-like CLI.
 - **NetBox**: a source of truth for network devices, IP addresses and cabling.
 - **Oxidized**: backs up router configs and keeps their history.
+- **Tool calling**: a model's ability to ask the program running it to do something (here: run a command) instead of only writing text.
+- **Token**: the unit models read and write text in (roughly ¾ of a word); paid models charge per token.
 
 ## Why this project
 
@@ -314,7 +366,8 @@ model on my own machine and compare it to a frontier model".
 
 1. ~~**Grader**~~: done. Checks the lab after an attempt and reports what went wrong ([docs/grading.md](docs/grading.md)).
 2. ~~**First tasks**~~: done. Seven config-retrieval tasks over CLI and NETCONF ([docs/tasks.md](docs/tasks.md)).
-3. **Running models**: connect local models (Ollama, LM Studio, vLLM) and paid ones, and compare them.
+3. ~~**Running models**~~: done. Local (Ollama, LM Studio, vLLM, Strata...) and paid models, compared with
+   `stick report` ([docs/runner.md](docs/runner.md)).
 4. **More tools**: Nautobot, Gitea, syslog, telemetry, DNS/DHCP, LibreNMS, Zabbix, SuzieQ, Batfish.
 
 The detailed list is in [TODO.md](TODO.md). Supported platforms: [docs/platforms.md](docs/platforms.md). Which tools

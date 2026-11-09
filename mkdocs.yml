@@ -10,6 +10,7 @@ nav:
   - Services: services.md
   - Tasks: tasks.md
   - Grading: grading.md
+  - Running models: runner.md
   - Platforms: platforms.md
   - Compatibility: compatibility.md
 markdown_extensions:

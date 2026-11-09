@@ -17,7 +17,7 @@ uv run stick grade                           # grades the attempt
 
 ## cfg-mgmt: getting configuration right
 
-These seven tasks test whether a model can *retrieve* configuration correctly, across two vendors (Nokia SR Linux and
+These five tasks test whether a model can *retrieve* configuration correctly, across two vendors (Nokia SR Linux and
 FRRouting) and two interfaces (CLI and NETCONF), before it's ever asked to change anything.
 
 | Task | Tier | What the agent must do | What can go wrong (and is detected) |
@@ -25,13 +25,27 @@ FRRouting) and two interfaces (CLI and NETCONF), before it's ever asked to chang
 | `running-config-cli-frr` | basic | Save frr2's complete running config | Pager or cut-off output, invented lines, wrong command |
 | `running-config-cli-srl` | basic | Save srl1's complete running config in SR Linux "flat" (`set / ...`) format | Using the tree format, cutting the output short, Cisco-style commands |
 | `config-section-bgp` | intermediate | Save only the BGP part of srl2's and frr1's configs | Saving everything (`unfiltered-output`), missing the address-family block, invented neighbours |
-| `netconf-get-config-srl` | intermediate | NETCONF `<get-config>` of srl1's running datastore, save the reply | Not speaking NETCONF correctly, saving the hello instead of the reply, a partial config |
 | `netconf-filtered-bgp` | advanced | NETCONF `<get-config>` with a filter returning only BGP neighbours | No filter (whole config returned), a wrong filter (no neighbours), wrong namespaces |
-| `extract-facts-json` | intermediate | Write frr1's hostname, ASN, router ID, neighbours and all IPv4 addresses to JSON | Missing the extra loopback address, mixing in the management IP, wrong types |
 | `consistency-cli-netconf-oxidized` | advanced | Compare srl1's config via CLI, NETCONF and its Oxidized backup; say which is outdated and what differs | Triggering a new backup, confusing interface elements in the NETCONF tree, blaming the wrong source |
 
 Requirements: the lab running (`uv run stick env up`); `consistency-cli-netconf-oxidized` also needs Oxidized
 (`uv run stick svc up oxidized`). `stick task start` refuses to start a task whose requirements aren't met.
+
+## Which tasks are kept
+
+Most models tested here run locally, where one attempt can take minutes, so every task has to earn its place.
+Each section has **at most five tasks**, and each one must tell models apart:
+
+- **No obvious tasks.** A task that every model tried passes every time measures nothing. The exception is one
+  cheap "floor" task per section, kept on purpose: it shows that a model can use the tool at all, in seconds
+  (in cfg-mgmt, `running-config-cli-frr`).
+- **No task that a harder one already covers.** Keep the harder one.
+- **Re-check after each comparison** and remove tasks that stopped telling models apart.
+
+Removed after the first comparison (Strata deepseek-v4.1-flash, Ollama gemma4:26b and gemma4:12b, 3 attempts
+each): `extract-facts-json` (passed 9 of 9; writing exact JSON is still tested by the consistency task) and
+`netconf-get-config-srl` (passed 8 of 9; `netconf-filtered-bgp` needs the same `<get-config>`, plus a filter).
+They're in the git history if a smaller model ever needs them.
 
 ## Writing a task
 
