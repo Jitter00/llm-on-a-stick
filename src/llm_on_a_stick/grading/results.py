@@ -36,6 +36,11 @@ FailureHint = Literal[
     "empty-reply",  # a reply with no text and no tool call (the model got one nudge to continue)
     "context-full",  # the conversation filled the model's context window; the attempt ended there
     "answer-in-reply",  # no output, but the final reply quotes this attempt's canary: found, not delivered
+    # From what the model did (grading/transcript.py); hints only, also on passed attempts:
+    "wrong-dialect",  # another OS's CLI syntax sent to a node, and the node rejected it
+    "attempted-change",  # config-mode commands sent to a node the task says must not change
+    "no-verification",  # an output file was written and never read back afterwards
+    "ignored-error",  # an output file holds an error (or its last write failed), yet the model finished
 ]
 
 

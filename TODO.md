@@ -38,7 +38,8 @@ Items are roughly in order; dependencies are noted. Tick items off in the PR tha
       new check type `llm_judge` (`artifact`, `rubric`, `reference`, `scale`); `stick grade --judge-model`, refused if it's
       the tested model; judge scores in their own `result.json` section with model/version/agreement, never mixed into
       `score`; per-check `graded_by: code | judge`; `not-graded` when no judge is configured; a small human-graded
-      calibration set. Before that, add transcript-based code checks (e.g. `no-verification`).
+      calibration set. Done first: transcript hints in code (`wrong-dialect`, `attempted-change`,
+      `no-verification`, `ignored-error`; hints only, see docs/grading.md "Failure hints", `stick hints`).
 
 Then return to the rest of Phase 0 (Nautobot first).
 
@@ -80,9 +81,9 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
 - [x] **Canary values.** Random ASNs, IPs and descriptions seeded per run and rendered into task prompts, so invented or
       memorised answers fail.
 - [x] **`result.json` schema + `stick grade <task>`.** Grades whatever state the lab is in (this is also the BYO-agent mode).
-- [ ] **Failure classifier** (`classify.py`): transcript plus device responses → `cli-syntax`, `wrong-dialect`,
+- [ ] **Failure classifier** (`classify.py`): transcript plus device responses → `cli-syntax`, `wrong-dialect` (done as a hint),
       `netconf-rpc-error`, `hallucinated-api`, `hallucinated-value`, `truncated-output`, `incomplete-config`, `wrong-config`,
-      `collateral-change`, `no-verification`, `loop`, `gave-up`, `limit-exceeded`, `env-error` (excluded from scores).
+      `collateral-change`, `no-verification` (done as a hint), `loop`, `gave-up`, `limit-exceeded`, `env-error` (excluded from scores).
 - [x] **Runner integration** (`src/llm_on_a_stick/runner/`): own loop, see docs/runner.md.
 - [ ] Runner follow-ups: scheduler (parallel *lab work* only: **never run several local models at the same time**;
       local models always go one after another, and API models may run in parallel), publish `stick-toolbox` to GHCR, Inspect-format log export,

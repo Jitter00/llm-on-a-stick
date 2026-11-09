@@ -117,7 +117,21 @@ Every failed check says what it expected, what it found, and gives one or more h
 | `context-full` | The conversation filled the model's context window; the attempt ended there |
 | `answer-in-reply` | No output, but the final reply quotes this attempt's canary: the answer was found, not delivered |
 
-More (wrong CLI dialect, giving up...) will come from analysing transcripts.
+It also reads **what the model did**: these rules look at the commands and their output in
+`transcript.jsonl` (`grading/transcript.py`). They are **hints only**: they never change `outcome` or `score`, so
+a passed attempt can carry one too ("passed, but never checked its output").
+
+| Hint | Meaning |
+|---|---|
+| `wrong-dialect` | It sent another OS's CLI syntax to a node (e.g. `show configuration` to SR Linux) and the node rejected it, at least twice. One rejected probe that the model then corrects is exploring, not a dialect problem |
+| `attempted-change` | On a task with `no_change_outside`, it sent config-mode commands (`enter candidate`, `commit now`, `conf t`, `write memory`, NETCONF `<edit-config>`) to a node it may not change, whether or not the change stuck. Search patterns (`grep 'commit'`) don't count |
+| `no-verification` | A file the checks read was written (`>`, `tee`, `-o`, `sed -i`, Python `open(..., 'w')`) and never read back afterwards (`cat`, `head`, `wc`, `grep`, `jq`, `ls -l`, Python `open(...)`...). Not for files that ended up missing or empty: `no-output` says that |
+| `ignored-error` | The model said it had finished although a file the checks read holds an error message, or the last command writing it failed (timed out, or its output shows a device, NETCONF, shell or Python error). Exit codes alone don't count: `grep -c` with no match exits 1 |
+
+`stick hints <run folders>` shows these for past attempts without changing their `result.json`.
+
+More (giving up, hallucinated APIs...) can come from the same transcripts; the classes still to do are in TODO.md
+("Failure classifier").
 
 ## Built-in checks
 

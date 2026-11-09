@@ -60,7 +60,11 @@
               "repetition-loop",
               "empty-reply",
               "context-full",
-              "answer-in-reply"
+              "answer-in-reply",
+              "wrong-dialect",
+              "attempted-change",
+              "no-verification",
+              "ignored-error"
             ],
             "type": "string"
           },
@@ -153,7 +157,11 @@
           "repetition-loop",
           "empty-reply",
           "context-full",
-          "answer-in-reply"
+          "answer-in-reply",
+          "wrong-dialect",
+          "attempted-change",
+          "no-verification",
+          "ignored-error"
         ],
         "type": "string"
       },

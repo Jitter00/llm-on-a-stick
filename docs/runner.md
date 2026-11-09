@@ -191,6 +191,13 @@ uv run stick report --format json         # for your own analysis
 ```
 
 The summary shows, per model: attempts, passes, mean score, tokens, cost, mean time and its most common problems.
+The problems include hints from what the model did, such as `wrong-dialect` or `no-verification`
+([Grading](grading.md#failure-hints)); they never change the score. To see them for attempts recorded before
+these rules existed, without changing anything:
+
+```bash
+uv run stick hints runs/compare            # one row per attempt: recorded hints, transcript hints
+```
 
 ## A scripted "model"
 
