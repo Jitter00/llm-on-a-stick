@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.7.0...v0.8.0) (2026-11-09)
+
+
+### Features
+
+* **nautobot:** add the Nautobot service and its five tasks ([#21](https://github.com/Jitter00/llm-on-a-stick/issues/21)) ([d8bae0c](https://github.com/Jitter00/llm-on-a-stick/commit/d8bae0c8c8ed9dacc8941bbe6114f25853b817a9))
+
 ## [0.7.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.6.0...v0.7.0) (2026-11-09)
 
 
