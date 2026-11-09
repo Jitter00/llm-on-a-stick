@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.6.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.5.0...v0.6.0) (2026-11-09)
+
+
+### Features
+
+* **netbox:** add netbox-cables-lldp (cables from frr1's LLDP neighbours) ([#16](https://github.com/Jitter00/llm-on-a-stick/issues/16)) ([f0c2426](https://github.com/Jitter00/llm-on-a-stick/commit/f0c24264493112608bbce69c2e46772efdbeaee4))
+
+
+### Bug fixes
+
+* **ci:** run the release dry run and docs preview on release-only PRs ([#18](https://github.com/Jitter00/llm-on-a-stick/issues/18)) ([c2edd7a](https://github.com/Jitter00/llm-on-a-stick/commit/c2edd7a2ba9b080dba8560698229328d05dffddf))
+
 ## [0.5.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.4.0...v0.5.0) (2026-11-09)
 
 
