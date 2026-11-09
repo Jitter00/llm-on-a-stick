@@ -8,8 +8,9 @@ prompt: |
   The router frr2 runs FRRouting; SSH to {{ nodes.frr2.mgmt_ip }} as admin/admin lands in its CLI (vtysh), and
   as netops/netops in a Linux shell.
 
-  In NetBox, the prefix {{ canaries.pool }}.0/24 is the loopback pool. Take the next free address in it: the
-  lowest one NetBox has not recorded yet. Then:
+  In NetBox, the prefix {{ canaries.pool }}.0/24 is the loopback pool. Take the next free address in it, the way
+  NetBox hands them out: the lowest usable address (not the prefix's network address) that NetBox has not
+  recorded yet. Then:
     - record it in NetBox as a /32, status active, assigned to frr2's interface lo;
     - configure the same /32 on frr2's interface lo, keeping the address lo already has.
 
