@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.4.0...v0.5.0) (2026-11-09)
+
+
+### Features
+
+* **netbox:** first NetBox tasks (query, register node, drift) ([#13](https://github.com/Jitter00/llm-on-a-stick/issues/13)) ([f0a0a14](https://github.com/Jitter00/llm-on-a-stick/commit/f0a0a1405b7deb9dd7b35a55e662c8531a00ca71))
+
 ## [0.4.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.3.0...v0.4.0) (2026-11-09)
 
 
