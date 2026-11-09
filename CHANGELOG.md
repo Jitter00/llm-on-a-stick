@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.2.0...v0.3.0) (2026-11-09)
+
+
+### Features
+
+* **cfg-mgmt:** add seven config-retrieval tasks and stick task validate ([#9](https://github.com/Jitter00/llm-on-a-stick/issues/9)) ([96f04c1](https://github.com/Jitter00/llm-on-a-stick/commit/96f04c15b78e1409a7cca947898210e609b1b83d))
+* **grader:** add stick task start / stick grade, check library and result.json ([#7](https://github.com/Jitter00/llm-on-a-stick/issues/7)) ([f4bef29](https://github.com/Jitter00/llm-on-a-stick/commit/f4bef29f7dccc51ea41dbc926f876c95b1269515))
+* **runner:** add stick run / stick report, tested on Strata and Ollama ([#10](https://github.com/Jitter00/llm-on-a-stick/issues/10)) ([6b7c8dc](https://github.com/Jitter00/llm-on-a-stick/commit/6b7c8dc04cc2cf30699f8c370ce6738e32e6f5cc))
+
 ## [0.2.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.1.0...v0.2.0) (2026-11-07)
 
 
