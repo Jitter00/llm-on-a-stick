@@ -128,6 +128,26 @@ def test_mysql_snapshot_commands(monkeypatch: pytest.MonkeyPatch) -> None:
     assert not any("up" in c for c in calls)  # loaded into the running service: nothing restarted
 
 
+def test_up_takes_the_first_mysql_snapshot(monkeypatch: pytest.MonkeyPatch) -> None:
+    spec = services.load("librenms", env={})
+    calls: list[list[str]] = []
+    have_dump = False
+
+    def fake_run(argv: list[str], **kw: object) -> subprocess.CompletedProcess[str]:
+        calls.append(argv)
+        probe = argv[-3:] == ["test", "-f", "/snapshots/baseline.sql"]
+        return subprocess.CompletedProcess(argv, 1 if probe and not have_dump else 0, "", "")
+
+    monkeypatch.setattr(lifecycle, "_run", fake_run)
+    monkeypatch.setattr(lifecycle, "ensure_mgmt_network", lambda: False)
+    monkeypatch.setattr(lifecycle, "wait_healthy", lambda spec, timeout: None)
+    monkeypatch.setattr(lifecycle, "healthy", lambda spec, timeout=5: True)
+    assert lifecycle.up(spec).snapshot_taken  # no dump file yet: the baseline isn't "always there"
+    assert "mariadb-dump" in calls[-1][-1]
+    have_dump = True
+    assert not lifecycle.up(spec).snapshot_taken  # a later `up` keeps the baseline
+
+
 def test_up_runs_init_once(monkeypatch: pytest.MonkeyPatch) -> None:
     spec = services.load("librenms", env={})
     calls: list[list[str]] = []

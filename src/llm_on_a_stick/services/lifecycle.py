@@ -81,7 +81,7 @@ def has_snapshot(spec: ServiceSpec) -> bool:
     snap = spec.snapshot
     if snap is None:
         return False
-    if snap.kind != "postgres":
+    if snap.kind not in ("postgres", "mysql"):
         return True  # the baseline is "empty", which always exists
     res = _run(compose_argv(spec, "exec", "-T", snap.service, "test", "-f", snap.path), check=False)
     return res.returncode == 0
