@@ -33,7 +33,7 @@ class Health(BaseModel):
 
 
 class Seed(BaseModel):
-    kind: Literal["netbox-rest"]
+    kind: Literal["netbox-rest", "rest"]  # "rest": the same seeder for any REST API (NetBox, Nautobot)
     file: str
     base_url: str
     headers: dict[str, str] = Field(default_factory=dict)

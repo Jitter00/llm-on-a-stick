@@ -1,0 +1,86 @@
+# Nautobot for llm-on-a-stick: Nautobot, Postgres and Redis.
+#   - no Celery worker: it only runs Jobs and webhooks, which no task uses; leaving it out saves ~30 s on every
+#     reset (its health check) and its RAM
+#   - environment set inline (no env files), lab-only credentials, overridable from the shell
+#   - Nautobot joins the lab's management network at a fixed address so devices and agents can reach it
+# Start it with `stick svc up nautobot`, which also creates the network if the lab isn't running.
+name: stick-nautobot
+
+x-nautobot-env: &nautobot-env
+  NAUTOBOT_DB_ENGINE: django.db.backends.postgresql
+  NAUTOBOT_DB_HOST: postgres
+  NAUTOBOT_DB_NAME: nautobot
+  NAUTOBOT_DB_USER: nautobot
+  NAUTOBOT_DB_PASSWORD: ${STICK_NAUTOBOT_DB_PASSWORD:-stick-nautobot-db}
+  NAUTOBOT_REDIS_HOST: redis
+  NAUTOBOT_REDIS_PASSWORD: ${STICK_NAUTOBOT_REDIS_PASSWORD:-stick-nautobot-redis}
+  NAUTOBOT_SECRET_KEY: ${STICK_NAUTOBOT_SECRET_KEY:-stick-lab-only-secret-key-change-me-0123456789abcdefghij}
+  NAUTOBOT_ALLOWED_HOSTS: "*"
+  NAUTOBOT_CREATE_SUPERUSER: "true"
+  NAUTOBOT_SUPERUSER_NAME: ${STICK_NAUTOBOT_USER:-admin}
+  NAUTOBOT_SUPERUSER_EMAIL: admin@stick.invalid
+  NAUTOBOT_SUPERUSER_PASSWORD: ${STICK_NAUTOBOT_PASSWORD:-admin}
+  # Sent as "Authorization: Token <40 hex>" (not NetBox 4's "Bearer nbt_...").
+  NAUTOBOT_SUPERUSER_API_TOKEN: ${STICK_NAUTOBOT_TOKEN:-0123456789abcdef0123456789abcdef01234567}
+  NAUTOBOT_INSTALLATION_METRICS_ENABLED: "false"
+
+services:
+  nautobot:
+    image: docker.io/networktocode/nautobot:3.2.8-py3.12
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    environment: *nautobot-env
+    healthcheck:
+      test: curl -fsS -o /dev/null http://localhost:8080/health/ || exit 1
+      start_period: 600s  # first boot runs migrations: ~2.5 min on a desktop
+      timeout: 5s
+      interval: 5s
+    ports:
+      - "127.0.0.1:${STICK_NAUTOBOT_PORT:-8082}:8080"
+    networks:
+      default: {}
+      stick-mgmt:
+        ipv4_address: 172.30.30.102
+
+  postgres:
+    image: docker.io/postgres:18.6-alpine
+    environment:
+      POSTGRES_DB: nautobot
+      POSTGRES_USER: nautobot
+      POSTGRES_PASSWORD: ${STICK_NAUTOBOT_DB_PASSWORD:-stick-nautobot-db}
+    healthcheck:
+      test: pg_isready -q -t 2 -d $$POSTGRES_DB -U $$POSTGRES_USER
+      start_period: 20s
+      timeout: 30s
+      interval: 5s
+      retries: 10
+    volumes:
+      - nautobot-postgres:/var/lib/postgresql
+      - nautobot-snapshots:/snapshots
+
+  redis:
+    image: docker.io/valkey/valkey:9.1.3-alpine
+    command:
+      - sh
+      - -c
+      - valkey-server --appendonly yes --requirepass "$$REDIS_PASSWORD"
+    environment:
+      REDIS_PASSWORD: ${STICK_NAUTOBOT_REDIS_PASSWORD:-stick-nautobot-redis}
+    healthcheck:
+      test: '[ "$$(valkey-cli --pass "$${REDIS_PASSWORD}" --no-auth-warning ping)" = "PONG" ]'
+      start_period: 5s
+      timeout: 3s
+      interval: 2s
+      retries: 10
+    volumes:
+      - nautobot-redis:/data
+
+networks:
+  stick-mgmt:
+    external: true
+
+volumes:
+  nautobot-postgres:
+  nautobot-redis:
+  nautobot-snapshots:

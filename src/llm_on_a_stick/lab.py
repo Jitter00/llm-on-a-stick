@@ -8,4 +8,5 @@ MGMT_SUBNET = "172.30.30.0/24"
 SERVICE_IPS = {
     "netbox": "172.30.30.100",
     "oxidized": "172.30.30.101",
+    "nautobot": "172.30.30.102",
 }

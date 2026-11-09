@@ -29,7 +29,7 @@ Filled in as each service is added (Phase 0, step 3).
 | Tool | SR Linux | FRR | Notes |
 |---|---|---|---|
 | NetBox 4.7.4 | n/a | n/a | ✅ up, seeded, reachable from `stick-mgmt` at 172.30.30.100:8080; reset verified (`tests/integration/test_netbox.py`) |
-| Nautobot | n/a | n/a | |
+| Nautobot 3.2.8 | n/a | n/a | ✅ up, seeded, reachable from `stick-mgmt` at 172.30.30.102:8080; reset verified (`tests/integration/test_nautobot.py`) |
 | LibreNMS (SNMP) | ❓ | ❓ | |
 | Zabbix (SNMP) | ❓ | ❓ | |
 | Oxidized 0.37.0 | ✅ custom model | ✅ custom model | Oxidized ships neither; ours are in `services/oxidized/model/` (`test_oxidized.py`) |

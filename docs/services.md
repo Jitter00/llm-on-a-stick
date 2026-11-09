@@ -27,7 +27,7 @@ Each service is a directory under `services/`:
 | `seed.yaml` | baseline objects every task starts from (idempotent: existing objects are skipped) |
 
 Resetting between benchmark attempts restores a database snapshot rather than recreating containers, which is
-what makes repeated runs cheap. Tasks that list a service under `reset_services` (all NetBox tasks) do this
+what makes repeated runs cheap. Tasks that list a service under `reset_services` (all NetBox and Nautobot tasks) do this
 themselves at `stick task start`, before their setup.
 
 ## NetBox
@@ -50,6 +50,40 @@ lab in NetBox is a benchmark task.
     `API_TOKEN_PEPPER_1`, a 12-character `SUPERUSER_API_KEY` and a 40-character `SUPERUSER_API_TOKEN` are all set.
     Older guides that use `Authorization: Token <40 hex>` won't work against this version, which is itself a useful
     test of whether a model's NetBox knowledge is current.
+
+## Nautobot
+
+| | |
+|---|---|
+| Version | Nautobot 3.2.8 (`networktocode/nautobot:3.2.8-py3.12`), Postgres 18.6, Valkey 9.1.3 |
+| Web UI (host) | <http://127.0.0.1:8082> (`STICK_NAUTOBOT_PORT`), user `admin` / `admin` |
+| API (from the lab) | `http://172.30.30.102:8080/api/`, GraphQL at `/api/graphql/` |
+| API token | `Authorization: Token 0123456789abcdef0123456789abcdef01234567` |
+| RAM (measured) | ~1.27 GB after some API use: Nautobot 867 MiB, Postgres 401 MiB, Valkey 5 MiB |
+| Timings (measured) | cold first boot ~150 s on a desktop; `svc reset` ~25 s (every start runs `post_upgrade`) |
+
+There is no Celery worker: it only runs Jobs and webhooks, which no task uses, and its health check would add
+about 30 s to every reset.
+
+Seed data: location type Site and location `stick-lab`; manufacturers Nokia, FRRouting, Generic; roles Spine, Leaf,
+Host; platforms SR Linux, FRR, Linux; device types 7220 IXR-D2L, FRR container, Linux host; a namespace
+`stick-lab` holding the management prefix 172.30.30.0/24. Statuses (Active, Connected, ...) and the Global
+namespace come with Nautobot. As with NetBox, the lab's devices are **not** seeded.
+
+!!! note "Nautobot is not NetBox"
+    Nautobot 2.0 forked away from NetBox's data model, and 3.x keeps it. What trips models that know NetBox:
+
+    - the API token is sent as `Token`, not `Bearer`: the NetBox 4 form gets HTTP 403;
+    - no sites, regions or slugs: devices sit in a **location**, related objects are referenced by UUID or by
+      attributes (`{"role": {"name": "Leaf"}}`);
+    - `status` is required on devices, interfaces, IP addresses, prefixes and cables, and is a Status object
+      (`{"name": "Active"}`, case-sensitive), not a choice like `"active"`;
+    - IP addresses live in a **namespace** and need a parent prefix in it;
+    - an IP address is linked to an interface through `ipam/ip-address-to-interface`; NetBox's
+      `assigned_object_type`/`assigned_object_id` are **silently ignored**, so the address is created unlinked, and
+      it can't then be a device's primary IP;
+    - cables still use `termination_a_type`/`termination_a_id` (NetBox 4 moved to `a_terminations`);
+    - related objects come back as `{id, object_type, url}` unless the request adds `?depth=1`.
 
 ## Oxidized
 

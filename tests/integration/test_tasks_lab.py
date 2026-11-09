@@ -26,8 +26,8 @@ TASKS = sorted(tasks.discover([paths.sections_dir()]), key=lambda p: p.parent.na
 def tools(lab: None) -> Iterator[None]:
     if shutil.which("sshpass") is None:
         pytest.skip("the NETCONF oracles need sshpass on the host (sudo apt install sshpass)")
-    # The services the built-in tasks need (cfg-mgmt: Oxidized; netbox: NetBox, reset by each task's start).
-    with service_session("oxidized"), service_session("netbox"):
+    # The services the built-in tasks need (cfg-mgmt: Oxidized; netbox, nautobot: reset by each task's start).
+    with service_session("oxidized"), service_session("netbox"), service_session("nautobot"):
         yield
 
 

@@ -1,34 +1,56 @@
-"""NetBox state for grading: a snapshot of the objects a task may touch, and what changed since.
+"""Source-of-truth state for grading (NetBox, Nautobot): a snapshot of the objects a task may touch, and what
+changed since.
 
-`stick task start` saves the snapshot to baseline/netbox.json right after setup; the `netbox_unchanged` check
-compares it with NetBox at grading time, so edits the task didn't ask for (a renamed role, a deleted device
-type, an extra IP address) are caught even when the requested objects are right.
+`stick task start` saves the snapshot to baseline/<service>.json right after setup; the `netbox_unchanged` and
+`nautobot_unchanged` checks compare it with the service at grading time, so edits the task didn't ask for (a
+renamed role, a deleted device type, an extra IP address) are caught even when the requested objects are
+right.
 """
 
 from __future__ import annotations
 
 from typing import Any, Protocol
 
-# Objects a NetBox task is likely to touch: the seed (sites, roles, ...) and what setups create.
-ENDPOINTS = (
-    "dcim/sites",
-    "dcim/manufacturers",
-    "dcim/device-roles",
-    "dcim/platforms",
-    "dcim/device-types",
-    "dcim/devices",
-    "dcim/interfaces",
-    "ipam/ip-addresses",
-    "ipam/prefixes",
-    "dcim/cables",
-)
+# Per service, the objects a task is likely to touch: the seed (sites, roles, ...) and what setups create.
+ENDPOINTS: dict[str, tuple[str, ...]] = {
+    "netbox": (
+        "dcim/sites",
+        "dcim/manufacturers",
+        "dcim/device-roles",
+        "dcim/platforms",
+        "dcim/device-types",
+        "dcim/devices",
+        "dcim/interfaces",
+        "ipam/ip-addresses",
+        "ipam/prefixes",
+        "dcim/cables",
+    ),
+    "nautobot": (
+        "dcim/location-types",
+        "dcim/locations",
+        "dcim/manufacturers",
+        "extras/roles",
+        "extras/statuses",
+        "dcim/platforms",
+        "dcim/device-types",
+        "dcim/devices",
+        "dcim/interfaces",
+        "ipam/namespaces",
+        "ipam/prefixes",
+        "ipam/ip-addresses",
+        "ipam/ip-address-to-interface",
+        "dcim/cables",
+    ),
+}
 # Fields that change without anyone editing the object.
-_VOLATILE = {"last_updated", "created", "url", "display", "display_url"}
+_VOLATILE = {"last_updated", "created", "url", "display", "display_url", "notes_url", "natural_slug"}
 # Fields of an interface that a new cable sets on both ends. The cable itself is tracked (dcim/cables), so
-# ignoring them here doesn't hide anything.
+# ignoring them here doesn't hide anything. NetBox 4 names first, then Nautobot's.
 _CABLE_DERIVED = {
     "cable", "cable_end", "link_peers", "link_peers_type", "_occupied",
     "connected_endpoints", "connected_endpoints_type", "connected_endpoints_reachable",
+    "cable_peer", "cable_peer_type", "connected_endpoint", "connected_endpoint_type",
+    "connected_endpoint_reachable", "_path",
 }  # fmt: skip
 
 Snapshot = dict[str, dict[str, dict[str, Any]]]  # endpoint -> object id -> object
@@ -50,7 +72,7 @@ def _stable(obj: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def snapshot(client: Getter, endpoints: tuple[str, ...] = ENDPOINTS) -> Snapshot:
+def snapshot(client: Getter, endpoints: tuple[str, ...] = ENDPOINTS["netbox"]) -> Snapshot:
     snap: Snapshot = {}
     for endpoint in endpoints:
         objects: dict[str, dict[str, Any]] = {}

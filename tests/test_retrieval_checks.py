@@ -177,9 +177,11 @@ def test_builtin_tasks_are_complete() -> None:
         if any("path" in c.params for c in task.checks):  # the agent writes a file: say where
             assert "{{ workspace }}" in task.prompt or "{{workspace}}" in task.prompt, task.id
         services = task.requires.get("services") or []
-        if "netbox" in services:  # NetBox tasks start from the seed and check nothing else changed there
-            assert "netbox" in task.reset_services, f"{task.id} doesn't reset NetBox"
-            assert any(c.type == "netbox_unchanged" for c in task.checks), f"{task.id} doesn't check NetBox"
+        # Source-of-truth tasks start from the seed and check that nothing else changed there.
+        for sot in ("netbox", "nautobot"):
+            if sot in services:
+                assert sot in task.reset_services, f"{task.id} doesn't reset {sot}"
+                assert any(c.type == f"{sot}_unchanged" for c in task.checks), f"{task.id}: no {sot} check"
         assert set(task.reset_services) <= set(services), f"{task.id} resets a service it doesn't require"
     # Every attempt costs minutes on a local model: at most 5 tasks per section, i.e. per tool or group such
     # as netbox or cfg-mgmt (docs/tasks.md).

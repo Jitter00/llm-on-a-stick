@@ -25,7 +25,7 @@ topologies:
 
 services:
   netbox: {ram_mb: 1664, measured: true}    # 1453 MiB: netbox 1046 + worker 257 + postgres 146 + valkey 4
-  nautobot: {ram_mb: 2048, measured: false}
+  nautobot: {ram_mb: 1536, measured: true}  # 1273 MiB after API use: nautobot 867 + postgres 401 + valkey 5 (no worker)
   librenms: {ram_mb: 1024, measured: false}
   zabbix: {ram_mb: 1024, measured: false}
   oxidized: {ram_mb: 96, measured: true}     # 47 MiB idle, 4 devices

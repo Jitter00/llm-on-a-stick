@@ -161,6 +161,9 @@ Use these in a task's `checks:` list. Parameters can use `{{ canaries.<name> }}`
 | `oxidized_has_backup` | `node`, `min_versions`, `contains` | Oxidized has a successful backup (with that many versions, containing those lines) |
 | `netbox_object` | `endpoint`, `filters`, `count` or `min`, or `expect` | NetBox has exactly `count` (or at least `min`) matching objects. With `expect` (`{"role.slug": leaf, "primary_ip4.address": ...}`), exactly one matches and has those values (dotted paths into the API's JSON; choice fields such as `status` compare their value) |
 | `netbox_unchanged` | `allow_new` (endpoints, e.g. `[dcim/devices]`) | Nothing in NetBox changed or was deleted since `stick task start`, and nothing was added except on `allow_new`. Needs `netbox` in the task's `requires.services` (the start saves `baseline/netbox.json`) |
+| `nautobot_object` | as `netbox_object` | The same, against Nautobot. Related objects are expanded one level (`?depth=1`), so `expect` names them (`{"role.name": Leaf, "status.name": Active}`); `filters: {depth: 2}` goes one level further (`cable_peer.device.name`) |
+| `nautobot_unchanged` | `allow_new` | As `netbox_unchanged`, for Nautobot (`baseline/nautobot.json`; e.g. `allow_new: [ipam/ip-address-to-interface]`) |
+| `nautobot_graphql` | `path`, `must_contain`, `must_not_contain` | The workspace file `path` holds a GraphQL query that Nautobot answers without errors, and its result holds every `must_contain` value and none of `must_not_contain` (any field, anywhere in the result) |
 
 Example from a `task.yaml`:
 

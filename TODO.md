@@ -41,7 +41,7 @@ Items are roughly in order; dependencies are noted. Tick items off in the PR tha
       calibration set. Done first: transcript hints in code (`wrong-dialect`, `attempted-change`,
       `no-verification`, `ignored-error`; hints only, see docs/grading.md "Failure hints", `stick hints`).
 
-Then return to the rest of Phase 0 (Nautobot first).
+Then return to the rest of Phase 0 (Nautobot is done).
 
 ## Phase 0: environment (one service per PR)
 
@@ -51,8 +51,8 @@ seed data, a snapshot/reset, a measured footprint in `src/llm_on_a_stick/data/fo
 `tests/integration/test_<name>.py` (up → seeded → change → reset), a row in `docs/compatibility.md` and a section in `docs/services.md`.
 Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some containers), and time the cold boot and the reset.
 
-- [ ] **Nautobot.** Very close to NetBox: Postgres + Redis, REST API with nested lookups. The `netbox-rest` seeder may work
-      as-is (maybe rename it `rest`). Cold boot is likely slower than NetBox; set `start_period`/`wait_timeout_s` from a measurement.
+- [x] **Nautobot.** Done: Nautobot 3.2.8 (no Celery worker), seeded with the generic `rest` seeder, postgres snapshot
+      (~25 s reset), five tasks in `sections/nautobot/`.
 - [x] **Oxidized.** Done: custom SR Linux and FRR models (Oxidized ships neither), git output, volume-based reset.
 - [ ] **Gitea.** Seed an org, a `lab-configs` repo and an API token; snapshot = its DB and repo volume. Needed for the GitOps tasks.
 - [ ] **Syslog (Loki + Promtail, or rsyslog → Loki).** `stick-frr` already forwards when `STICK_SYSLOG_TARGET=host:port` is set;
@@ -105,9 +105,12 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
 - [x] **netbox tasks** (5 of 5): `netbox-query-interface` (floor), `netbox-register-node`, `netbox-drift`,
       `netbox-cables-lldp` (frr1 only, LLDP via `lldpcli`), `netbox-next-ip` (the first task that changes a
       device; every task start restores the routers to their boot config). Re-check with a stronger model.
+- [x] **nautobot tasks** (5 of 5): the NetBox set with drift replaced by `nautobot-graphql`, each built around
+      what Nautobot does differently (Token auth, locations, required statuses, namespaces, IP-to-interface links,
+      `termination_a_*` cables).
 - [ ] **At most 5 tasks for each of the other sections, none obvious** (rules: docs/tasks.md, "Which tasks are
-      kept"; pick the ones local models are likely to get wrong). New sections are per tool (nautobot, powerdns,
-      kea, ...); the groupings are in sections/README.md. Also `lab-mgmt` and `troubleshooting` (fault injection:
+      kept"; pick the ones local models are likely to get wrong). New sections are per tool (powerdns, kea,
+      ...); the groupings are in sections/README.md. Also `lab-mgmt` and `troubleshooting` (fault injection:
       MTU mismatch, wrong ASN, ACL blackhole).
 - [ ] **User-defined tasks.** `--tasks-dir` (local path or git URL); `stick task new` (scaffold); `stick task validate`
       (oracle must PASS, no-op agent must FAIL); a `@check` plugin interface + entry points; `matrix:` expansion.

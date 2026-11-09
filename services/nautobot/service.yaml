@@ -1,0 +1,40 @@
+# How `stick svc` drives this service. ${VAR:-default} is expanded from the environment,
+# using the same variables and defaults as compose.yaml.
+name: nautobot
+description: Nautobot 3.2 source of truth (DCIM/IPAM, REST and GraphQL)
+compose: compose.yaml
+project: stick-nautobot
+wait_timeout_s: 720  # first boot runs migrations: ~2.5 min on a desktop; every start runs post_upgrade (~20 s)
+
+health:
+  url: http://127.0.0.1:${STICK_NAUTOBOT_PORT:-8082}/api/status/
+  headers:
+    Authorization: Token ${STICK_NAUTOBOT_TOKEN:-0123456789abcdef0123456789abcdef01234567}
+
+endpoints:
+  web (host): http://127.0.0.1:${STICK_NAUTOBOT_PORT:-8082}
+  api (lab mgmt network): http://172.30.30.102:8080/api/
+  graphql (lab mgmt network): http://172.30.30.102:8080/api/graphql/
+
+credentials:
+  username: ${STICK_NAUTOBOT_USER:-admin}
+  password: ${STICK_NAUTOBOT_PASSWORD:-admin}
+  api_token (Token): ${STICK_NAUTOBOT_TOKEN:-0123456789abcdef0123456789abcdef01234567}
+
+seed:
+  kind: rest
+  file: seed.yaml
+  base_url: http://127.0.0.1:${STICK_NAUTOBOT_PORT:-8082}/api/
+  headers:
+    Authorization: Token ${STICK_NAUTOBOT_TOKEN:-0123456789abcdef0123456789abcdef01234567}
+
+snapshot:
+  kind: postgres
+  service: postgres
+  database: nautobot
+  user: nautobot
+  path: /snapshots/seed.dump
+  stop: [nautobot]
+  after_restore:
+    - service: redis
+      cmd: [sh, -c, 'valkey-cli --pass "$REDIS_PASSWORD" --no-auth-warning FLUSHALL']

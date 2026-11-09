@@ -1,0 +1,55 @@
+id: nautobot-graphql
+section: nautobot
+title: Collect a location's devices, interfaces and addresses with one Nautobot GraphQL query
+tier: intermediate
+tags: [tool:nautobot, iface:graphql, skill:sot-query]
+prompt: |
+  Nautobot is at {{ services.nautobot.url }}. Its GraphQL API is at {{ services.nautobot.url }}/api/graphql/
+  (POST, header "Authorization: Token {{ services.nautobot.token }}").
+
+  Write one GraphQL query that returns every device at the location {{ canaries.loc }}, with its interfaces and
+  the IP addresses assigned to them, and save the query text to {{ workspace }}/query.graphql. The saved query
+  will be run again to grade this task, so it must return that data on its own.
+
+  Run it, and write every IP address it returns to {{ workspace }}/answer.json:
+    {"addresses": [{"device": "<device name>", "interface": "<interface name>", "address": "<address with prefix length>"}, ...]}
+
+  Do not change anything in Nautobot or on any device.
+requires:
+  services: [nautobot]
+reset_services: [nautobot]
+canaries:
+  loc: hostname
+  d1: hostname
+  d2: hostname
+  dx: hostname
+  a1: ipv4
+  a2: ipv4
+  a3: ipv4
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: nautobot_graphql
+    name: the saved GraphQL query returns the location's devices and addresses, and nothing else
+    params:
+      path: query.graphql
+      must_contain: ["{{ canaries.d1 }}", "{{ canaries.d2 }}", "{{ canaries.a1 }}/24", "{{ canaries.a2 }}/24", "{{ canaries.a3 }}/24"]
+      must_not_contain: ["{{ canaries.dx }}", 198.51.100.20/24]
+    weight: 2
+  - type: json_file_matches
+    name: answer.json lists every address with its device and interface
+    params:
+      path: answer.json
+      expected:
+        addresses:
+          - {device: "{{ canaries.d1 }}", interface: eth1, address: "{{ canaries.a1 }}/24"}
+          - {device: "{{ canaries.d1 }}", interface: eth2, address: "{{ canaries.a2 }}/24"}
+          - {device: "{{ canaries.d2 }}", interface: eth1, address: "{{ canaries.a3 }}/24"}
+    weight: 2
+  - type: nautobot_unchanged
+    name: nothing was changed in Nautobot
+    params: {allow_new: []}
+  - type: no_change_outside
+    name: no configuration was changed
+    params: {allowed: []}
+limits: {turns: 20}
