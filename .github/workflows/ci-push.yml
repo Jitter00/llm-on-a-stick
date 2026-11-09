@@ -1,9 +1,10 @@
 # Push to any branch except main: lint -> test (fast unit tests, no Docker).
+# Not on release-please's branch: its Release PR runs ci-pr, which covers the same and more.
 name: ci-push
 
 on:
   push:
-    branches-ignore: [main]
+    branches-ignore: [main, "release-please--**"]
 
 concurrency:
   group: ci-push-${{ github.ref }}
