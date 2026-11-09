@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.9.0...v0.10.0) (2026-11-09)
+
+
+### Features
+
+* **librenms:** add the LibreNMS service and its five tasks ([#25](https://github.com/Jitter00/llm-on-a-stick/issues/25)) ([0c88573](https://github.com/Jitter00/llm-on-a-stick/commit/0c885739834e9d5520ea4631d77a3893169afbd1))
+
 ## [0.9.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.8.0...v0.9.0) (2026-11-09)
 
 
