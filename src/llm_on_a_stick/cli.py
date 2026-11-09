@@ -567,3 +567,4 @@ def report_cmd(
                 f"{r.wall_s:.0f}s",
                 ", ".join(r.hints) or "-",
             )
+        console.print(table)
