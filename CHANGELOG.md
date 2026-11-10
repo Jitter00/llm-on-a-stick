@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.14.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.13.0...v0.14.0) (2026-11-10)
+
+
+### ⚠ BREAKING CHANGES
+
+* **run:** start the lab automatically, read a settings file, turn thinking off by default ([#33](https://github.com/Jitter00/llm-on-a-stick/issues/33))
+
+### Features
+
+* **run:** start the lab automatically, read a settings file, turn thinking off by default ([#33](https://github.com/Jitter00/llm-on-a-stick/issues/33)) ([3f2d878](https://github.com/Jitter00/llm-on-a-stick/commit/3f2d878241c69778f5971a4ffc7b4faf799919bf))
+
 ## [0.13.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.12.0...v0.13.0) (2026-11-10)
 
 
