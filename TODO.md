@@ -93,12 +93,13 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
       `collateral-change`, `no-verification` (done as a hint), `loop`, `gave-up`, `limit-exceeded`, `env-error` (excluded from scores).
 - [x] **Runner integration** (`src/llm_on_a_stick/runner/`): own loop, see docs/runner.md.
 - [ ] Runner follow-ups: scheduler (parallel *lab work* only: **never run several local models at the same time**;
-      local models always go one after another, and API models may run in parallel), publish `stick-toolbox` to GHCR, Inspect-format log export,
+      local models always go one after another, and API models may run in parallel; for `stick vs`, a lab instance per
+      model so that a cloud and a local model can run at the same time), publish `stick-toolbox` to GHCR, Inspect-format log export,
       optional MCP/structured tools as a variant (`--tools mcp`), context-window variants (`--num-ctx`), streaming for
       long Anthropic turns, macOS support for the toolbox.
 - [ ] **Judge model** (`--judge-model`): see "Next up" item 5 and the grading policy in docs/grading.md.
-- [ ] **Report.** `stick report` (table/md/json per model and attempt) exists; next: HTML, and breakdowns by section,
-      tag and failure class.
+- [ ] **Report.** `stick report` (table/md/json per model and attempt), the HTML page (`--html`, also written by
+      `stick run`) and `stick vs` exist; next: breakdowns by section, tag and failure class.
 
 ## Phase 2: tasks, user tests, variants, scheduler
 

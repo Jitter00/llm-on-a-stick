@@ -247,6 +247,19 @@ command (`--model ollama/qwen3:14b --model anthropic/claude-sonnet-5-5`).
 `stick report` shows, per model, how many attempts passed, the mean score, tokens, cost, time and the most common
 problems. Every attempt's full conversation is in `transcript.jsonl` in its run folder.
 
+You don't have to read those files: every `stick run` also writes `report.html` into the runs folder, one page with
+the scores, where each model struggled and every attempt's checks and conversation. For two models side by side:
+
+```bash
+uv run stick vs anthropic/claude-haiku-5-5 ollama/qwen3:14b --section cfg-mgmt --repeat 3
+uv run stick report runs/compare --html        # the same page for runs you already have
+```
+
+The page counts **turns**, and explains them at the top. A turn is one reply from the model: it reads the
+conversation so far, then either asks for commands to run in the lab or says it has finished. An attempt may use
+as many turns as the task allows (its `limits.turns`, else 30; `--max-turns` overrides it). An attempt that reaches
+the limit is stopped and graded as it stands, so fewer turns means the model got to the result more directly.
+
 Model names are `provider/model`: `ollama/...`, `lmstudio/...`, `strata/...`, `vllm/...`, `openai/...`,
 `anthropic/...`, or `openai-compat/<model> --base-url http://host:port/v1` for any other OpenAI-compatible server.
 Paid models read their key from an environment variable (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`). Server on a different
@@ -278,7 +291,8 @@ port: `--base-url http://127.0.0.1:9000/v1`. All options and what's recorded: [d
 | `uv run stick task start <task>` | Prepares an attempt and prints the instructions |
 | `uv run stick grade` | Grades the latest attempt and writes `result.json` |
 | `uv run stick run <task> --model <provider/model>` | Lets a model attempt a task, then grades it (`--section`, `--all`, `--repeat`) |
-| `uv run stick report` | Compares model runs: passes, score, tokens, cost, time, common problems |
+| `uv run stick report` | Compares model runs: passes, score, tokens, cost, time, common problems (`--html` writes the report page) |
+| `uv run stick vs <model> <model>` | Runs two models on the same tasks and writes the side-by-side `report.html` |
 
 ## Run the tests yourself
 

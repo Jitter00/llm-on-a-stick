@@ -43,6 +43,35 @@ FailureHint = Literal[
     "ignored-error",  # an output file holds an error (or its last write failed), yet the model finished
 ]
 
+# The same hints in plain language, for reports.
+HINT_TEXT: dict[str, str] = {
+    "no-output": "an expected file or artefact was missing or empty",
+    "truncated-output": "the output is only part of what the device has (pager, cut-off)",
+    "hallucinated-value": "the output contains values the device doesn't have",
+    "wrong-format": "the output barely matches the expected format",
+    "unfiltered-output": "asked for one part, delivered more (e.g. the whole config)",
+    "incomplete-config": "the device lacks some of the expected configuration",
+    "wrong-config": "the resulting state differs from what was asked",
+    "collateral-change": "something outside the allowed scope was changed",
+    "missing-object": "an expected object was not found",
+    "env-error": "the grader or the lab failed; not the model's fault",
+    "max-turns": "still working when it ran out of turns",
+    "timeout": "hit the token limit or the safety time limit",
+    "model-error": "the model server failed (HTTP error, unreachable)",
+    "refusal": "the model declined the task",
+    "tool-call-error": "malformed tool calls (invalid JSON arguments, unknown tool)",
+    "no-tool-use": "answered without running a single command",
+    "output-limit": "a reply hit the output-token cap",
+    "repetition-loop": "a reply was cut off while the model repeated itself",
+    "empty-reply": "a reply had no text and no tool call",
+    "context-full": "the conversation filled the model's context window",
+    "answer-in-reply": "found the answer and put it in the reply instead of delivering it",
+    "wrong-dialect": "kept sending another OS's CLI syntax to a node",
+    "attempted-change": "sent config-mode commands to a node that must not change",
+    "no-verification": "wrote an output file and never read it back",
+    "ignored-error": "finished although an output file holds an error",
+}
+
 
 class CheckResult(BaseModel):
     name: str
