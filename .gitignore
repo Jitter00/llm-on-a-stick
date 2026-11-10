@@ -20,3 +20,6 @@ clab-*/
 results/
 runs/
 .env
+
+# editor swap files
+*.swp
