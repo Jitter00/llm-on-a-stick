@@ -640,6 +640,72 @@ def test_report_compares_models(demo: Any, tmp_path: Path) -> None:
     assert ("ollama/a", "temperature 1.0, top_p 0.95") in lines and ("ollama/a", "") in lines
 
 
+def _two_model_runs(demo: Any, runs: Path) -> None:
+    task, lab = demo
+    for spec in ("ollama/a", "ollama/a", "strata/b"):
+        turns = [
+            Turn("", [_call("echo '</script><b>x'")], Usage(10, 1), "tool_use"),
+            Turn("no", [], Usage(5, 1), "end"),
+        ]
+        loop.run_task(task, ListClient(turns, spec), lab, runs)
+
+
+def test_full_report_and_html(demo: Any, tmp_path: Path) -> None:
+    from llm_on_a_stick.grading.results import HINT_TEXT, FailureHint
+    from llm_on_a_stick.runner import html
+
+    assert set(HINT_TEXT) == set(FailureHint.__args__)  # type: ignore[attr-defined]
+    runs = tmp_path / "runs"
+    _two_model_runs(demo, runs)
+    attempts = report.collect_attempts([runs])
+    assert [(a.model, a.repeat) for a in attempts] == [("ollama/a", 1), ("ollama/a", 2), ("strata/b", 1)]
+    assert attempts[0].section == "cfg-mgmt" and attempts[0].title != attempts[0].task_id
+    assert any(e["kind"] == "command" for e in attempts[0].events)
+    assert "raw_arguments" not in json.dumps(attempts[0].events)
+
+    data = report.build_report(attempts)
+    a, b = data["contenders"]
+    assert (a["label"], a["attempts"], a["passed"]) == ("ollama/a", 2, 0)
+    assert a["struggles"]["never_passed"] == [attempts[0].task_id]
+    assert a["struggles"]["failed_checks"][0]["failed"] == 2
+    assert a["struggles"]["summary"][0] == "Passed 0 of 2 attempts."
+    assert data["tasks"][0]["better"] is None and "Level" in data["versus"]["headline"]
+    assert data["turn_limits"] == [attempts[0].metrics["limits"]["turns"]]
+
+    attempts[2].outcome, attempts[2].score = "pass", 1.0  # as if strata/b had passed
+    data = report.build_report(attempts)
+    assert data["tasks"][0]["better"] == b["id"]
+    assert data["versus"]["only_passed_by"] == {a["id"]: [], b["id"]: [attempts[0].task_id]}
+    assert data["versus"]["headline"].startswith("strata/b did better on 1 of 1 task")
+
+    out = tmp_path / "out" / "report.html"
+    assert html.write([runs], out) is not None
+    page = out.read_text(encoding="utf-8")
+    assert html.PLACEHOLDER not in page
+    blob = page.split('<script id="data" type="application/json">')[1].split("</script>")[0]
+    assert "<" not in blob and json.loads(blob)["contenders"][0]["model"] == "ollama/a"
+    slim = json.loads(out.with_suffix(".json").read_text(encoding="utf-8"))
+    assert "events" not in next(iter(slim["attempts"].values()))
+    assert html.write([tmp_path / "nothing"], tmp_path / "none.html") is None
+
+
+def test_report_survives_old_runs_and_removed_tasks(demo: Any, tmp_path: Path) -> None:
+    task, lab = demo
+    runs = tmp_path / "runs"
+    info, _, _ = loop.run_task(task, ListClient([Turn("no", [], Usage(1, 1), "end")], "ollama/a"), lab, runs)
+    result = json.loads((info.run_dir / "result.json").read_text())
+    result["metrics"] = {"model": "ollama/a", "turns": 1}  # an old run: few metrics
+    (info.run_dir / "result.json").write_text(json.dumps(result))
+    run = json.loads((info.run_dir / "run.json").read_text())
+    run["task_dir"] = "/gone/sections/netbox/some-task"  # the task was removed since
+    (info.run_dir / "run.json").write_text(json.dumps(run))
+    (info.run_dir / "transcript.jsonl").unlink()
+    (a,) = report.collect_attempts([runs])
+    assert (a.section, a.title, a.events) == ("netbox", a.task_id, [])
+    data = report.build_report([a])
+    assert data["versus"] is None and data["contenders"][0]["cost_usd"] is None
+
+
 def test_low_memory_stops_the_attempt(demo: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     task, lab = demo
     monkeypatch.setattr(loop, "wait_for_ram", lambda _min: 512)

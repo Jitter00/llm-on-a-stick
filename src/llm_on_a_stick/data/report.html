@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>stick report</title>
+<style>
+:root {
+  --bg: #f4f3ef; --surface: #fcfcfb; --sunken: #efeee9; --ink: #0b0b0b; --ink2: #52514e; --ink3: #7a7972;
+  --line: #e1e0d9; --line2: #c3c2b7; --good: #0ca30c; --warn: #fab219; --bad: #d03b3b; --neutral: #8a8980;
+  --focus: #2a6fdb;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121211; --surface: #1a1a19; --sunken: #232321; --ink: #f0efec; --ink2: #c3c2b7; --ink3: #8f8e86;
+    --line: #2c2c2a; --line2: #383835; --focus: #7aa7f0;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121211; --surface: #1a1a19; --sunken: #232321; --ink: #f0efec; --ink2: #c3c2b7; --ink3: #8f8e86;
+  --line: #2c2c2a; --line2: #383835; --focus: #7aa7f0;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(--sans); }
+main { max-width: 1240px; margin: 0 auto; padding: 28px 16px 80px; }
+h1 { font-size: 26px; line-height: 1.2; margin: 0 0 6px; letter-spacing: -0.01em; }
+h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink2); margin: 40px 0 12px; }
+h3 { font-size: 16px; margin: 0 0 10px; }
+h4 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink3); margin: 18px 0 6px; }
+p { margin: 0 0 8px; }
+.sub { color: var(--ink2); }
+.mono { font-family: var(--mono); font-size: 0.9em; }
+.muted { color: var(--ink3); }
+.top { display: flex; gap: 16px; justify-content: space-between; align-items: flex-start; }
+button { font: inherit; color: inherit; cursor: pointer; }
+.ghost { background: none; border: 1px solid var(--line2); border-radius: 6px; padding: 4px 10px; color: var(--ink2); }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.headline { font-size: 18px; margin: 18px 0 0; }
+.explain { max-width: 860px; margin: 12px 0 0; font-size: 14px; }
+.cards { display: grid; gap: 16px; align-items: start; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px; min-width: 0; }
+.who { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.tag { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 6px;
+  border-radius: 5px; background: var(--ink); color: var(--surface); font-size: 12px; font-weight: 700; }
+.tag.b { background: var(--surface); color: var(--ink); box-shadow: inset 0 0 0 2px var(--ink); }
+.name { font-weight: 650; font-size: 16px; overflow-wrap: anywhere; }
+.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px 12px; margin-top: 16px; }
+.tile .k { font-size: 12px; color: var(--ink3); }
+.tile .v { font-size: 22px; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.tile.hero .v { font-size: 34px; }
+.tile.hero { grid-column: span 3; }
+.tile .note { font-size: 12px; color: var(--ink2); }
+.meter { height: 8px; border-radius: 4px; background: var(--sunken); overflow: hidden; margin-top: 6px; display: flex; gap: 2px; }
+.meter i { display: block; height: 100%; }
+.meter .p { background: var(--good); } .meter .w { background: var(--warn); } .meter .f { background: var(--bad); }
+.meter .e { background: var(--neutral); }
+.best { font-size: 11px; font-weight: 600; border: 1px solid var(--line2); border-radius: 10px; padding: 0 7px; margin-left: 6px;
+  color: var(--ink2); vertical-align: middle; white-space: nowrap; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; }
+th { text-align: left; font-size: 12px; font-weight: 600; color: var(--ink3); padding: 6px 10px; border-bottom: 1px solid var(--line2);
+  white-space: nowrap; }
+td { padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+tr.section td { background: var(--sunken); font-size: 12px; font-weight: 600; color: var(--ink2); padding: 4px 10px; }
+.tier { font-size: 11px; color: var(--ink2); border: 1px solid var(--line2); border-radius: 10px; padding: 0 7px; margin-left: 6px; }
+.chips { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+.chip { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 6px; border: 0;
+  font-size: 13px; font-weight: 700; color: #fff; padding: 0; line-height: 1; }
+.chip.pass { background: var(--good); } .chip.partial { background: var(--warn); color: #0b0b0b; }
+.chip.fail { background: var(--bad); } .chip.error { background: var(--neutral); }
+span.chip { cursor: default; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--ink2); margin: 0 0 10px; }
+.legend span { display: inline-flex; gap: 5px; align-items: center; }
+.legend .chip { width: 18px; height: 18px; font-size: 11px; border-radius: 4px; }
+.rate { font-size: 12px; color: var(--ink2); font-variant-numeric: tabular-nums; margin-top: 2px; }
+ul.plain { margin: 0; padding-left: 18px; } ul.plain li { margin: 3px 0; }
+.hint { font-family: var(--mono); font-size: 12px; background: var(--sunken); border-radius: 4px; padding: 1px 6px; white-space: nowrap; }
+.link { background: none; border: 0; padding: 0; color: var(--ink); text-decoration: underline; text-underline-offset: 2px; }
+.filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; font-size: 13px; color: var(--ink2); }
+select { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line2); border-radius: 6px; padding: 3px 6px; }
+details.attempt { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; margin-bottom: 8px; }
+details.attempt > summary { list-style: none; cursor: pointer; padding: 10px 14px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+details.attempt > summary::-webkit-details-marker { display: none; }
+details.attempt[open] > summary { border-bottom: 1px solid var(--line); }
+summary .grow { flex: 1 1 220px; min-width: 0; }
+summary .facts { font-size: 12px; color: var(--ink2); font-variant-numeric: tabular-nums; }
+.body { padding: 6px 14px 16px; }
+details.fold > summary { cursor: pointer; color: var(--ink2); font-size: 13px; margin: 10px 0 6px; }
+pre { font-family: var(--mono); font-size: 12.5px; line-height: 1.45; background: var(--sunken); border-radius: 6px; padding: 8px 10px; margin: 4px 0;
+  white-space: pre-wrap; overflow-wrap: anywhere; max-height: 340px; overflow: auto; }
+pre.cmd { border-left: 3px solid var(--line2); }
+pre.cmd.failed { border-left-color: var(--bad); }
+.ev { border-left: 2px solid var(--line); padding: 2px 0 6px 12px; margin-left: 4px; }
+.ev .when { font-size: 11px; color: var(--ink3); font-variant-numeric: tabular-nums; }
+.ev.note { border-left-color: var(--warn); }
+.ev .say { white-space: pre-wrap; overflow-wrap: anywhere; margin: 2px 0; }
+.ev .think { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink2); font-size: 13px; }
+.kv { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 2px 16px; font-size: 13px; }
+.kv div { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px solid var(--line); padding: 2px 0; }
+.kv span:last-child { font-family: var(--mono); font-size: 12px; text-align: right; overflow-wrap: anywhere; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+@media (max-width: 700px) { .two { grid-template-columns: 1fr; } .tiles { grid-template-columns: repeat(2, 1fr); } .tile.hero { grid-column: span 2; } }
+footer { margin-top: 48px; font-size: 12px; color: var(--ink3); }
+</style>
+</head>
+<body>
+<main id="app"></main>
+<script id="data" type="application/json">__STICK_REPORT_JSON__</script>
+<script>
+"use strict";
+const R = JSON.parse(document.getElementById("data").textContent);
+const C = R.contenders, A = R.attempts, VS = R.versus;
+const byId = Object.fromEntries(C.map(c => [c.id, c]));
+const ICON = {pass: "✓", partial: "◐", fail: "✕", error: "!"};
+const WORD = {pass: "pass", partial: "partial", fail: "fail", error: "error (lab or grader)"};
+
+function el(tag, attrs, ...kids) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v === null || v === undefined || v === false) continue;
+    if (k === "class") n.className = v;
+    else if (k.startsWith("on")) n.addEventListener(k.slice(2), v);
+    else n.setAttribute(k, v === true ? "" : v);
+  }
+  for (const kid of kids.flat()) if (kid !== null && kid !== undefined && kid !== false) n.append(kid);
+  return n;
+}
+const num = n => Number(n || 0).toLocaleString("en-US");
+const short = n => n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + "M" : n >= 1e4 ? Math.round(n / 1e3) + "k" : num(n);
+const cost = c => c === null || c === undefined ? "?" : c === 0 ? "$0" : "$" + Number(c).toFixed(c >= 1 ? 2 : 4);
+const secs = s => s >= 90 ? (s / 60).toFixed(1) + " min" : Math.round(s) + " s";
+const letter = id => String.fromCharCode(65 + C.findIndex(c => c.id === id));
+const tag = id => el("span", {class: "tag" + (C.findIndex(c => c.id === id) % 2 ? " b" : ""), title: byId[id].label}, letter(id));
+const many = C.length > 1;
+const show = v => typeof v === "string" ? v : JSON.stringify(v, null, 2);
+
+function chip(a, asButton) {
+  const label = `${a.task_id}, attempt ${a.repeat}: ${WORD[a.outcome] || a.outcome}, score ${a.score.toFixed(2)}`;
+  return asButton
+    ? el("button", {class: "chip " + a.outcome, title: label, "aria-label": label, onclick: () => openAttempt(a.id)}, ICON[a.outcome] || "?")
+    : el("span", {class: "chip " + a.outcome, title: label, role: "img", "aria-label": label}, ICON[a.outcome] || "?");
+}
+
+function openAttempt(id) {
+  const d = document.getElementById("a-" + id);
+  if (!d) return;
+  for (const s of document.querySelectorAll(".filters select")) s.value = "";
+  applyFilters();
+  d.open = true;
+  history.replaceState(null, "", "#a-" + id);
+  d.scrollIntoView({behavior: "smooth", block: "start"});
+  d.querySelector("summary").focus({preventScroll: true});
+}
+
+// ---------------------------------------------------------------- header
+function header() {
+  const title = R.title || (C.length === 2 ? `${C[0].label} vs ${C[1].label}` : C.length === 1 ? C[0].label : `${C.length} models compared`);
+  document.title = "stick: " + title;
+  const day = s => (s || "").slice(0, 16).replace("T", " ");
+  const when = R.first_attempt ? (day(R.first_attempt).slice(0, 10) === day(R.last_attempt).slice(0, 10)
+    ? `${day(R.first_attempt)} to ${day(R.last_attempt).slice(11)} UTC` : `${day(R.first_attempt)} to ${day(R.last_attempt)} UTC`) : "";
+  const facts = [R.sections.length ? "section " + R.sections.join(", ") : null, `${R.tasks.length} task${R.tasks.length === 1 ? "" : "s"}`,
+    `${Object.keys(A).length} attempts`, when].filter(Boolean).join(" · ");
+  const theme = el("button", {class: "ghost", onclick: () => {
+    const root = document.documentElement;
+    const dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+    root.dataset.theme = dark ? "light" : "dark";
+  }}, "Light / dark");
+  return el("header", {},
+    el("div", {class: "top"}, el("div", {}, el("h1", {}, title), el("p", {class: "sub"}, facts)), theme),
+    VS ? el("p", {class: "headline"}, VS.headline) : null,
+    el("p", {class: "sub explain"}, el("strong", {}, "What a turn is: "),
+      "one reply from the model. In each turn it reads the conversation so far, then either asks for commands to run in the lab " +
+      "or says it has finished. " + turnLimit() + "An attempt that reaches the limit is stopped and graded as it stands, " +
+      "so fewer turns means the model got to the result more directly."));
+}
+function turnLimit() {
+  const t = R.turn_limits || [];
+  if (!t.length) return "";
+  return t.length === 1 ? `An attempt may use at most ${t[0]} turns here. `
+    : `An attempt may use at most ${t[0]} to ${t[t.length - 1]} turns here, depending on the task. `;
+}
+
+// ---------------------------------------------------------------- scoreboard
+function scoreboard() {
+  const bestOf = (key, hi) => {
+    if (!many) return null;
+    const vals = C.map(c => c[key]);
+    const top = hi ? Math.max(...vals) : Math.min(...vals);
+    return vals.filter(v => v === top).length === 1 ? C[vals.indexOf(top)].id : null;
+  };
+  const bestPass = many ? (() => { const r = C.map(c => c.passed / c.attempts); const t = Math.max(...r);
+    return r.filter(v => v === t).length === 1 ? C[r.indexOf(t)].id : null; })() : null;
+  const bestScore = bestOf("mean_score", true);
+  const better = () => el("span", {class: "best"}, "higher");
+  return el("section", {}, el("h2", {}, "Scores"), el("div", {class: "cards"}, C.map(c => {
+    const mine = Object.values(A).filter(a => a.contender === c.id);
+    const count = o => mine.filter(a => a.outcome === o).length;
+    const seg = (o, cls) => count(o) ? el("i", {class: cls, style: `flex:${count(o)}`}) : null;
+    const mix = ["pass", "partial", "fail", "error"].filter(count).map(o => `${count(o)} ${o}`).join(", ");
+    const tile = (k, v, note, cls) => el("div", {class: "tile " + (cls || "")}, el("div", {class: "k"}, k), el("div", {class: "v"}, v),
+      note ? el("div", {class: "note"}, note) : null);
+    return el("div", {class: "card"},
+      el("div", {class: "who"}, many ? tag(c.id) : null, el("span", {class: "name"}, c.label)),
+      el("div", {class: "sub", style: "font-size:12px;margin-top:4px"},
+        [c.sampling || null, c.sampling_source ? `(${c.sampling_source})` : null, c.base_url || c.provider].filter(Boolean).join(" · ")),
+      el("div", {class: "tiles"},
+        el("div", {class: "tile hero"}, el("div", {class: "k"}, "Attempts passed"),
+          el("div", {class: "v"}, `${c.passed} / ${c.attempts}`, el("span", {class: "muted", style: "font-size:16px;font-weight:500"},
+            `  ${Math.round(100 * c.passed / c.attempts)}%`), bestPass === c.id ? better() : null),
+          el("div", {class: "meter", role: "img", "aria-label": mix}, seg("pass", "p"), seg("partial", "w"), seg("fail", "f"), seg("error", "e")),
+          el("div", {class: "note", style: "margin-top:4px"}, mix)),
+        tile("Mean score", [c.mean_score.toFixed(2), bestScore === c.id ? better() : null]),
+        tile("Mean time", secs(c.mean_wall_s), "per attempt"),
+        tile("Mean turns", c.mean_turns.toFixed(1), "per attempt"),
+        tile("Tokens", short(c.tokens_in + c.tokens_out), `${short(c.tokens_in)} in, ${short(c.tokens_out)} out`),
+        tile("Cost", cost(c.cost_usd), c.cost_usd === 0 ? "local model" : null)));
+  })));
+}
+
+// ---------------------------------------------------------------- tasks
+function legend() {
+  return el("div", {class: "legend"}, ["pass", "partial", "fail", "error"].filter(o => Object.values(A).some(a => a.outcome === o))
+    .map(o => el("span", {}, el("span", {class: "chip " + o, "aria-hidden": "true"}, ICON[o]), WORD[o])),
+    el("span", {}, "One square per attempt; select one to open it."));
+}
+function tasksTable() {
+  const rows = [];
+  let section = null;
+  for (const t of R.tasks) {
+    if (R.sections.length > 1 && t.section !== section) {
+      section = t.section;
+      rows.push(el("tr", {class: "section"}, el("td", {colspan: 2 + C.length}, section || "other")));
+    }
+    rows.push(el("tr", {},
+      el("td", {}, el("div", {}, t.title, t.tier ? el("span", {class: "tier"}, t.tier) : null), el("div", {class: "mono muted"}, t.id)),
+      C.map(c => {
+        const p = t.per[c.id];
+        if (!p) return el("td", {class: "muted"}, "not run");
+        return el("td", {}, el("div", {class: "chips"}, p.attempts.map(id => chip(A[id], true))),
+          el("div", {class: "rate"}, `${p.passed}/${p.attempts.length} passed · score ${p.mean_score.toFixed(2)}`));
+      }),
+      many ? el("td", {}, t.better ? el("span", {class: "who"}, tag(t.better), el("span", {class: "sub"}, byId[t.better].label))
+        : el("span", {class: "muted"}, Object.keys(t.per).length > 1 ? "tie" : "")) : null));
+  }
+  return el("section", {}, el("h2", {}, "Tasks"), legend(), el("div", {class: "card scroll", style: "padding:6px 8px"},
+    el("table", {}, el("thead", {}, el("tr", {}, el("th", {}, "Task"),
+      C.map(c => el("th", {}, many ? el("span", {class: "who"}, tag(c.id), c.label) : "Attempts")), many ? el("th", {}, "Did better") : null)),
+      el("tbody", {}, rows))));
+}
+
+// ---------------------------------------------------------------- struggles
+function struggles() {
+  return el("section", {}, el("h2", {}, "Where " + (many ? "each model" : "it") + " struggled"), el("div", {class: "cards"}, C.map(c => {
+    const s = c.struggles;
+    return el("div", {class: "card"},
+      el("div", {class: "who", style: "margin-bottom:10px"}, many ? tag(c.id) : null, el("span", {class: "name"}, c.label)),
+      el("ul", {class: "plain"}, s.summary.map(line => el("li", {}, line))),
+      s.hints.length ? [el("h4", {}, "Problems seen (by attempts)"), el("div", {class: "scroll"}, el("table", {}, el("tbody", {}, s.hints.map(h =>
+        el("tr", {}, el("td", {}, el("span", {class: "hint"}, h.hint)), el("td", {class: "num"}, h.count + " of " + c.attempts),
+          el("td", {class: "sub"}, h.text))))))] : null,
+      s.failed_checks.length ? [el("h4", {}, "Checks that failed"), el("div", {class: "scroll"}, el("table", {}, el("tbody", {}, s.failed_checks.map(f =>
+        el("tr", {}, el("td", {}, el("div", {}, f.name), el("div", {class: "mono muted"}, f.task_id)),
+          el("td", {class: "num"}, `${f.failed} of ${f.total}`),
+          el("td", {class: "sub"}, f.message, " ", f.example ? el("button", {class: "link", onclick: () => openAttempt(f.example.attempt)}, "example") : null))))))]
+        : null);
+  })));
+}
+
+// ---------------------------------------------------------------- attempts
+function checksTable(a) {
+  return el("div", {class: "scroll"}, el("table", {}, el("thead", {}, el("tr", {}, el("th", {}, ""), el("th", {}, "Check"), el("th", {class: "num"}, "Weight"),
+    el("th", {}, "Result"))), el("tbody", {}, a.checks.map(c => {
+      const o = c.status === "pass" ? "pass" : c.status === "error" ? "error" : "fail";
+      const detail = c.status !== "pass" && (c.expected !== null || c.observed !== null);
+      return el("tr", {}, el("td", {}, el("span", {class: "chip " + o, role: "img", "aria-label": c.status}, ICON[o])),
+        el("td", {}, c.name, el("div", {class: "mono muted"}, c.type)), el("td", {class: "num"}, c.weight),
+        el("td", {}, el("div", {}, c.message, " ", c.hints.map(h => el("span", {class: "hint", title: R.hint_text[h] || ""}, h))),
+          detail ? el("div", {class: "two"},
+            el("div", {}, el("div", {class: "when muted"}, "expected"), el("pre", {}, show(c.expected))),
+            el("div", {}, el("div", {class: "when muted"}, "observed"), el("pre", {}, c.observed === null ? "(nothing recorded)" : show(c.observed)))) : null));
+    }))));
+}
+function transcript(a) {
+  const ran = new Set(a.events.filter(e => e.kind === "command" || e.kind === "command_not_run" || e.kind === "tool_error").map(e => e.id));
+  const when = e => el("div", {class: "when"}, `${Number(e.t || 0).toFixed(1)} s`);
+  const out = [];
+  for (const e of a.events) {
+    if (e.kind === "start") {
+      out.push(el("details", {class: "fold"}, el("summary", {}, "System prompt"), el("pre", {}, e.system || "")));
+    } else if (e.kind === "turn") {
+      const u = e.usage || {};
+      const orphans = (e.tool_calls || []).filter(c => !ran.has(c.id));
+      out.push(el("div", {class: "ev"}, el("div", {class: "when"},
+        `${Number(e.t || 0).toFixed(1)} s · turn ${e.n} · ${num(u.input_tokens)} in, ${num(u.output_tokens)} out · ${Number(e.seconds || 0).toFixed(1)} s`),
+        e.reasoning ? el("details", {class: "fold"}, el("summary", {}, "Reasoning"), el("div", {class: "think"}, e.reasoning)) : null,
+        e.text ? el("div", {class: "say"}, e.text) : null,
+        orphans.map(c => el("pre", {class: "cmd"}, "(not run) " + show(c.arguments)))));
+    } else if (e.kind === "command") {
+      const failed = e.timed_out || e.exit_code !== 0;
+      out.push(el("div", {class: "ev"}, when(e), el("pre", {class: "cmd" + (failed ? " failed" : "")}, "$ " + (e.command || "")),
+        el("div", {class: "when"}, (e.timed_out ? "timed out" : "exit " + e.exit_code) + ` · ${Number(e.seconds || 0).toFixed(1)} s` +
+          (e.output_chars > (e.output || "").length ? ` · output cut from ${num(e.output_chars)} characters` : "")),
+        e.output ? el("pre", {style: "max-height:220px"}, e.output) : el("div", {class: "muted", style: "font-size:12px"}, "(no output)")));
+    } else if (e.kind === "end") {
+      out.push(el("div", {class: "ev"}, when(e), el("div", {class: "say sub"}, `Ended: ${e.stop_reason}`)));
+    } else {
+      const text = {
+        tool_error: () => `Malformed tool call: ${e.error}`,
+        command_not_run: () => `Command not run (${e.reason}, ${num(e.arguments_chars)} characters of arguments)`,
+        output_limit: () => `Reply hit the output-token cap (${num(e.output_tokens)} tokens)` + (e.repetition ? ", repeating itself" : ""),
+        empty_reply: () => "Empty reply", nudge: () => `Runner nudge: ${e.message}`,
+        context_full: () => `Context window full (${num(e.input_tokens)} input tokens)`,
+        low_memory: () => `Host low on memory (${e.available_mb} MiB free)`, model_error: () => `Model server error: ${e.error}`,
+      }[e.kind];
+      out.push(el("div", {class: "ev note"}, when(e), el("div", {class: "say"}, text ? text() : e.kind)));
+    }
+  }
+  return out.length ? out : el("p", {class: "muted"}, "No transcript recorded.");
+}
+function attemptBody(a) {
+  const m = a.metrics || {};
+  const flat = Object.entries(m).filter(([, v]) => v === null || typeof v !== "object")
+    .concat(Object.entries(m.limits || {}).map(([k, v]) => ["limit: " + k, v]));
+  return el("div", {class: "body"},
+    el("h4", {}, "Checks"), checksTable(a),
+    a.hints.length ? [el("h4", {}, "Problems"), el("ul", {class: "plain"}, a.hints.map(h => el("li", {}, el("span", {class: "hint"}, h), " ",
+      el("span", {class: "sub"}, R.hint_text[h] || ""))))] : null,
+    el("details", {class: "fold"}, el("summary", {}, "Task prompt"), el("pre", {}, a.prompt || "(not recorded)")),
+    el("details", {class: "fold"}, el("summary", {}, "Metrics"), el("div", {class: "kv"}, flat.map(([k, v]) =>
+      el("div", {}, el("span", {}, k), el("span", {}, v === null || v === "" ? "-" : String(v)))))),
+    el("h4", {}, "Transcript"), transcript(a),
+    el("p", {class: "mono muted", style: "margin-top:12px"}, a.run_dir));
+}
+function attempts() {
+  const list = Object.values(A).sort((x, y) => x.task_id.localeCompare(y.task_id) || x.contender.localeCompare(y.contender) || x.repeat - y.repeat);
+  const select = (name, label, options) => el("label", {}, label + " ",
+    el("select", {"data-f": name, onchange: applyFilters}, el("option", {value: ""}, "all"), options.map(([v, t]) => el("option", {value: v}, t))));
+  return el("section", {}, el("h2", {}, "Attempts"),
+    el("div", {class: "filters"},
+      many ? select("contender", "Model", C.map(c => [c.id, `${letter(c.id)}: ${c.label}`])) : null,
+      select("task", "Task", R.tasks.map(t => [t.id, t.id])),
+      select("outcome", "Outcome", [["notpass", "not passed"], ["pass", "passed"]]),
+      el("span", {id: "shown"})),
+    list.map(a => {
+      const m = a.metrics || {};
+      const d = el("details", {class: "attempt", id: "a-" + a.id, "data-contender": a.contender, "data-task": a.task_id, "data-outcome": a.outcome},
+        el("summary", {}, chip(a, false), many ? tag(a.contender) : null,
+          el("span", {class: "grow"}, el("span", {class: "mono"}, a.task_id), el("span", {class: "muted"}, `  attempt ${a.repeat}`),
+            many ? el("span", {class: "muted"}, `  ${byId[a.contender].label}`) : null),
+          el("span", {class: "facts"}, `score ${a.score.toFixed(2)} · ${m.turns ?? "?"} turns · ${short((m.tokens_in || 0) + (m.tokens_out || 0))} tokens · ` +
+            `${secs(m.wall_s || 0)} · stop: ${m.stop_reason || "?"}`)));
+      d.addEventListener("toggle", () => { if (d.open && !d.dataset.built) { d.dataset.built = "1"; d.append(attemptBody(a)); } });
+      return d;
+    }));
+}
+function applyFilters() {
+  const f = {};
+  for (const s of document.querySelectorAll(".filters select")) f[s.dataset.f] = s.value;
+  let shown = 0, total = 0;
+  for (const d of document.querySelectorAll("details.attempt")) {
+    const ok = (!f.contender || d.dataset.contender === f.contender) && (!f.task || d.dataset.task === f.task) &&
+      (!f.outcome || (f.outcome === "pass") === (d.dataset.outcome === "pass"));
+    d.hidden = !ok; total += 1; shown += ok ? 1 : 0;
+  }
+  const note = document.getElementById("shown");
+  if (note) note.textContent = shown === total ? `${total} attempts` : `${shown} of ${total} attempts`;
+}
+
+document.getElementById("app").append(header(), scoreboard(), tasksTable(), struggles(), attempts(),
+  el("footer", {}, `Generated by ${R.generated_by} on ${R.generated_at.replace("T", " ").slice(0, 16)} UTC` +
+    (R.stick_versions.length ? ` · runs made with stick ${R.stick_versions.join(", ")}` : "") +
+    " · transcripts contain lab credentials; they only work inside the lab."));
+applyFilters();
+if (location.hash.startsWith("#a-")) openAttempt(decodeURIComponent(location.hash.slice(3)));
+</script>
+</body>
+</html>

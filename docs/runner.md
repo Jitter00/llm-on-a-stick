@@ -205,6 +205,50 @@ these rules existed, without changing anything:
 uv run stick hints runs/compare            # one row per attempt: recorded hints, transcript hints
 ```
 
+### The HTML report
+
+`stick run` ends by writing `report.html` into the runs folder (`--no-report` skips it), and `stick report --html`
+writes it for runs you already have:
+
+```bash
+uv run stick report runs/compare --html                    # -> runs/compare/report.html
+uv run stick report runs/haiku runs/gemma --html --out vs.html --title "Zabbix: Haiku vs Gemma"
+```
+
+It is one self-contained file (no network needed, so you can mail it or attach it to an issue) with:
+
+- **What a turn is**, at the top: one reply from the model, in which it asks for commands or says it has
+  finished, and how many turns an attempt may use in these runs.
+- **Scores**: per model, attempts passed, mean score, time, turns, tokens and cost.
+- **Tasks**: one square per attempt (pass, partial, fail, error); select a square to open that attempt.
+- **Where it struggled**: what the model never or only sometimes passed, how its attempts ended, the failure
+  hints by how many attempts had them, and the checks that failed most, with the grader's message. This comes
+  from the recorded results by fixed rules; no model writes it.
+- **Attempts**: each attempt's checks (expected and observed for the failed ones), metrics, prompt and the whole
+  conversation: what the model said, every command, its exit code and output.
+
+With two models in the data the page puts them side by side and says which did better on each task (pass rate
+first, then mean score). `report.json` next to it has the same numbers without the transcripts. The transcripts
+contain the lab's logins and API tokens; they only work inside the lab.
+
+## Head to head: `stick vs`
+
+```bash
+uv run stick vs anthropic/claude-haiku-5-5 ollama/gemma4:12b --section zabbix --repeat 3
+```
+
+Runs both models on the same tasks and writes the side-by-side `report.html`, into
+`runs/vs-<a>-vs-<b>-<time>/` unless you give `--runs-dir`. It takes the options of `stick run`. `--base-url`
+applies to both models, so with two providers set the address per provider instead, e.g.
+`STICK_OLLAMA_BASE_URL=http://192.168.122.1:11434/v1`.
+
+The two models run one after the other, the first one's whole batch before the second. Two local models can't
+share the GPU and RAM, so `stick vs` refuses that pair: run each with `stick run` into its own folder and compare
+with `stick report <folder> <folder> --html`. A cloud model and a local model don't compete for the machine and
+could run at the same time, but all attempts still share the one lab (the same routers, one instance of each
+tool), and two attempts at once would undo each other's work. Running that pair in parallel needs a lab per model
+first; it's on the roadmap.
+
 ## A scripted "model"
 
 `--model script/<file.yaml>` runs fixed commands instead of asking a model. It's how the tests prove the runner and

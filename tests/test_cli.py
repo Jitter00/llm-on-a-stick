@@ -45,3 +45,23 @@ def test_run_refuses_two_local_models() -> None:
     )
     assert res.exit_code == 2
     assert "one after another" in res.output
+
+
+def test_report_html_without_runs(tmp_path: Path) -> None:
+    result = runner.invoke(cli.app, ["report", str(tmp_path), "--html"])
+    assert result.exit_code == 1
+    assert not (tmp_path / "report.html").exists()
+
+
+def test_vs_needs_two_different_models() -> None:
+    assert runner.invoke(cli.app, ["vs", "ollama/a"]).exit_code == 2
+    result = runner.invoke(cli.app, ["vs", "ollama/a", "ollama/a", "--all"])
+    assert result.exit_code == 2
+
+
+def test_vs_refuses_two_local_models(tmp_path: Path) -> None:
+    result = runner.invoke(
+        cli.app, ["vs", "ollama/a", "strata/b", "--all", "--runs-dir", str(tmp_path / "vs")]
+    )
+    assert result.exit_code == 2
+    assert not (tmp_path / "vs").exists()

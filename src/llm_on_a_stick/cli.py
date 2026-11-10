@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import re
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -41,6 +43,7 @@ console = Console()
 err = Console(stderr=True)
 
 _STATUS_STYLE = {"ok": "[green]ok[/]", "warn": "[yellow]warn[/]", "fail": "[red]fail[/]"}
+_OUTCOME_STYLE = {"pass": "green", "partial": "yellow", "fail": "red", "error": "magenta"}
 
 TopologyOpt = Annotated[
     str, typer.Option("--topology", "-t", help="Built-in topology name or .clab.yml path.")
@@ -262,7 +265,7 @@ def grade_cmd(
     if as_json:
         console.print_json(result.model_dump_json())
     else:
-        style = {"pass": "green", "partial": "yellow", "fail": "red", "error": "magenta"}
+        style = _OUTCOME_STYLE
         table = Table("check", "status", "details")
         for c in result.checks:
             hints = f" [dim]({', '.join(c.hints)})[/]" if c.hints else ""
@@ -391,69 +394,161 @@ def _select_tasks(
     return [t for t in found if all_ or t.section in (sections or [])]
 
 
+ModelOpt = Annotated[
+    list[str],
+    typer.Option(
+        "--model",
+        "-m",
+        help="provider/model, e.g. ollama/qwen3:14b, strata/<model>, anthropic/claude-sonnet-5-5. "
+        "Repeatable.",
+    ),
+]
+SectionOpt = Annotated[list[str] | None, typer.Option("--section", "-s", help="Run every task in a section.")]
+AllOpt = Annotated[bool, typer.Option("--all", help="Run every task.")]
+RepeatOpt = Annotated[int, typer.Option(min=1, help="Attempts per model and task.")]
+BaseUrlOpt = Annotated[
+    str | None,
+    typer.Option(
+        help="Server address for OpenAI-compatible models, e.g. http://127.0.0.1:9000/v1. It applies to "
+        "every model given; with models from different providers set STICK_<PROVIDER>_BASE_URL instead."
+    ),
+]
+MaxTurnsOpt = Annotated[int | None, typer.Option(help="Override the task's turn limit.")]
+TimeoutOpt = Annotated[
+    int | None,
+    typer.Option(
+        "--timeout", help="Safety time limit per attempt (s); default 3600. The real limit is the turns."
+    ),
+]
+CmdTimeoutOpt = Annotated[int, typer.Option(help="Seconds before one command is stopped.")]
+TemperatureOpt = Annotated[
+    float | None,
+    typer.Option(
+        help="Sampling temperature for every model (OpenAI-compatible servers). Default: the model's "
+        "recommended settings from data/sampling.yaml, else 0."
+    ),
+]
+EffortOpt = Annotated[str | None, typer.Option(help="Anthropic effort: low, medium, high, xhigh, max.")]
+NoThinkingOpt = Annotated[
+    bool,
+    typer.Option(
+        "--no-thinking",
+        help="Anthropic models: turn thinking off (it is on by default on recent models). The weakest "
+        "setting, for checking that a task is hard enough; some models reject it.",
+    ),
+]
+MinFreeRamOpt = Annotated[
+    int,
+    typer.Option(
+        help="MiB of RAM to keep free for the system; attempts pause, then stop, below it (0 = off)."
+    ),
+]
+SeedOpt = Annotated[int | None, typer.Option(help="Seed for canary values.")]
+NoReportOpt = Annotated[
+    bool, typer.Option("--no-report", help="Don't write report.html and report.json into the runs folder.")
+]
+
+
 @app.command("run")
 def run_cmd(
     task_refs: Annotated[list[str] | None, typer.Argument(help="Task ids or paths.")] = None,
-    model: Annotated[
-        list[str],
-        typer.Option(
-            "--model",
-            "-m",
-            help="provider/model, e.g. ollama/qwen3:14b, strata/<model>, anthropic/claude-sonnet-5-5. "
-            "Repeatable.",
-        ),
-    ] = [],  # noqa: B006 (typer reads the default; it is never mutated)
-    section: Annotated[
-        list[str] | None, typer.Option("--section", "-s", help="Run every task in a section.")
-    ] = None,
-    all_: Annotated[bool, typer.Option("--all", help="Run every task.")] = False,
-    repeat: Annotated[int, typer.Option(min=1, help="Attempts per model and task.")] = 1,
-    base_url: Annotated[
-        str | None,
-        typer.Option(help="Server address for OpenAI-compatible models, e.g. http://127.0.0.1:9000/v1."),
-    ] = None,
-    max_turns: Annotated[int | None, typer.Option(help="Override the task's turn limit.")] = None,
-    timeout_s: Annotated[
-        int | None,
-        typer.Option(
-            "--timeout", help="Safety time limit per attempt (s); default 3600. The real limit is the turns."
-        ),
-    ] = None,
-    cmd_timeout: Annotated[int, typer.Option(help="Seconds before one command is stopped.")] = 60,
-    temperature: Annotated[
-        float | None,
-        typer.Option(
-            help="Sampling temperature for every model (OpenAI-compatible servers). Default: the model's "
-            "recommended settings from data/sampling.yaml, else 0."
-        ),
-    ] = None,
-    effort: Annotated[
-        str | None, typer.Option(help="Anthropic effort: low, medium, high, xhigh, max.")
-    ] = None,
-    no_thinking: Annotated[
-        bool,
-        typer.Option(
-            "--no-thinking",
-            help="Anthropic models: turn thinking off (it is on by default on recent models). The weakest "
-            "setting, for checking that a task is hard enough; some models reject it.",
-        ),
-    ] = False,
-    min_free_ram: Annotated[
-        int,
-        typer.Option(
-            help="MiB of RAM to keep free for the system; attempts pause, then stop, below it (0 = off)."
-        ),
-    ] = 2048,
+    model: ModelOpt = [],  # noqa: B006 (typer reads the default; it is never mutated)
+    section: SectionOpt = None,
+    all_: AllOpt = False,
+    repeat: RepeatOpt = 1,
+    base_url: BaseUrlOpt = None,
+    max_turns: MaxTurnsOpt = None,
+    timeout_s: TimeoutOpt = None,
+    cmd_timeout: CmdTimeoutOpt = 60,
+    temperature: TemperatureOpt = None,
+    effort: EffortOpt = None,
+    no_thinking: NoThinkingOpt = False,
+    min_free_ram: MinFreeRamOpt = 2048,
     tasks_dir: TasksDirOpt = None,
     runs_dir: RunsDirOpt = Path("runs"),
-    seed: Annotated[int | None, typer.Option(help="Seed for canary values.")] = None,
+    seed: SeedOpt = None,
+    no_report: NoReportOpt = False,
 ) -> None:
-    """Let models attempt tasks in the lab, grade each attempt and compare. Needs the lab running."""
-    from llm_on_a_stick.runner import loop, models, report, toolbox
+    """Let models attempt tasks in the lab, grade each attempt and compare. Needs the lab running.
 
+    Ends with a summary table and, in the runs folder, report.html: scores, where each model struggled and
+    every attempt's checks and transcript.
+    """
     if not model:
         err.print("[red]give at least one --model, e.g. --model ollama/qwen3:14b[/]")
         raise typer.Exit(2)
+    _run_models(
+        model, task_refs, section, all_, repeat, base_url, max_turns, timeout_s, cmd_timeout, temperature,
+        effort, no_thinking, min_free_ram, tasks_dir, runs_dir, seed, no_report,
+    )  # fmt: skip
+
+
+def _slug(model: str) -> str:
+    return re.sub(r"[^A-Za-z0-9.]+", "-", model.split("/", 1)[-1]).strip("-")
+
+
+@app.command("vs")
+def vs_cmd(
+    model_a: Annotated[str, typer.Argument(help="First model, provider/model.")],
+    model_b: Annotated[str, typer.Argument(help="Second model, provider/model.")],
+    task_refs: Annotated[list[str] | None, typer.Argument(help="Task ids or paths.")] = None,
+    section: SectionOpt = None,
+    all_: AllOpt = False,
+    repeat: RepeatOpt = 1,
+    base_url: BaseUrlOpt = None,
+    max_turns: MaxTurnsOpt = None,
+    timeout_s: TimeoutOpt = None,
+    cmd_timeout: CmdTimeoutOpt = 60,
+    temperature: TemperatureOpt = None,
+    effort: EffortOpt = None,
+    no_thinking: NoThinkingOpt = False,
+    min_free_ram: MinFreeRamOpt = 2048,
+    tasks_dir: TasksDirOpt = None,
+    runs_dir: Annotated[
+        Path | None,
+        typer.Option(help="Where the attempts and the report go (default: runs/vs-<a>-vs-<b>-<time>)."),
+    ] = None,
+    seed: SeedOpt = None,
+) -> None:
+    """Two models on the same tasks, side by side: runs both, then writes the versus report.html.
+
+    The models run one after the other, the first one's whole batch before the second (they share the one
+    lab). To compare runs you already have: `stick report <folder> <folder> --html`.
+    """
+    if model_a == model_b:
+        err.print("[red]give two different models[/]")
+        raise typer.Exit(2)
+    if runs_dir is None:
+        stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+        runs_dir = Path("runs") / f"vs-{_slug(model_a)}-vs-{_slug(model_b)}-{stamp}"
+    _run_models(
+        [model_a, model_b], task_refs, section, all_, repeat, base_url, max_turns, timeout_s, cmd_timeout,
+        temperature, effort, no_thinking, min_free_ram, tasks_dir, runs_dir, seed, False,
+    )  # fmt: skip
+
+
+def _run_models(
+    model: list[str],
+    task_refs: list[str] | None,
+    section: list[str] | None,
+    all_: bool,
+    repeat: int,
+    base_url: str | None,
+    max_turns: int | None,
+    timeout_s: int | None,
+    cmd_timeout: int,
+    temperature: float | None,
+    effort: str | None,
+    no_thinking: bool,
+    min_free_ram: int,
+    tasks_dir: list[Path] | None,
+    runs_dir: Path,
+    seed: int | None,
+    no_report: bool,
+) -> None:
+    """`stick run` and `stick vs`: every model's whole batch, one model after the other."""
+    from llm_on_a_stick.runner import loop, models, report, toolbox
+
     try:
         selected = _select_tasks(task_refs, section, all_, _task_roots(tasks_dir))
         clients = [
@@ -496,7 +591,7 @@ def run_cmd(
         seed=seed,
         min_free_ram_mb=min_free_ram,
     )
-    style = {"pass": "green", "partial": "yellow", "fail": "red", "error": "magenta"}
+    style = _OUTCOME_STYLE
     done: list[Path] = []
     errors = 0
     for c in clients:  # model by model: one model's whole batch before the next
@@ -524,6 +619,8 @@ def run_cmd(
     if rows:
         console.print()
         _print_report(rows)
+        if not no_report:
+            _write_html([runs_dir], runs_dir / "report.html", title=None, task=None)
     raise typer.Exit(1 if errors else 0)
 
 
@@ -541,18 +638,55 @@ def _print_report(rows: list[Any]) -> None:
     console.print(table)
 
 
+def _write_html(targets: list[Path], out: Path, title: str | None, task: str | None) -> bool:
+    from llm_on_a_stick.runner import html as html_mod
+
+    data = html_mod.write(targets, out, title or "", task)
+    if data is None:
+        return False
+    kind = "versus report" if data["versus"] else "report"
+    console.print(
+        f"{kind}: [bold]{out}[/] (data: {out.with_suffix('.json')})", soft_wrap=True, highlight=False
+    )
+    return True
+
+
 @app.command("report")
 def report_cmd(
     paths_: Annotated[
         list[Path] | None, typer.Argument(help="Run folders, or folders of runs (default: runs/).")
     ] = None,
-    fmt: Annotated[str, typer.Option("--format", "-f", help="table, md or json.")] = "table",
+    fmt: Annotated[str, typer.Option("--format", "-f", help="table, md, json or html.")] = "table",
+    html: Annotated[
+        bool, typer.Option("--html", help="Write the HTML report (same as --format html).")
+    ] = False,
+    out: Annotated[
+        Path | None,
+        typer.Option(
+            "--out",
+            "-o",
+            help="Where the HTML report goes (default: report.html in the folder given, or here when "
+            "several are given). report.json is written next to it.",
+        ),
+    ] = None,
+    title: Annotated[str | None, typer.Option(help="Heading of the HTML report.")] = None,
     task: Annotated[str | None, typer.Option(help="Only this task.")] = None,
 ) -> None:
-    """Compare model runs: pass rate, score, tokens, cost, time and the most common problems."""
+    """Compare model runs: pass rate, score, tokens, cost, time and the most common problems.
+
+    With --html: one self-contained page with the scores, where each model struggled, and every attempt's
+    checks and transcript. Two models in the data are shown side by side.
+    """
     from llm_on_a_stick.runner import report
 
-    rows = report.collect(paths_ or [Path("runs")])
+    targets = paths_ or [Path("runs")]
+    if html or fmt == "html":
+        target = out or (targets[0] if len(targets) == 1 else Path()) / "report.html"
+        if not _write_html(targets, target, title, task):
+            err.print("[yellow]no model runs found; start some with `stick run`[/]")
+            raise typer.Exit(1)
+        return
+    rows = report.collect(targets)
     if task:
         rows = [r for r in rows if r.task_id == task]
     if not rows:
@@ -564,7 +698,7 @@ def report_cmd(
         console.print(report.to_markdown(rows), markup=False, highlight=False, soft_wrap=True)
     else:
         _print_report(rows)
-        style = {"pass": "green", "partial": "yellow", "fail": "red", "error": "magenta"}
+        style = _OUTCOME_STYLE
         table = Table("task", "model", "outcome", "score", "turns", "tokens in/out", "time", "problems")
         for r in rows:
             table.add_row(
