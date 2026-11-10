@@ -1,0 +1,112 @@
+id: tf-debug
+section: terraform
+title: Repair a Terraform configuration that does not apply
+tier: intermediate
+tags: [tool:terraform, iface:cli, skill:iac-debug]
+topology: none
+prompt: |
+  Terraform and its AWS provider (hashicorp/aws) are installed in your toolbox; `terraform init` needs no
+  download. An AWS account is ready: the credentials, the region eu-west-1 and the API endpoint, an emulator,
+  are set in the environment, so `provider "aws" {}` needs no arguments (`aws` and boto3 work too).
+
+  The Terraform configuration in {{ workspace }}/net was never applied successfully: it has several
+  mistakes. It is meant to build, with the Name tags given:
+    - a VPC {{ canaries.vpc }}.0.0/16, Name {{ canaries.name }};
+    - the subnets {{ canaries.vpc }}.1.0/24 in eu-west-1a and {{ canaries.vpc }}.2.0/24 in eu-west-1b,
+      Names {{ canaries.name }}-a and {{ canaries.name }}-b;
+    - a route table, Name {{ canaries.name }}, with a default route to the VPC's internet gateway, used
+      by both subnets;
+    - a security group named {{ canaries.name }}-web: inbound TCP 443 from anywhere; outbound only TCP
+      5432 to the group {{ canaries.name }}-db;
+    - a security group named {{ canaries.name }}-db: inbound only TCP 5432 from the group
+      {{ canaries.name }}-web; no outbound rule.
+
+  Repair the configuration and apply it, so that Terraform builds and manages all of that: when you are
+  done, `terraform plan` in {{ workspace }}/net reports no changes, however often it runs. Do not change
+  anything else in the account.
+requires:
+  services: [moto]
+reset_services: [moto]
+canaries:
+  vpc: net16
+  name: hostname
+  old: hostname
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: aws_query
+    name: both subnets exist in their availability zones
+    params:
+      command: ec2 describe-subnets --filters Name=tag:Name,Values={{ canaries.name }}-a,{{ canaries.name }}-b
+      query: Subnets[].{cidr:CidrBlock,az:AvailabilityZone}
+      expect:
+        - {cidr: "{{ canaries.vpc }}.1.0/24", az: eu-west-1a}
+        - {cidr: "{{ canaries.vpc }}.2.0/24", az: eu-west-1b}
+  - type: aws_query
+    name: the route table has a default route to an internet gateway and both subnets
+    params:
+      command: ec2 describe-route-tables --filters Name=tag:Name,Values={{ canaries.name }}
+      query: >-
+        RouteTables[].{default:length(Routes[?DestinationCidrBlock=='0.0.0.0/0' &&
+        starts_with(GatewayId, 'igw-')]),subnets:length(Associations[?SubnetId!=null])}
+      expect: [{default: 1, subnets: 2}]
+  - type: aws_query
+    name: the web group lets 443 in from anywhere and nothing else
+    params:
+      command: ec2 describe-security-groups --filters Name=group-name,Values={{ canaries.name }}-web
+      query: >-
+        SecurityGroups[].IpPermissions[].{proto:IpProtocol,from:FromPort,to:ToPort,cidr:IpRanges[].CidrIp,
+        groups:length(UserIdGroupPairs)}
+      expect: [{proto: tcp, from: 443, to: 443, cidr: [0.0.0.0/0], groups: 0}]
+    weight: 2
+  - type: aws_query
+    name: the web group lets only 5432 out, to a security group
+    params:
+      command: ec2 describe-security-groups --filters Name=group-name,Values={{ canaries.name }}-web
+      query: >-
+        SecurityGroups[].IpPermissionsEgress[].{proto:IpProtocol,from:FromPort,to:ToPort,
+        cidr:IpRanges[].CidrIp,groups:length(UserIdGroupPairs)}
+      expect: [{proto: tcp, from: 5432, to: 5432, cidr: [], groups: 1}]
+    weight: 2
+  - type: aws_query
+    name: the db group lets only 5432 in, from a security group
+    params:
+      command: ec2 describe-security-groups --filters Name=group-name,Values={{ canaries.name }}-db
+      query: >-
+        SecurityGroups[].IpPermissions[].{proto:IpProtocol,from:FromPort,to:ToPort,cidr:IpRanges[].CidrIp,
+        groups:length(UserIdGroupPairs)}
+      expect: [{proto: tcp, from: 5432, to: 5432, cidr: [], groups: 1}]
+    weight: 2
+  - type: aws_query
+    name: the db group has no outbound rule
+    params:
+      command: ec2 describe-security-groups --filters Name=group-name,Values={{ canaries.name }}-db
+      query: SecurityGroups[].IpPermissionsEgress[]
+      count: 0
+  - type: terraform_state_has
+    name: Terraform manages the network
+    params:
+      path: net
+      types:
+        aws_vpc: 1
+        aws_subnet: 2
+        aws_internet_gateway: 1
+        aws_route_table: 1
+        aws_route_table_association: 2
+        aws_security_group: 2
+    weight: 2
+  - type: terraform_plan_clean
+    name: terraform plan reports no changes
+    params: {path: net}
+    weight: 3
+  - type: aws_unchanged
+    name: nothing else was changed in the AWS account
+    params:
+      allow_new:
+        - ec2/vpcs
+        - ec2/subnets
+        - ec2/security-groups
+        - ec2/route-tables
+        - ec2/internet-gateways
+        - ec2/network-acls
+limits: {turns: 30}

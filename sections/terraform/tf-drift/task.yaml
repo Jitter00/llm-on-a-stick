@@ -1,6 +1,6 @@
 id: tf-drift
 section: terraform
-title: Reconcile Terraform with changes made by hand, keeping one and reverting the other
+title: Reconcile Terraform with changes made by hand, adopting the approved ones and undoing the rest
 tier: advanced
 tags: [tool:terraform, iface:cli, skill:iac-drift]
 topology: none
@@ -9,16 +9,19 @@ prompt: |
   download. An AWS account is ready: the credentials, the region eu-west-1 and the API endpoint, an emulator,
   are set in the environment, so `provider "aws" {}` needs no arguments (`aws` and boto3 work too).
 
-  The Terraform configuration in {{ workspace }}/app was applied some time ago. Since then, two changes
-  were made by hand, outside Terraform:
-    - the instance {{ canaries.name }} was resized. This was approved: the instance must keep its new
-      type, and the configuration must say so;
-    - a rule was added to the security group {{ canaries.name }}-web. This was not approved: the group
-      must go back to what the configuration says.
+  The Terraform configuration in {{ workspace }}/app was applied some time ago. Since then, people have
+  worked by hand, outside Terraform, in its VPC ({{ canaries.name }}): they changed some of the resources
+  and added others. {{ workspace }}/app/APPROVED.md lists the manual changes that were approved.
 
-  Find both changes and bring the configuration, the Terraform state and the account back in line: when you
-  are done, `terraform plan` in {{ workspace }}/app reports no changes. The instance must not be replaced,
-  and nothing else in the account may change.
+  Bring the configuration, the Terraform state and the account back in line:
+    - every approved change stays in the account exactly as it was made, and Terraform takes it over: the
+      configuration describes it and the state holds it, with nothing destroyed, replaced or modified;
+    - every other manual change is undone: what was changed goes back to what the configuration says,
+      and what was added is removed.
+
+  When you are done, `terraform plan` in {{ workspace }}/app reports no changes, and the VPC holds nothing
+  that Terraform doesn't manage (apart from what AWS creates with every VPC). Nothing outside this VPC
+  may change.
 requires:
   services: [moto]
 reset_services: [moto]
@@ -45,12 +48,28 @@ checks:
       expect:
         - {proto: tcp, from: 443, to: 443, cidr: [0.0.0.0/0]}
     weight: 2
+  - type: aws_query
+    name: the security group that was added by hand is gone
+    params:
+      command: ec2 describe-security-groups --filters Name=group-name,Values={{ canaries.name }}-debug
+      query: SecurityGroups[]
+      count: 0
+    weight: 2
+  - type: terraform_state_has
+    name: Terraform manages what it did, plus the subnet that was added by hand
+    params:
+      path: app
+      addresses: [aws_vpc.main, aws_subnet.app, aws_security_group.web, aws_instance.app]
+      types: {aws_subnet: 2}
+      count: 5
+    weight: 2
   - type: terraform_plan_clean
     name: terraform plan reports no changes
     params: {path: app}
     weight: 2
   - type: aws_unchanged
-    name: the instance was not replaced and nothing else was changed
+    name: nothing was replaced, the approved subnet is as it was made, nothing else changed
     params:
       allow_changed: ["ec2/security-groups:{{ canaries.name }}-web"]
-limits: {turns: 25}
+      allow_deleted: ["ec2/security-groups:{{ canaries.name }}-debug"]
+limits: {turns: 35}

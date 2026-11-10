@@ -1,6 +1,6 @@
-id: tf-refactor-moved
+id: tf-refactor-module
 section: terraform
-title: Refactor Terraform resources into for_each without recreating them
+title: Move Terraform resources into a module with for_each without recreating them
 tier: advanced
 tags: [tool:terraform, iface:cli, skill:iac-refactor]
 topology: none
@@ -11,9 +11,13 @@ prompt: |
 
   The Terraform configuration in {{ workspace }}/net is applied and manages a VPC and two subnets, as the
   separate resources aws_subnet.a and aws_subnet.b. Refactor it and apply:
-    - all subnets come from one resource block, aws_subnet.app, with for_each over the keys a, b and c;
+    - the subnets move into a local module in {{ workspace }}/net/modules/subnets, which the root
+      configuration calls once, as module "subnets";
+    - inside the module, all subnets come from one resource block, aws_subnet.this, with for_each over
+      the keys a, b and c;
     - a and b are the two existing subnets. They must not be destroyed or recreated;
-    - c is new: {{ canaries.vpc }}.3.0/24 in eu-west-1c, with the Name tag {{ canaries.name }}-c.
+    - c is new: {{ canaries.vpc }}.3.0/24 in eu-west-1c, with the Name tag {{ canaries.name }}-c;
+    - the VPC stays in the root configuration, as aws_vpc.main.
 
   When you are done, `terraform plan` in {{ workspace }}/net reports no changes. Do not change anything
   else in the account.
@@ -27,10 +31,14 @@ setup: setup.sh
 oracle: oracle.sh
 checks:
   - type: terraform_state_has
-    name: the state has the three subnets under aws_subnet.app
+    name: the state has the three subnets in the module, under aws_subnet.this
     params:
       path: net
-      addresses: [aws_vpc.main, 'aws_subnet.app["a"]', 'aws_subnet.app["b"]', 'aws_subnet.app["c"]']
+      addresses:
+        - aws_vpc.main
+        - 'module.subnets.aws_subnet.this["a"]'
+        - 'module.subnets.aws_subnet.this["b"]'
+        - 'module.subnets.aws_subnet.this["c"]'
       count: 4
     weight: 2
   - type: aws_query
@@ -48,4 +56,4 @@ checks:
     params:
       allow_new: ["ec2/subnets:{{ canaries.name }}-c"]
     weight: 2
-limits: {turns: 25}
+limits: {turns: 30}

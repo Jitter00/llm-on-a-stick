@@ -1,6 +1,7 @@
 #!/bin/bash
 # A hand-made network with settings that differ from Terraform's defaults (DNS hostnames on, public addresses
 # at launch, a description on the group), so a configuration written without reading them plans changes.
+# With an internet gateway and a route table with a default route to it: five resources to import.
 set -euo pipefail
 source "$STICK_LIB/common.sh"
 mkdir -p "$STICK_WORKSPACE/legacy"
@@ -18,4 +19,10 @@ group=$(aws ec2 create-security-group --group-name "$name-web" --description "we
     --vpc-id "$vpc" --query GroupId --output text)
 aws ec2 authorize-security-group-ingress --group-id "$group" --protocol tcp --port 443 --cidr 0.0.0.0/0 >/dev/null
 aws ec2 authorize-security-group-ingress --group-id "$group" --protocol tcp --port 8080 --cidr "$net.0.0/16" >/dev/null
+igw=$(aws ec2 create-internet-gateway --tag-specifications "$(tag internet-gateway "$name")" \
+    --query InternetGateway.InternetGatewayId --output text)
+aws ec2 attach-internet-gateway --vpc-id "$vpc" --internet-gateway-id "$igw"
+rtb=$(aws ec2 create-route-table --vpc-id "$vpc" --tag-specifications "$(tag route-table "$name-public")" \
+    --query RouteTable.RouteTableId --output text)
+aws ec2 create-route --route-table-id "$rtb" --destination-cidr-block 0.0.0.0/0 --gateway-id "$igw" >/dev/null
 SCRIPT

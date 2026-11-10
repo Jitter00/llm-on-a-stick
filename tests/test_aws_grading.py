@@ -274,6 +274,116 @@ def test_aws_policy_grants_wants_exactly_the_listed_permissions(tmp_path: Path, 
     assert check(ctx, "aws_policy_grants", grants=grants, **params).hints == ["missing-object"]
 
 
+def test_aws_policy_grants_resolves_arns_only_the_account_knows(tmp_path: Path, tool: dict[str, Any]) -> None:
+    ctx = make_ctx(tmp_path)
+    arn = "arn:aws:kms:eu-west-1:123456789012:key/1234"
+    policy = {"Statement": [{"Effect": "Allow", "Action": "kms:Decrypt", "Resource": arn}]}
+    tool["reply"] = lambda cmd: done(out=arn + "\n" if "describe-key" in cmd else json.dumps(policy))
+    params = {
+        "command": "iam get-role-policy --role-name r --policy-name p",
+        "query": "PolicyDocument",
+        "resolve": {"CMK": "kms describe-key --key-id alias/x --query KeyMetadata.Arn"},
+    }
+    assert (
+        check(ctx, "aws_policy_grants", grants=[["Allow", "kms:Decrypt", "<CMK>"]], **params).status == "pass"
+    )
+    alias = [["Allow", "kms:Decrypt", "arn:aws:kms:eu-west-1:123456789012:alias/x"]]
+    assert check(ctx, "aws_policy_grants", grants=alias, **params).status == "fail"
+    tool["reply"] = done(254, err="NotFoundException")
+    assert check(ctx, "aws_policy_grants", grants=alias, **params).hints == ["env-error"]
+
+
+# --------------------------------------------------------------------------- reachability
+
+
+def reachable_account() -> awsstate.Snapshot:
+    """One instance that the internet reaches on 443: public address, route, network ACL, group."""
+    everywhere = {"CidrBlock": "0.0.0.0/0", "Protocol": "-1", "RuleAction": "allow", "RuleNumber": 100}
+    return {
+        "ec2/instances": {
+            "i-1": {
+                "label": "web", "State": {"Name": "running"}, "SubnetId": "subnet-1", "VpcId": "vpc-1",
+                "PublicIpAddress": "203.0.113.5", "SecurityGroups": [{"GroupId": "sg-1"}],
+            }
+        },
+        "ec2/route-tables": {
+            "rtb-main": {"VpcId": "vpc-1", "Associations": [{"Main": True}], "Routes": []},
+            "rtb-1": {
+                "VpcId": "vpc-1",
+                "Associations": [{"Main": False, "SubnetId": "subnet-1"}],
+                "Routes": [
+                    {"DestinationCidrBlock": "10.0.0.0/16", "GatewayId": "local", "State": "active"},
+                    {"DestinationCidrBlock": "0.0.0.0/0", "GatewayId": "igw-1", "State": "active"},
+                ],
+            },
+        },
+        "ec2/internet-gateways": {
+            "igw-1": {"InternetGatewayId": "igw-1", "Attachments": [{"VpcId": "vpc-1"}]}
+        },
+        "ec2/network-acls": {
+            "acl-1": {
+                "VpcId": "vpc-1", "IsDefault": True,
+                "Entries": [{**everywhere, "Egress": False}, {**everywhere, "Egress": True}],
+            }
+        },
+        "ec2/security-groups": {
+            "sg-1": {
+                "IpPermissions": [
+                    {"IpProtocol": "tcp", "FromPort": 443, "ToPort": 443,
+                     "IpRanges": [{"CidrIp": "0.0.0.0/0"}]},
+                    {"IpProtocol": "tcp", "FromPort": 22, "ToPort": 22,
+                     "IpRanges": [{"CidrIp": "10.0.0.0/8"}]},
+                ]
+            }
+        },
+    }  # fmt: skip
+
+
+def test_blockers_names_every_layer_that_stops_a_connection() -> None:
+    src = "198.51.100.10"
+    snap = reachable_account()
+    assert awsstate.blockers(snap, "web", 443, src) == []
+    assert awsstate.blockers(snap, "web", 22, src) == [
+        "none of the instance's security groups allows TCP 22 from 198.51.100.10"
+    ]
+    assert awsstate.blockers(snap, "db", 443, src) == ["0 running instance(s) named db"]
+
+    snap["ec2/instances"]["i-1"]["PublicIpAddress"] = None
+    snap["ec2/route-tables"]["rtb-1"]["Associations"] = []  # the subnet falls back to the main table
+    acl = snap["ec2/network-acls"]["acl-1"]["Entries"]
+    acl.append(
+        {"CidrBlock": "0.0.0.0/0", "Protocol": "6", "PortRange": {"From": 443, "To": 443},
+         "RuleAction": "deny", "RuleNumber": 90, "Egress": False}
+    )  # fmt: skip
+    acl[1]["PortRange"] = {"From": 443, "To": 443}  # replies can't leave: the ACL is stateless
+    acl[1]["Protocol"] = "6"
+    found = awsstate.blockers(snap, "web", 443, src)
+    assert [f.split()[1:4] for f in found] == [
+        ["instance", "has", "no"], ["subnet's", "route", "table"],
+        ["subnet's", "network", "ACL"], ["subnet's", "network", "ACL"],
+    ]  # fmt: skip
+
+    snap = reachable_account()
+    snap["ec2/internet-gateways"]["igw-1"]["Attachments"] = []
+    assert "not attached" in awsstate.blockers(snap, "web", 443, src)[0]
+    snap = reachable_account()
+    snap["ec2/security-groups"]["sg-1"]["IpPermissions"] = [
+        {"IpProtocol": "-1", "IpRanges": [{"CidrIp": "0.0.0.0/0"}]}
+    ]
+    assert awsstate.blockers(snap, "web", 22, src) == []  # every protocol is SSH too
+
+
+def test_aws_reachable_passes_either_way_round(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    ctx = make_ctx(tmp_path)
+    monkeypatch.setattr(awsstate, "snapshot", reachable_account)
+    assert check(ctx, "aws_reachable", instance="web", port=443).status == "pass"
+    res = check(ctx, "aws_reachable", instance="web", port=22)
+    assert res.status == "fail" and res.hints == ["wrong-config"] and len(res.observed) == 1
+    assert check(ctx, "aws_reachable", instance="web", port=22, reachable=False).status == "pass"
+    res = check(ctx, "aws_reachable", instance="web", port=443, reachable=False)
+    assert res.status == "fail" and res.hints == ["collateral-change"]
+
+
 # --------------------------------------------------------------------------- terraform
 
 
