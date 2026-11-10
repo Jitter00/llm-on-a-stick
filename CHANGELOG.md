@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.10.0...v0.11.0) (2026-11-10)
+
+
+### Features
+
+* **cloud:** make the aws and terraform tasks harder ([#27](https://github.com/Jitter00/llm-on-a-stick/issues/27)) ([fdbe245](https://github.com/Jitter00/llm-on-a-stick/commit/fdbe245695a2fab14e3cf2f94f9c1daa4462200e))
+
 ## [0.10.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.9.0...v0.10.0) (2026-11-09)
 
 
