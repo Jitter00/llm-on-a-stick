@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.11.0...v0.12.0) (2026-11-10)
+
+
+### Features
+
+* **zabbix:** add the Zabbix service and its five tasks ([#29](https://github.com/Jitter00/llm-on-a-stick/issues/29)) ([9c8a128](https://github.com/Jitter00/llm-on-a-stick/commit/9c8a128be378cf487117e0ebeca86776e69dca22))
+
 ## [0.11.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.10.0...v0.11.0) (2026-11-10)
 
 
