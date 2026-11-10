@@ -56,6 +56,7 @@ def _load() -> None:
         librenms,
         netbox,
         retrieval,
+        zabbix,
     )
 
     for ep in entry_points(group=ENTRY_POINT_GROUP):

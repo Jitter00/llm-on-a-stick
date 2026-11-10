@@ -205,3 +205,108 @@ librenms_add_devices() {
 srl_snmp_community() {
     srl_set "$1" "set / system snmp access-group SNMPv2-RO-Community community-entry RO-Community community $2"
 }
+
+# --- Zabbix ----------------------------------------------------------------
+# $STICK_ZABBIX_URL comes from `stick task start`; the token is the service's default unless overridden.
+ZABBIX_TOKEN="${STICK_ZABBIX_TOKEN:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}"
+ZABBIX_TEMPLATE="Network Generic Device by SNMP"
+# zabbix_api <method> [params json]   e.g. zabbix_api host.get '{"output": ["host"]}'
+# Prints the `result`; fails (with the error on stderr) when Zabbix answers with an error, which it does
+# with HTTP 200.
+zabbix_api() {
+    local method=$1 params=${2:-"{}"} out
+    if ! out=$(curl -sS -H "Authorization: Bearer $ZABBIX_TOKEN" -H "Content-Type: application/json" \
+        --data "$(jq -n --arg m "$method" --argjson p "$params" '{jsonrpc: "2.0", method: $m, params: $p, id: 1}')" \
+        "$STICK_ZABBIX_URL/api_jsonrpc.php"); then
+        echo "zabbix_api $method: request failed" >&2; return 1
+    fi
+    if ! jq -e 'has("result")' <<<"$out" >/dev/null 2>&1; then
+        echo "zabbix_api $method: $out" >&2; return 1
+    fi
+    jq -c .result <<<"$out"
+}
+# Have the server read new configuration (hosts, items, triggers) now instead of within a few seconds.
+zabbix_reload() { docker exec stick-zabbix-server-1 zabbix_server -R config_cache_reload >/dev/null; sleep 1; }
+# zabbix_group_id <name>: the host group's id; the group is created if it isn't there.
+zabbix_group_id() {
+    local id
+    id=$(zabbix_api hostgroup.get "$(jq -n --arg n "$1" '{output: ["groupid"], filter: {name: [$n]}}')" \
+        | jq -r '.[0].groupid // empty')
+    [[ -n "$id" ]] || id=$(zabbix_api hostgroup.create "$(jq -n --arg n "$1" '{name: $n}')" | jq -r '.groupids[0]')
+    printf '%s\n' "$id"
+}
+# zabbix_add_host <host name> <address> <community> [more host.create fields, as json]
+# An SNMPv2c host the way Zabbix's own templates expect it: the community is the host macro
+# {$SNMP_COMMUNITY} and the interface refers to it. In the group Routers, with the generic SNMP template,
+# unless the extra fields say otherwise (e.g. '{"groups": [...], "tags": [...], "status": 1}').
+zabbix_add_host() {
+    local extra=${4:-"{}"} group template
+    group=$(zabbix_group_id Routers)
+    template=$(zabbix_api template.get "$(jq -n --arg n "$ZABBIX_TEMPLATE" '{output: ["templateid"], filter: {host: [$n]}}')" \
+        | jq -er '.[0].templateid')
+    zabbix_api host.create "$(jq -n --arg h "$1" --arg ip "$2" --arg c "$3" --arg g "$group" --arg t "$template" \
+        --argjson extra "$extra" \
+        '{host: $h, groups: [{groupid: $g}], templates: [{templateid: $t}],
+          macros: [{macro: "{$SNMP_COMMUNITY}", value: $c}],
+          interfaces: [{type: 2, main: 1, useip: 1, ip: $ip, dns: "", port: "161",
+                        details: {version: 2, bulk: 1, community: "{$SNMP_COMMUNITY}"}}]} + $extra')" \
+        | jq -r '.hostids[0]'
+}
+# zabbix_poll <host name> [key pattern]: poll the host's SNMP items (those whose key contains the pattern)
+# now. "net.if.discovery" is the rule that finds the host's ports.
+zabbix_poll() {
+    local host ids id
+    zabbix_reload
+    host=$(zabbix_api host.get "$(jq -n --arg h "$1" '{output: ["hostid"], filter: {host: [$h]}}')" \
+        | jq -er '.[0].hostid') || { echo "no Zabbix host $1" >&2; return 1; }
+    ids=$( { zabbix_api item.get "$(jq -n --arg h "$host" --arg k "${2:-}" \
+            '{hostids: [$h], output: ["itemid"], filter: {type: 20, status: 0}, search: {key_: $k}, limit: 40}')"
+        zabbix_api discoveryrule.get "$(jq -n --arg h "$host" --arg k "${2:-}" \
+            '{hostids: [$h], output: ["itemid"], search: {key_: $k}}')"; } | jq -r '.[].itemid')
+    for id in $ids; do
+        zabbix_api task.create "$(jq -n --arg i "$id" '[{type: 6, request: {itemid: $i}}]')" >/dev/null 2>&1 || true
+    done
+}
+# zabbix_wait_available <host name> <1|2>: wait until Zabbix reaches the host over SNMP (1) or has given up
+# on it (2), polling it meanwhile.
+zabbix_wait_available() {
+    local got
+    for n in $(seq 1 45); do
+        (( n % 3 == 1 )) && zabbix_poll "$1" system
+        got=$(zabbix_api host.get "$(jq -n --arg h "$1" '{output: ["hostid"], filter: {host: [$h]},
+            selectInterfaces: ["available"]}')" | jq -r '.[0].interfaces[0].available')
+        [[ "$got" == "$2" ]] && return 0
+        sleep 2
+    done
+    echo "Zabbix host $1: SNMP availability is $got, expected $2" >&2
+    return 1
+}
+# zabbix_wait_items <host name> <text>: have Zabbix discover the host's ports now, and wait until it has an
+# item whose name contains <text> (port items are named "Interface <ifName>(<description>): ...").
+zabbix_wait_items() {
+    local count
+    for n in $(seq 1 45); do
+        (( n % 10 == 1 )) && zabbix_poll "$1" net.if.discovery
+        count=$(zabbix_api item.get "$(jq -n --arg h "$1" --arg t "$2" \
+            '{host: $h, countOutput: true, search: {name: $t}}')" | jq -r .)
+        [[ "$count" -gt 0 ]] && return 0
+        sleep 2
+    done
+    echo "Zabbix host $1 has no item named like '$2'" >&2
+    return 1
+}
+# snmp_wait <address> <community> <text>: wait until the device's SNMP agent shows <text> in its system name
+# or port descriptions (see librenms_wait_snmp), asking from the toolbox image.
+snmp_wait() {
+    local oid out
+    for _ in $(seq 1 60); do
+        for oid in 1.3.6.1.2.1.1.5 1.3.6.1.2.1.31.1.1.1.18; do  # sysName, ifAlias (the image has no MIB files)
+            out=$(docker run --rm --network host "$STICK_TOOLBOX_IMAGE" snmpbulkwalk -v2c -c "$2" -t 2 -r 0 -OQv \
+                "$1" "$oid" 2>/dev/null || true)
+            grep -qF -- "$3" <<<"$out" && return 0
+        done
+        sleep 1
+    done
+    echo "$1 does not show '$3' over SNMP (community $2)" >&2
+    return 1
+}

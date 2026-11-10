@@ -1,0 +1,41 @@
+id: zabbix-query-host
+section: zabbix
+title: Find a host by its tag in Zabbix
+tier: basic
+floor: true  # the section's cheap floor task: CI validates it on every shared-code change
+tags: [tool:zabbix, iface:json-rpc, skill:nms-query]
+prompt: |
+  Zabbix is at {{ services.zabbix.url }} (JSON-RPC API: POST to /api_jsonrpc.php, header
+  "Authorization: Bearer {{ services.zabbix.token }}").
+
+  One of the hosts in Zabbix has the tag "circuit" with the value "{{ canaries.circuit }}". Find it with the
+  API (method host.get; "selectTags": "extend" and "selectInterfaces": "extend" in its params add each
+  host's tags and interfaces to the answer) and write to {{ workspace }}/answer.json:
+    {"host": "<the host's name in Zabbix>", "ip": "<the IP address of its SNMP interface>"}
+
+  Do not change anything in Zabbix or on any device.
+requires:
+  devices: [srl1, srl2, frr1]
+  services: [zabbix]
+reset_services: [zabbix]
+canaries:
+  circuit: description
+  other: description
+  n1: hostname
+  n2: hostname
+  n3: hostname
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: json_file_matches
+    name: answer.json names the host and its address
+    params:
+      path: answer.json
+      expected: {host: "{{ canaries.n2 }}", ip: "{{ nodes.srl2.mgmt_ip }}"}
+    weight: 2
+  - type: zabbix_unchanged
+    name: nothing was changed in Zabbix
+  - type: no_change_outside
+    name: no configuration was changed
+    params: {allowed: []}
+limits: {turns: 15}

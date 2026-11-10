@@ -27,7 +27,7 @@ services:
   netbox: {ram_mb: 1664, measured: true}    # 1453 MiB: netbox 1046 + worker 257 + postgres 146 + valkey 4
   nautobot: {ram_mb: 1536, measured: true}  # 1273 MiB after API use: nautobot 867 + postgres 401 + valkey 5 (no worker)
   librenms: {ram_mb: 1024, measured: true}  # 832 MiB with 3 devices: dispatcher 426 + web 212 + mariadb 189 + valkey 5
-  zabbix: {ram_mb: 1024, measured: false}
+  zabbix: {ram_mb: 1536, measured: true}  # 1.25 GiB with 4 hosts: mariadb 1140 (mostly cache) + web 53 + server 47
   oxidized: {ram_mb: 96, measured: true}     # 47 MiB idle, 4 devices
   moto: {ram_mb: 256, measured: true}        # 178 MiB after EC2, IAM and S3 use (one container, in memory)
   batfish: {ram_mb: 2048, measured: false}

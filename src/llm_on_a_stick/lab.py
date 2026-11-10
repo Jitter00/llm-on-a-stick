@@ -11,8 +11,11 @@ SERVICE_IPS = {
     "nautobot": "172.30.30.102",
     "moto": "172.30.30.103",
     "librenms": "172.30.30.104",
+    "zabbix": "172.30.30.106",
 }
-# Further containers of a service that need the management network (LibreNMS's dispatcher polls from it).
+# Further containers of a service that need the management network (LibreNMS's dispatcher polls from it;
+# Zabbix's server polls from the first address, its web frontend has the API).
 SERVICE_EXTRA_IPS = {
     "librenms": ["172.30.30.105"],
+    "zabbix": ["172.30.30.107"],
 }

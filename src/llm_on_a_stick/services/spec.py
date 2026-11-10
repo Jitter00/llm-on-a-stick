@@ -28,8 +28,13 @@ def expand(value: Any, env: dict[str, str] | None = None) -> Any:
 
 
 class Health(BaseModel):
+    """Healthy = `url` answers 2xx. For an API that answers 200 with an error inside (JSON-RPC: Zabbix),
+    `post` is sent as the JSON body and the answer must contain the text `expect`."""
+
     url: str
     headers: dict[str, str] = Field(default_factory=dict)
+    post: dict[str, Any] | None = None
+    expect: str | None = None
 
 
 class Seed(BaseModel):

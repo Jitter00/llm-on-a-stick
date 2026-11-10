@@ -60,10 +60,17 @@ def ensure_mgmt_network() -> bool:
 
 
 def healthy(spec: ServiceSpec, timeout: float = 5) -> bool:
-    req = urllib.request.Request(spec.health.url, headers=spec.health.headers)  # noqa: S310
+    health = spec.health
+    headers, data = dict(health.headers), None
+    if health.post is not None:
+        headers.setdefault("Content-Type", "application/json")
+        data = json.dumps(health.post).encode()
+    req = urllib.request.Request(health.url, headers=headers, data=data)  # noqa: S310
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 (URL comes from service.yaml)
-            return bool(200 <= resp.status < 300)
+            if not 200 <= resp.status < 300:
+                return False
+            return health.expect is None or health.expect in resp.read().decode("utf-8", "replace")
     except (urllib.error.URLError, OSError):
         return False
 
