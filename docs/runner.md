@@ -5,11 +5,14 @@ gets **the same instructions, the same single tool and the same limits**, so loc
 fairly.
 
 ```bash
-uv run stick env up                                   # the lab must be running
 uv run stick run running-config-cli-frr --model ollama/qwen3:14b
 uv run stick run --section cfg-mgmt --model ollama/qwen3:14b --model anthropic/claude-sonnet-5-5 --repeat 3
 uv run stick report                                   # compare everything in runs/
 ```
+
+`stick run` (and `stick vs`) first starts whatever the chosen tasks need and isn't running yet: the lab, and
+services such as Oxidized or NetBox (a first start of NetBox takes a few minutes). It leaves them running, so the
+next run starts at once. `uv run stick env down` stops everything: the services, then the lab.
 
 ## Which models
 
@@ -32,6 +35,34 @@ Your server on another port or machine: `--base-url http://192.168.1.50:8080/v1`
 `STICK_<PROVIDER>_BASE_URL`, e.g. `export STICK_STRATA_BASE_URL=http://127.0.0.1:9000/v1`. Ollama follows
 `OLLAMA_HOST`, like the `ollama` command does. `stick doctor` shows
 which local servers it can see and what they serve.
+
+### Settings file (`.env`)
+
+To avoid typing these variables each time, put them in a file named `.env` in the folder you run `stick` from:
+
+```bash
+cp .env.example .env      # then edit .env: uncomment the lines you need
+```
+
+[`.env.example`](https://github.com/Jitter00/llm-on-a-stick/blob/main/.env.example) lists every setting with its
+default. `.env` is not committed to git. A variable already set in your shell wins over the file, and `stick`
+prints one line naming the file and the settings it took from it.
+
+**Don't put a real API key in `.env` if you can avoid it.** The file is plain text: any program running as you
+can read it, and it is easy to leak through a backup or a mistaken commit. Two better options:
+
+- **A local proxy that holds the key** (Linux), such as [keyveil](https://github.com/Jitter00/keyveil). The key
+  stays encrypted on disk, the proxy adds it to each request, and `.env` then holds no secret:
+
+    ```bash
+    STICK_ANTHROPIC_BASE_URL=http://127.0.0.1:8787/anthropic
+    ANTHROPIC_API_KEY=proxy-handles-auth      # a placeholder, not a key
+    ```
+
+    keyveil is a young project: read its threat model before relying on it. While it runs, any program on your
+    machine can send requests through it (it can't read the key), so stop it when you're done.
+- **A password manager**, exporting the key for the current terminal only, e.g.
+  `export ANTHROPIC_API_KEY="$(pass show anthropic/api-key)"`.
 
 Before anything runs, `stick run` checks that each server answers and serves the model you named (it lists what the
 server has if not). **The model must support tool calling.** For Ollama, also set the context window to match the other models
@@ -116,9 +147,22 @@ Missing a model, or a value out of date? Add or fix its entry in `data/sampling.
 open a pull request.
 
 Claude models don't take a temperature; use `--effort low|medium|high|xhigh|max` instead (default: the model's
-own). Recent Claude models also think before answering by default; `--no-thinking` turns that off (on models that
-allow it, such as Claude Haiku 5.5 and only up to effort `high`), which gives the weakest Claude run: useful to
-check that a task is hard enough. Both are recorded with the attempt.
+own).
+
+**Thinking is off by default for Claude models.** Recent Claude models think before answering unless told not to;
+`stick run` tells them not to, so every model is compared at its plainest and a task shows whether it is hard
+enough. Add `--thinking` to let the model think (its own default amount). Before the run, `stick` asks the model
+once how it turns thinking off and uses the first way it accepts:
+
+| What is sent | Models (examples) |
+|---|---|
+| thinking `disabled` | Claude Haiku 5.5, Opus 5 (only up to effort `high`) |
+| thinking `between_tools` | Claude Sonnet 5.5 (only up to effort `high`) |
+| nothing: thinking stays on | models that can't turn it off, such as Claude Opus 5.5 and Fable; also any model at effort `xhigh` or `max` |
+
+Which one applied is printed before the run (`sampling: thinking disabled`) and recorded with every attempt, so the
+report never shows a run as "thinking off" when the model was thinking. `--thinking` has no effect on other
+providers: local servers each have their own switch for it.
 
 ## What gets recorded
 
@@ -207,7 +251,10 @@ uv run stick hints runs/compare            # one row per attempt: recorded hints
 
 ### The HTML report
 
-`stick run` ends by writing `report.html` into the runs folder (`--no-report` skips it), and `stick report --html`
+`stick run` ends by writing a report of **that run only** into the runs folder and prints its address to click
+(`--no-report` skips it). The file is named after what ran, e.g.
+`report-claude-haiku-5-5-cfg-mgmt-20261110T140706Z.html`, so reports in one folder don't overwrite each other, and a
+run of one model never turns into a comparison with older runs lying in the same folder. `stick report --html`
 writes it for runs you already have:
 
 ```bash
@@ -240,7 +287,7 @@ uv run stick vs anthropic/claude-haiku-5-5 ollama/gemma4:12b --section zabbix --
 Runs both models on the same tasks and writes the side-by-side `report.html`, into
 `runs/vs-<a>-vs-<b>-<time>/` unless you give `--runs-dir`. It takes the options of `stick run`. `--base-url`
 applies to both models, so with two providers set the address per provider instead, e.g.
-`STICK_OLLAMA_BASE_URL=http://192.168.122.1:11434/v1`.
+`STICK_OLLAMA_BASE_URL=http://192.168.122.1:11434/v1` (in your shell or in [`.env`](#settings-file-env)).
 
 The two models run one after the other, the first one's whole batch before the second. Two local models can't
 share the GPU and RAM, so `stick vs` refuses that pair: run each with `stick run` into its own folder and compare

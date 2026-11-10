@@ -260,7 +260,7 @@ def test_anthropic_session_passes_content_back_unchanged() -> None:
 
     client = models.AnthropicClient.__new__(models.AnthropicClient)
     client.spec = models.parse_spec("anthropic/claude-sonnet-5-5")
-    client.effort, client.max_output_tokens, client.thinking = "high", 16000, True
+    client.effort, client.max_output_tokens, client.thinking_param = "high", 16000, None
     client.sdk = SimpleNamespace(APIError=RuntimeError)  # type: ignore[assignment]
     client.client = SimpleNamespace(messages=SimpleNamespace(create=create))  # type: ignore[assignment]
 
@@ -270,13 +270,85 @@ def test_anthropic_session_passes_content_back_unchanged() -> None:
     assert turn.tool_calls[0].arguments == {"command": "ls"}
     assert turn.usage.input_tokens == 100  # uncached + cache reads: what the model actually read
     assert calls[0]["output_config"] == {"effort": "high"}
-    assert "temperature" not in calls[0] and "thinking" not in calls[0]  # thinking: the model's default
+    assert "temperature" not in calls[0] and "thinking" not in calls[0]  # --thinking: the model's default
     s.add_results([ToolResult("tu1", "file1")])
-    client.thinking = False  # --no-thinking
+    client.thinking_param = {"type": "disabled"}  # the default: off
     s.step()
     assert calls[1]["thinking"] == {"type": "disabled"}
     assert s.messages[1]["content"] is blocks  # thinking blocks go back as received
     assert s.messages[2]["content"][0]["tool_use_id"] == "tu1"
+
+
+class _BadRequest(Exception):
+    pass
+
+
+def _anthropic_client(accepts: set[str], thinking: bool = False, effort: str | None = None) -> Any:
+    """An AnthropicClient whose fake API accepts only these ways of turning thinking off."""
+    tried: list[str] = []
+
+    def create(**kwargs: Any) -> Any:
+        kind = kwargs["thinking"]["type"]
+        tried.append(kind)
+        if kind not in accepts:
+            raise _BadRequest(kind)
+        return SimpleNamespace()
+
+    client = models.AnthropicClient.__new__(models.AnthropicClient)
+    client.spec = models.parse_spec("anthropic/some-model")
+    client.effort, client.thinking = effort, thinking
+    client.thinking_param = None if thinking else {"type": "disabled"}
+    client.sampling, client.sampling_source = {"thinking": "on" if thinking else "disabled"}, "default"
+    client.sdk = SimpleNamespace(  # type: ignore[assignment]
+        BadRequestError=_BadRequest,
+        APIError=RuntimeError,
+        NotFoundError=KeyError,
+        AuthenticationError=KeyError,
+        CredentialsError=OSError,
+    )
+    client.client = SimpleNamespace(  # type: ignore[assignment]
+        models=SimpleNamespace(retrieve=lambda model: None), messages=SimpleNamespace(create=create)
+    )
+    client.check()
+    return client, tried
+
+
+def test_anthropic_missing_credentials_is_a_plain_message() -> None:
+    client, _ = _anthropic_client({"disabled"})
+
+    def retrieve(model: str) -> None:
+        raise OSError("Credentials file not found")
+
+    client.client.models.retrieve = retrieve
+    with pytest.raises(models.ModelError, match="ANTHROPIC_API_KEY"):
+        client.check()
+
+
+def test_anthropic_thinking_is_off_by_default() -> None:
+    assert models.make_client.__kwdefaults__ is None  # positional defaults: thinking is the last one
+    assert models.make_client.__defaults__[-1] is False  # type: ignore[index]
+    client, tried = _anthropic_client({"disabled", "between_tools"})
+    assert tried == ["disabled"]
+    assert client.thinking_param == {"type": "disabled"} and client.sampling["thinking"] == "disabled"
+
+
+def test_anthropic_thinking_off_uses_what_the_model_accepts() -> None:
+    client, tried = _anthropic_client({"between_tools"})
+    assert tried == ["disabled", "between_tools"]
+    assert client.thinking_param == {"type": "between_tools"}
+    assert client.sampling["thinking"] == "between_tools"
+
+
+def test_anthropic_model_that_cannot_stop_thinking_is_recorded_as_on() -> None:
+    client, tried = _anthropic_client(set())
+    assert tried == ["disabled", "between_tools"]
+    assert client.thinking_param is None and client.sampling["thinking"] == "on"
+    assert "can't be turned off" in client.sampling_source
+
+
+def test_anthropic_thinking_asked_for_sends_nothing() -> None:
+    client, tried = _anthropic_client({"disabled"}, thinking=True)
+    assert tried == [] and client.thinking_param is None and client.sampling["thinking"] == "on"
 
 
 # --------------------------------------------------------------------------- toolbox output

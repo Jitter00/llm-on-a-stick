@@ -16,7 +16,7 @@ fields, changing things it shouldn't), not just a score.
 
 **Contents:** [What you need](#what-you-need) · [Install](#install-step-by-step) ·
 [Your first lab](#your-first-lab-about-10-minutes) · [Try the grader](#try-the-grader-be-the-agent) ·
-[Run a model](#run-a-model) · [Cheat sheet](#cheat-sheet) ·
+[Run a model](#run-a-model) · [Commands at a glance](#commands-at-a-glance) · [Cheat sheet](#cheat-sheet) ·
 [Run the tests](#run-the-tests-yourself) · [Troubleshooting](#troubleshooting) · [Glossary](#glossary)
 
 ## The lab
@@ -39,7 +39,7 @@ tools such as NetBox and Oxidized, connected to the lab's management network lik
 
 | | |
 |---|---|
-| **Operating system** | Linux (Ubuntu, Debian, Fedora...) or Windows 11 with WSL2. macOS works on a best-effort basis (see [docs/platforms.md](docs/platforms.md)). |
+| **Operating system** | Linux (Ubuntu, Debian, Fedora...) or Windows 11 with WSL2. On a Mac you can bring up the lab but not run models against it yet; the way round is a Linux virtual machine on the Mac (see [docs/platforms.md](docs/platforms.md)). |
 | **Memory (RAM)** | About 8 GB free: the lab uses ~4 GB, NetBox ~1.5 GB, Oxidized ~50 MB. |
 | **Disk** | About 10 GB free for the container images. |
 | **Internet** | For the first download of images and tools. |
@@ -48,7 +48,9 @@ You don't need to know Python. Everything below is copy and paste.
 
 ## Install, step by step
 
-Open a terminal. On Windows, open your WSL2 (Ubuntu) terminal and run everything there.
+Open a terminal. On Windows, open your WSL2 (Ubuntu) terminal and run everything there. These steps are for Linux
+and WSL2; steps 1 and 2 don't apply on a Mac, which needs Docker Desktop or OrbStack instead (or follow all the
+steps inside a Linux virtual machine).
 
 ### 1. Docker
 
@@ -103,14 +105,25 @@ uv sync
 
 **Check it worked:** `uv run stick --help` lists the available commands.
 
-From now on, run every command from inside the `llm-on-a-stick` folder, and start each one with `uv run`.
+**Install `stick` as a command**, so that you type `stick ...` from now on, without `uv run` in front:
+
+```bash
+uv tool install --editable .
+```
+
+`--editable` makes the command follow this folder, so a `git pull` updates it. **Check it worked:** `stick --help`
+prints the same list. If the terminal says `stick: command not found`, run `uv tool update-shell` and open a new
+terminal.
+
+The rest of this page uses the installed command. Run every command from inside the `llm-on-a-stick` folder: that
+is where `stick` looks for your `.env` settings and where it writes `runs/`.
 
 ## Your first lab (about 10 minutes)
 
 **1. Check your machine.**
 
 ```bash
-uv run stick doctor
+stick doctor
 ```
 
 Every line should say `ok` (or `warn`, which is fine). A `fail` line tells you what to fix: usually Docker or
@@ -119,13 +132,13 @@ containerlab isn't installed or you haven't logged out and back in yet. See [Tro
 **2. Build the FRR router image** (once; about a minute).
 
 ```bash
-uv run stick image build frr
+stick image build frr
 ```
 
 **3. Start the lab.** The first time, this downloads the Nokia SR Linux image (about 1 GB).
 
 ```bash
-uv run stick env up
+stick env up
 ```
 
 You'll see a table with six nodes in state `running`. Give BGP about 30 seconds to come up.
@@ -148,7 +161,7 @@ docker exec -it clab-stick-base-h1 ping -c 3 10.1.2.10
 a small machine); later starts are quick.
 
 ```bash
-uv run stick svc up netbox oxidized
+stick svc up netbox oxidized
 ```
 
 Then open them in your browser:
@@ -160,14 +173,14 @@ Then open them in your browser:
 **6. Reset a tool to its starting state.** This is what the benchmark does between attempts.
 
 ```bash
-uv run stick svc reset netbox
+stick svc reset netbox
 ```
 
 **7. Clean up** when you're done.
 
 ```bash
-uv run stick svc down netbox oxidized
-uv run stick env down
+stick svc down netbox oxidized
+stick env down
 ```
 
 Your NetBox data is kept for next time. To wipe it too, add `--volumes` to the `svc down` command.
@@ -180,7 +193,7 @@ task was done, and if not, why. You can try it now by doing a task yourself. Wit
 **1. Start a task.** It prints the instructions an AI model would get.
 
 ```bash
-uv run stick task start running-config-cli-frr
+stick task start running-config-cli-frr
 ```
 
 The task: save frr2's complete running config to a file. Before you start, it puts a random interface description
@@ -195,7 +208,7 @@ ssh admin@clab-stick-base-frr2 "show running-config" > runs/<run folder>/work/fr
 **3. Grade it.**
 
 ```bash
-uv run stick grade
+stick grade
 ```
 
 You'll see each check with `pass` or `fail`, and an overall result (`pass`, `partial` or `fail`). The full details go
@@ -204,7 +217,7 @@ into `result.json` in the run folder.
 **4. Now fail on purpose** and grade again: delete half of the lines in `frr2.cfg`, or add a line that isn't on the
 router. The grader tells you what's missing or invented (`truncated-output`, `hallucinated-value`).
 
-**5. Try a harder one.** `uv run stick task list` shows all five tasks, from saving a config to comparing CLI,
+**5. Try a harder one.** `stick task list` shows all five tasks, from saving a config to comparing CLI,
 NETCONF and Oxidized. What each one tests: [docs/tasks.md](docs/tasks.md). How grading works and how to write your
 own checks: [docs/grading.md](docs/grading.md).
 
@@ -217,13 +230,13 @@ model must support **tool calling**.
 **1. Check that `stick` sees your model server:**
 
 ```bash
-uv run stick doctor          # lists the model servers it finds and the models they serve
+stick doctor          # lists the model servers it finds and the models they serve
 ```
 
 **2. Run one task with one model:**
 
 ```bash
-uv run stick run running-config-cli-frr --model ollama/qwen3:14b
+stick run running-config-cli-frr --model ollama/qwen3:14b
 ```
 
 The model gets the task's instructions and one tool: running shell commands in a small "toolbox" container that can
@@ -235,10 +248,10 @@ builds the toolbox image, which takes a few minutes (about 1.5 GB: it includes t
 model, stop its server, then run the second:
 
 ```bash
-uv run stick run --section cfg-mgmt --model strata/deepseek-v4.1-flash --repeat 3 --runs-dir runs/compare
+stick run --section cfg-mgmt --model strata/deepseek-v4.1-flash --repeat 3 --runs-dir runs/compare
 # now stop Strata (close its window), then:
-uv run stick run --section cfg-mgmt --model ollama/qwen3:14b --repeat 3 --runs-dir runs/compare
-uv run stick report runs/compare
+stick run --section cfg-mgmt --model ollama/qwen3:14b --repeat 3 --runs-dir runs/compare
+stick report runs/compare
 ```
 
 `stick run` refuses two local models in one command for this reason. A local model and a paid API model can go in one
@@ -247,12 +260,13 @@ command (`--model ollama/qwen3:14b --model anthropic/claude-sonnet-5-5`).
 `stick report` shows, per model, how many attempts passed, the mean score, tokens, cost, time and the most common
 problems. Every attempt's full conversation is in `transcript.jsonl` in its run folder.
 
-You don't have to read those files: every `stick run` also writes `report.html` into the runs folder, one page with
+You don't have to read those files: every `stick run` also writes a report of that run into the runs folder (named after the model and what ran, e.g.
+`report-claude-haiku-5-5-cfg-mgmt-<time>.html`) and prints its address for you to click: one page with
 the scores, where each model struggled and every attempt's checks and conversation. For two models side by side:
 
 ```bash
-uv run stick vs anthropic/claude-haiku-5-5 ollama/qwen3:14b --section cfg-mgmt --repeat 3
-uv run stick report runs/compare --html        # the same page for runs you already have
+stick vs anthropic/claude-haiku-5-5 ollama/qwen3:14b --section cfg-mgmt --repeat 3
+stick report runs/compare --html        # the same page for runs you already have
 ```
 
 The page counts **turns**, and explains them at the top. A turn is one reply from the model: it reads the
@@ -263,7 +277,87 @@ the limit is stopped and graded as it stands, so fewer turns means the model got
 Model names are `provider/model`: `ollama/...`, `lmstudio/...`, `strata/...`, `vllm/...`, `openai/...`,
 `anthropic/...`, or `openai-compat/<model> --base-url http://host:port/v1` for any other OpenAI-compatible server.
 Paid models read their key from an environment variable (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`). Server on a different
-port: `--base-url http://127.0.0.1:9000/v1`. All options and what's recorded: [docs/runner.md](docs/runner.md).
+port: `--base-url http://127.0.0.1:9000/v1`. Settings you use every time can go in a local `.env` file
+(`cp .env.example .env`; it also explains how to keep a real key out of that file). `stick run` starts the lab and the
+tools the chosen tasks need if they aren't running. All options and what's recorded: [docs/runner.md](docs/runner.md).
+
+**Claude models run with thinking off by default**, so every model is compared at its plainest. Add `--thinking` to
+let the model think before it answers:
+
+```bash
+stick run --section cfg-mgmt --model anthropic/claude-haiku-5-5              # thinking off
+stick run --section cfg-mgmt --model anthropic/claude-haiku-5-5 --thinking   # thinking on
+```
+
+A few Claude models can't turn thinking off (Claude Opus 5.5, for example): they run with it on, and the output
+and the report say so. The option has no effect on local models.
+
+## Commands at a glance
+
+The commands for testing models, in one place. Run them from inside the `llm-on-a-stick` folder. `stick run` and `stick vs` start the lab and the tools the tasks need by themselves, and
+each ends by printing the address of its report for you to click.
+
+Letting an AI agent such as Claude Code run the tests for you? It finds what it needs in [AGENTS.md](AGENTS.md):
+the rules (one local model at a time), what it must leave to you (keys, starting model servers) and where the
+results are as data.
+
+**One model, one section**
+
+```bash
+stick run --section cfg-mgmt --model anthropic/claude-haiku-5-5
+```
+
+**Two models side by side**
+
+```bash
+stick vs anthropic/claude-haiku-5-5 ollama/gemma4:12b --section cfg-mgmt
+```
+
+**A single task.** Give the task's id instead of `--section` (`stick task list` shows the ids and which section
+each belongs to):
+
+```bash
+stick run netconf-filtered-bgp --model anthropic/claude-haiku-5-5
+stick vs anthropic/claude-haiku-5-5 ollama/gemma4:12b netconf-filtered-bgp
+```
+
+**Every task in every section.** `--all` works with `stick run` and `stick vs`:
+
+```bash
+stick run --all --model anthropic/claude-haiku-5-5
+stick run --all --model anthropic/claude-haiku-5-5 --repeat 3
+```
+
+`--repeat 3` makes the model attempt each task three times, each attempt starting from a clean lab. Models don't
+always do the same thing twice, so this shows whether a task is solved reliably or only sometimes; the report then
+says "2/3 passed". It takes three times as long.
+
+**Two local models.** They share your GPU and memory, so `stick vs` refuses that pair. Run them one after the other,
+each into its own folder, then make the side-by-side report from the two folders:
+
+```bash
+# 1. Gemma on Ollama
+stick run --section cfg-mgmt --model ollama/gemma4:12b --runs-dir runs/gemma
+
+# 2. Free the GPU (stop the first model), then start the second model's server (Strata: from its window)
+ollama stop gemma4:12b
+
+# 3. Strata
+stick run --section cfg-mgmt --model strata/deepseek-v4.1-flash --runs-dir runs/strata
+
+# 4. Side-by-side report
+stick report runs/gemma runs/strata --html --out runs/gemma-vs-strata.html
+```
+
+Use folders that hold only these runs: the report counts every attempt it finds in them, and a third model or
+setting in there turns the two-way comparison into a three-way one. For every task instead of one section, replace
+`--section cfg-mgmt` with `--all` in steps 1 and 3.
+
+**Stop everything afterwards** (the tools that are running, then the lab):
+
+```bash
+stick env down
+```
 
 ## Cheat sheet
 
@@ -280,19 +374,20 @@ port: `--base-url http://127.0.0.1:9000/v1`. All options and what's recorded: [d
 
 | Command | What it does |
 |---|---|
-| `uv run stick doctor` | Checks your machine and shows what it can run |
-| `uv run stick env up` / `down` / `status` | Start, stop or show the lab |
-| `uv run stick svc list` | Lists the available tools |
-| `uv run stick svc up <tool>...` | Starts tools (one after another), with their starting data |
-| `uv run stick svc status` | Shows which tools are running and healthy |
-| `uv run stick svc reset <tool>` | Puts a tool back to its starting state |
-| `uv run stick svc down <tool>...` | Stops tools (`--volumes` also deletes their data) |
-| `uv run stick task list` | Lists the tasks (`--tasks-dir <folder>` adds your own) |
-| `uv run stick task start <task>` | Prepares an attempt and prints the instructions |
-| `uv run stick grade` | Grades the latest attempt and writes `result.json` |
-| `uv run stick run <task> --model <provider/model>` | Lets a model attempt a task, then grades it (`--section`, `--all`, `--repeat`) |
-| `uv run stick report` | Compares model runs: passes, score, tokens, cost, time, common problems (`--html` writes the report page) |
-| `uv run stick vs <model> <model>` | Runs two models on the same tasks and writes the side-by-side `report.html` |
+| `stick doctor` | Checks your machine and shows what it can run |
+| `stick env up` / `status` | Start or show the lab |
+| `stick env down` | Stop everything: the tools that are running, then the lab |
+| `stick svc list` | Lists the available tools |
+| `stick svc up <tool>...` | Starts tools (one after another), with their starting data |
+| `stick svc status` | Shows which tools are running and healthy |
+| `stick svc reset <tool>` | Puts a tool back to its starting state |
+| `stick svc down <tool>...` | Stops tools (`--volumes` also deletes their data) |
+| `stick task list` | Lists the tasks (`--tasks-dir <folder>` adds your own) |
+| `stick task start <task>` | Prepares an attempt and prints the instructions |
+| `stick grade` | Grades the latest attempt and writes `result.json` |
+| `stick run <task> --model <provider/model>` | Lets a model attempt a task, then grades it (`--section`, `--all`, `--repeat`) |
+| `stick report` | Compares model runs: passes, score, tokens, cost, time, common problems (`--html` writes the report page) |
+| `stick vs <model> <model>` | Runs two models on the same tasks and writes the side-by-side `report.html` |
 
 ## Run the tests yourself
 
@@ -314,7 +409,7 @@ each other, NetBox has its starting data and resets correctly, Oxidized backs up
 
 ```bash
 sudo apt install sshpass         # once: the NETCONF task checks use it
-uv run stick image build frr     # only needed once, or after updating the code
+stick image build frr     # only needed once, or after updating the code
 uv run pytest -m lab -v
 ```
 
@@ -348,14 +443,15 @@ uv run pytest -m lab -v tests/integration/test_runner_lab.py  # the runner and i
 | `permission denied ... docker.sock` | Run `sudo usermod -aG docker $USER`, then log out and back in. |
 | containerlab says it needs root or `sudo` | Run `sudo usermod -aG clab_admins $USER`, then log out and back in. |
 | `stick doctor` shows `fail` for docker | Docker isn't running: `sudo systemctl start docker` (on WSL2, restart WSL). |
-| `address already in use` for port 8081 or 8888 | Something else uses that port. Pick another: `STICK_NETBOX_PORT=9081 uv run stick svc up netbox` (or `STICK_OXIDIZED_PORT` for Oxidized). |
-| NetBox seems stuck on its first start | It's creating its database; this takes about 2.5 minutes (up to ~6 on a small machine). `uv run stick svc status` shows when it's healthy. |
-| `ssh: Could not resolve hostname clab-stick-base-...` | The lab isn't running (`uv run stick env up`), or use the IP from the [cheat sheet](#cheat-sheet). |
-| Not enough memory | `uv run stick doctor` shows your budget. Start only the tools you need. |
+| `address already in use` for port 8081 or 8888 | Something else uses that port. Pick another: `STICK_NETBOX_PORT=9081 stick svc up netbox` (or `STICK_OXIDIZED_PORT` for Oxidized). |
+| NetBox seems stuck on its first start | It's creating its database; this takes about 2.5 minutes (up to ~6 on a small machine). `stick svc status` shows when it's healthy. |
+| `uv sync` or `uv tool install` fails with `Permission denied` on `topologies/clab-stick-base` | Left over from a lab started by version 0.13 or older, which kept its working files there (now in `~/.local/state/stick/labs`). Stop the lab (`stick env down`), then `sudo rm -rf topologies/clab-stick-base`. |
+| `ssh: Could not resolve hostname clab-stick-base-...` | The lab isn't running (`stick env up`), or use the IP from the [cheat sheet](#cheat-sheet). |
+| Not enough memory | `stick doctor` shows your budget. Start only the tools you need. |
 | `stick run` says `cannot reach http://127.0.0.1:...` | The model server isn't running, or it's on another port: add `--base-url http://127.0.0.1:<port>/v1`. |
 | `stick run` says the server `doesn't serve` the model | Use one of the names it lists (for Ollama, `ollama list`), e.g. `ollama/qwen3:14b`. |
 | Every attempt ends with `model-error` | Look at `error` in the run's `metrics.json`. Often the model doesn't support tool calling: try another model. |
-| I want to start completely fresh | `uv run stick svc down netbox oxidized --volumes`, then `uv run stick env down`. |
+| I want to start completely fresh | `stick svc down netbox oxidized --volumes`, then `stick env down`. |
 
 ## Glossary
 
@@ -378,12 +474,16 @@ model on my own machine and compare it to a frontier model".
 
 ## Roadmap
 
-1. ~~**Grader**~~: done. Checks the lab after an attempt and reports what went wrong ([docs/grading.md](docs/grading.md)).
-2. ~~**First tasks**~~: done. Seven config-retrieval tasks over CLI and NETCONF ([docs/tasks.md](docs/tasks.md)).
-3. ~~**Running models**~~: done. Local (Ollama, LM Studio, vLLM, Strata...) and paid models, compared with
-   `stick report` ([docs/runner.md](docs/runner.md)).
-4. **More tools**: ~~Nautobot~~, ~~AWS CLI and Terraform (against an emulated AWS account)~~, ~~LibreNMS~~, ~~Zabbix~~,
-   Gitea, syslog, telemetry, DNS/DHCP, SuzieQ, Batfish.
+What is still to do:
+
+- **More tools**, each with its own tasks: Gitea, syslog, telemetry (gNMI), DNS and DHCP, SuzieQ, Batfish.
+- **More task sections**: lab management and troubleshooting (faults put into the lab for the model to find).
+- **A judge model** for the few things code can't grade.
+- **Your own tasks**: a scaffold command, and tasks loaded from a git address.
+- **Run variants**: the same model at different context sizes and quantisations, CLI against MCP tools.
+- **Several labs in parallel**, so a cloud model and a local model can run at the same time.
+- **More devices**: Cisco CML as a lab backend, and your own Arista, Juniper or Cisco images.
+- **A public leaderboard.**
 
 The detailed list is in [TODO.md](TODO.md). Supported platforms: [docs/platforms.md](docs/platforms.md). Which tools
 work with which devices: [docs/compatibility.md](docs/compatibility.md).

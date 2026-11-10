@@ -1,4 +1,4 @@
-# Reusable unit-test stage. Pushes run Linux + one Python; PRs run the full OS x Python matrix.
+# Reusable unit-test stage. Pushes run Linux + one Python; PRs run every Python on Linux, plus macOS and Windows once.
 name: test
 
 on:
@@ -18,11 +18,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # macos-26 is Apple Silicon (= macos-latest). One extra Intel Mac job: Intel is a shrinking minority
-        # (macOS 26 is the last release supporting it) and the CLI is almost architecture-independent.
-        os: ${{ fromJSON(inputs.full-matrix && '["ubuntu-24.04","macos-26","windows-2025"]' || '["ubuntu-24.04"]') }}
+        # Every supported Python on Linux, the one platform the lab runs on. macOS (macos-26 is Apple Silicon)
+        # and Windows get one job each: they only show that the CLI itself installs and runs there (doctor,
+        # report, lint), and a Python-version problem would already show on Linux.
+        os: ["ubuntu-24.04"]
         python: ${{ fromJSON(inputs.full-matrix && '["3.11","3.12","3.13"]' || '["3.12"]') }}
-        include: ${{ fromJSON(inputs.full-matrix && '[{"os":"macos-15-intel","python":"3.12"}]' || '[]') }}
+        include: ${{ fromJSON(inputs.full-matrix && '[{"os":"macos-26","python":"3.12"},{"os":"windows-2025","python":"3.12"}]' || '[]') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3

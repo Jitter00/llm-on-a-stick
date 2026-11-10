@@ -3,16 +3,18 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any
+from urllib.parse import quote
 
 import typer
 from rich.console import Console
 from rich.table import Table
 
-from llm_on_a_stick import __version__, doctor, paths, services, tasks
+from llm_on_a_stick import __version__, doctor, dotenv, paths, services, tasks
 from llm_on_a_stick.env import containerlab
 from llm_on_a_stick.grading import grade as grade_mod
 from llm_on_a_stick.grading import run as run_mod
@@ -24,11 +26,14 @@ from llm_on_a_stick.services.seed import RestError
 
 app = typer.Typer(
     name="stick",
-    help="llm-on-a-stick: one eval harness, many LLMs. Start poking.",
+    help="llm-on-a-stick: one eval harness, many LLMs. Start poking.\n\n"
+    "Settings (server addresses, API keys) can live in a .env file in the current folder: see .env.example.",
     no_args_is_help=True,
     add_completion=False,
 )
-env_app = typer.Typer(help="Bring the lab up, down, or inspect it.", no_args_is_help=True)
+env_app = typer.Typer(
+    help="Bring the lab up, inspect it, or stop everything (lab and services).", no_args_is_help=True
+)
 image_app = typer.Typer(help="Build the images we ship as source (e.g. stick-frr).", no_args_is_help=True)
 task_app = typer.Typer(help="Work with benchmark tasks.", no_args_is_help=True)
 svc_app = typer.Typer(
@@ -48,6 +53,15 @@ _OUTCOME_STYLE = {"pass": "green", "partial": "yellow", "fail": "red", "error": 
 TopologyOpt = Annotated[
     str, typer.Option("--topology", "-t", help="Built-in topology name or .clab.yml path.")
 ]
+ENV_FILE = ".env"
+
+
+@app.callback()
+def _main() -> None:
+    env_file = Path(ENV_FILE)
+    added = dotenv.load(env_file)
+    if added:  # say so: a .env in an unfamiliar folder must not redirect API calls unnoticed
+        err.print(f"[dim]{env_file.resolve()}: using {', '.join(added)}[/]", highlight=False, soft_wrap=True)
 
 
 @app.command()
@@ -113,13 +127,24 @@ def env_up(
 
 @env_app.command("down")
 def env_down(topology: TopologyOpt = "base") -> None:
-    """Destroy a lab (and clean up its lab directory)."""
+    """Stop everything: the tool-stack services that are running, then the lab.
+
+    Services keep their data (`stick svc down <name> --volumes` deletes it), so the next start is quick.
+    """
     try:
-        containerlab.destroy(topology)
-    except (containerlab.ContainerlabError, FileNotFoundError) as exc:
+        for name in services.available():  # first: they are attached to the lab's network
+            spec = services.load(name)
+            if lifecycle.status(spec):
+                lifecycle.down(spec)
+                console.print(f"[green]stopped[/] {spec.name}")
+        if containerlab.inspect(topology):
+            containerlab.destroy(topology)
+            console.print("[green]destroyed[/] the lab")
+        else:
+            console.print("[dim]the lab wasn't running[/]")
+    except (containerlab.ContainerlabError, lifecycle.ServiceError, FileNotFoundError) as exc:
         err.print(f"[red]{exc}[/]")
         raise typer.Exit(1) from exc
-    console.print("[green]destroyed[/]")
 
 
 @env_app.command("status")
@@ -391,6 +416,15 @@ def _select_tasks(
     if not (sections or all_):
         raise tasks.TaskError("say which tasks: task ids, --section <name> or --all")
     found = [tasks.load_task(p) for p in tasks.discover(roots)]
+    known = sorted({t.section for t in found})
+    for name in sections or []:
+        if name in known:
+            continue
+        if any(t.id == name for t in found):  # a task id given as a section
+            raise tasks.TaskError(
+                f"{name!r} is a task, not a section: give it without --section (`stick run {name} ...`)"
+            )
+        raise tasks.TaskError(f"no section {name!r}; sections: {', '.join(known)}")
     return [t for t in found if all_ or t.section in (sections or [])]
 
 
@@ -429,12 +463,13 @@ TemperatureOpt = Annotated[
     ),
 ]
 EffortOpt = Annotated[str | None, typer.Option(help="Anthropic effort: low, medium, high, xhigh, max.")]
-NoThinkingOpt = Annotated[
+ThinkingOpt = Annotated[
     bool,
     typer.Option(
-        "--no-thinking",
-        help="Anthropic models: turn thinking off (it is on by default on recent models). The weakest "
-        "setting, for checking that a task is hard enough; some models reject it.",
+        "--thinking/--no-thinking",
+        help="Anthropic models: let the model think before it answers. Off by default, so models are "
+        "compared at their plainest; a model that can't turn thinking off runs with it on, and the "
+        "report says so. No effect on other providers.",
     ),
 ]
 MinFreeRamOpt = Annotated[
@@ -462,14 +497,17 @@ def run_cmd(
     cmd_timeout: CmdTimeoutOpt = 60,
     temperature: TemperatureOpt = None,
     effort: EffortOpt = None,
-    no_thinking: NoThinkingOpt = False,
+    thinking: ThinkingOpt = False,
     min_free_ram: MinFreeRamOpt = 2048,
     tasks_dir: TasksDirOpt = None,
     runs_dir: RunsDirOpt = Path("runs"),
     seed: SeedOpt = None,
     no_report: NoReportOpt = False,
 ) -> None:
-    """Let models attempt tasks in the lab, grade each attempt and compare. Needs the lab running.
+    """Let models attempt tasks in the lab, grade each attempt and compare.
+
+    Starts what the tasks need and isn't running yet (the lab, and services such as NetBox) and leaves it
+    running afterwards.
 
     Ends with a summary table and, in the runs folder, report.html: scores, where each model struggled and
     every attempt's checks and transcript.
@@ -479,7 +517,7 @@ def run_cmd(
         raise typer.Exit(2)
     _run_models(
         model, task_refs, section, all_, repeat, base_url, max_turns, timeout_s, cmd_timeout, temperature,
-        effort, no_thinking, min_free_ram, tasks_dir, runs_dir, seed, no_report,
+        effort, thinking, min_free_ram, tasks_dir, runs_dir, seed, no_report,
     )  # fmt: skip
 
 
@@ -501,7 +539,7 @@ def vs_cmd(
     cmd_timeout: CmdTimeoutOpt = 60,
     temperature: TemperatureOpt = None,
     effort: EffortOpt = None,
-    no_thinking: NoThinkingOpt = False,
+    thinking: ThinkingOpt = False,
     min_free_ram: MinFreeRamOpt = 2048,
     tasks_dir: TasksDirOpt = None,
     runs_dir: Annotated[
@@ -510,7 +548,7 @@ def vs_cmd(
     ] = None,
     seed: SeedOpt = None,
 ) -> None:
-    """Two models on the same tasks, side by side: runs both, then writes the versus report.html.
+    """Two models on the same tasks, side by side: runs both, then writes the versus report.
 
     The models run one after the other, the first one's whole batch before the second (they share the one
     lab). To compare runs you already have: `stick report <folder> <folder> --html`.
@@ -523,7 +561,7 @@ def vs_cmd(
         runs_dir = Path("runs") / f"vs-{_slug(model_a)}-vs-{_slug(model_b)}-{stamp}"
     _run_models(
         [model_a, model_b], task_refs, section, all_, repeat, base_url, max_turns, timeout_s, cmd_timeout,
-        temperature, effort, no_thinking, min_free_ram, tasks_dir, runs_dir, seed, False,
+        temperature, effort, thinking, min_free_ram, tasks_dir, runs_dir, seed, False,
     )  # fmt: skip
 
 
@@ -539,7 +577,7 @@ def _run_models(
     cmd_timeout: int,
     temperature: float | None,
     effort: str | None,
-    no_thinking: bool,
+    thinking: bool,
     min_free_ram: int,
     tasks_dir: list[Path] | None,
     runs_dir: Path,
@@ -551,9 +589,7 @@ def _run_models(
 
     try:
         selected = _select_tasks(task_refs, section, all_, _task_roots(tasks_dir))
-        clients = [
-            models.make_client(m, base_url, temperature, effort, thinking=not no_thinking) for m in model
-        ]
+        clients = [models.make_client(m, base_url, temperature, effort, thinking=thinking) for m in model]
         local = [c.spec.spec for c in clients if c.spec.endpoint.local and c.spec.provider != "script"]
         if len(local) > 1:
             raise models.ModelError(
@@ -576,6 +612,7 @@ def _run_models(
     if not selected:
         err.print("[red]no tasks matched[/]")
         raise typer.Exit(2)
+    _bring_up(selected)
 
     free = loop.available_ram_mb()
     if min_free_ram and free < min_free_ram:
@@ -619,9 +656,34 @@ def _run_models(
     if rows:
         console.print()
         _print_report(rows)
-        if not no_report:
-            _write_html([runs_dir], runs_dir / "report.html", title=None, task=None)
+        if not no_report:  # this run's attempts only: the folder may hold older runs of other models
+            name = _report_name(model, task_refs, section, all_)
+            _write_html(done, runs_dir / name, title=None, task=None)
     raise typer.Exit(1 if errors else 0)
+
+
+def _bring_up(selected: list[tasks.Task]) -> None:
+    """Start the lab(s) and services the tasks need, unless they are running already."""
+    topologies = sorted({t.topology for t in selected if t.requires.get("devices")})  # some need no lab
+    names = sorted({str(s) for t in selected for s in t.requires.get("services", []) or []})
+    stop: list[str] = []
+    try:
+        for topology in topologies:
+            if any(n.state == "running" for n in containerlab.inspect(topology)):
+                continue
+            console.print(f"starting the lab ({topology}), it isn't running ...", highlight=False)
+            containerlab.deploy(topology)
+            stop.append(topology)
+        stopped = [spec for spec in _load_services(names) if not lifecycle.healthy(spec)]
+        for spec in stopped:
+            console.print(f"starting {spec.name}, it isn't running ...", highlight=False)
+            lifecycle.up(spec, log=lambda m: console.print(f"  {m}"))
+        stop += [spec.name for spec in stopped]
+    except (containerlab.ContainerlabError, FileNotFoundError, lifecycle.ServiceError, RestError) as exc:
+        err.print(f"[red]{exc}[/]")
+        raise typer.Exit(2) from exc
+    if stop:
+        console.print("[dim]left running afterwards; to stop everything: stick env down[/]", highlight=False)
 
 
 def _print_report(rows: list[Any]) -> None:
@@ -645,10 +707,36 @@ def _write_html(targets: list[Path], out: Path, title: str | None, task: str | N
     if data is None:
         return False
     kind = "versus report" if data["versus"] else "report"
+    # A file:// address: most terminals make it clickable (Ctrl+click, or Cmd+click on a Mac).
+    console.print(f"\n[bold]Open the {kind} in your browser:[/]", highlight=False)
+    console.print(f"  {_file_url(out)}", soft_wrap=True, highlight=False, markup=False)
     console.print(
-        f"{kind}: [bold]{out}[/] (data: {out.with_suffix('.json')})", soft_wrap=True, highlight=False
+        f"  [dim]same numbers as data: {out.with_suffix('.json')}[/]", soft_wrap=True, highlight=False
     )
     return True
+
+
+def _file_url(path: Path) -> str:
+    """An address a browser opens. Under WSL the browser runs on Windows, which reaches the Linux files
+    through \\\\wsl.localhost\\<distribution>, so the address names that instead of a plain Linux path."""
+    url = path.resolve().as_uri()  # file:///home/...
+    distro = os.environ.get("WSL_DISTRO_NAME")
+    if distro:
+        return f"file://wsl.localhost/{quote(distro)}{url.removeprefix('file://')}"
+    return url
+
+
+def _report_name(model: list[str], task_refs: list[str] | None, section: list[str] | None, all_: bool) -> str:
+    """`report-<model(s)>-<what was run>-<time>.html`: tells the reports in one folder apart."""
+    if all_:
+        what = "all"
+    elif section:
+        what = "+".join(section)
+    else:
+        refs = [Path(r).name for r in task_refs or []]
+        what = refs[0] if len(refs) == 1 else f"{len(refs)}-tasks"
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    return f"report-{'-vs-'.join(_slug(m) for m in model)}-{_slug(what)}-{stamp}.html"
 
 
 @app.command("report")
