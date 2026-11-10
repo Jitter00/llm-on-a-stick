@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.12.0...v0.13.0) (2026-11-10)
+
+
+### Features
+
+* **report:** add the HTML report and `stick vs` ([#31](https://github.com/Jitter00/llm-on-a-stick/issues/31)) ([d8b1477](https://github.com/Jitter00/llm-on-a-stick/commit/d8b1477ed85a58bf43f010dec866dee0d11a0ec2))
+
 ## [0.12.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.11.0...v0.12.0) (2026-11-10)
 
 
