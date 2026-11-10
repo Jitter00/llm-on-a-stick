@@ -65,3 +65,15 @@ def test_vs_refuses_two_local_models(tmp_path: Path) -> None:
     )
     assert result.exit_code == 2
     assert not (tmp_path / "vs").exists()
+
+
+def test_run_explains_a_task_id_given_as_a_section() -> None:
+    result = runner.invoke(cli.app, ["run", "--model", "ollama/x", "--section", "netconf-filtered-bgp"])
+    assert result.exit_code == 2
+    assert "is a task, not a section" in result.output.replace("\n", " ")
+
+
+def test_run_lists_the_sections_for_an_unknown_one() -> None:
+    result = runner.invoke(cli.app, ["run", "--model", "ollama/x", "--section", "nope"])
+    assert result.exit_code == 2
+    assert "cfg-mgmt" in result.output

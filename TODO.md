@@ -18,8 +18,8 @@ Items are roughly in order; dependencies are noted. Tick items off in the PR tha
 - [x] Fine-grained PAT (this repo only; Contents + Pull requests read/write) stored as secret
       `RELEASE_PLEASE_TOKEN` (`gh secret set RELEASE_PLEASE_TOKEN -R Jitter00/llm-on-a-stick`). Without it, the Release PR
       opened by `GITHUB_TOKEN` never runs CI and is blocked by branch protection.
-- [x] CI matrix: Linux (ubuntu-24.04), Apple Silicon (macos-26), Windows (windows-2025) × Python 3.11–3.13, plus one
-      Intel Mac job (macos-15-intel, Python 3.12).
+- [x] CI matrix: Linux (ubuntu-24.04) × Python 3.11–3.13, plus Apple Silicon (macos-26) and Windows (windows-2025)
+      once each on Python 3.12. Trimmed from ten jobs: macOS and Windows only prove the CLI itself runs there.
 - [ ] Try `ubuntu-26.04` runners once containerlab is verified there (`ubuntu-latest` is still 24.04).
 - [x] Licence: MIT.
 
@@ -138,6 +138,10 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
 
 ## Later
 
+- [ ] **macOS.** First test the Linux-VM route in docs/platforms.md on a real Mac (also: do the service and toolbox
+      images run on ARM?). Then native `stick run`: put the toolbox on `stick-mgmt` instead of the host network,
+      give tasks the services' lab-network addresses instead of `127.0.0.1`, run containerlab in a container.
+      The network change affects Linux too, so every section needs re-testing.
 - [ ] CML backend (lab-per-sample via `virl2_client`; CML-Free 5-node limit; Cisco refplat images only inside CML).
 - [ ] BYO vendor images: Arista cEOS, Juniper vJunos/cRPD (vrnetlab), Cisco XRd/Cat8kv. Fetch/build scripts only, never redistributed.
 - [ ] Use NetClaw's MCP servers (Apache-2.0) as the tool layer for the "CLI vs MCP" variant; NetClaw itself as an agent under test.

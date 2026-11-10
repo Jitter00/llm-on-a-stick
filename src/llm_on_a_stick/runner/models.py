@@ -222,7 +222,7 @@ def make_client(
     temperature: float | None = None,
     effort: str | None = None,
     max_output_tokens: int = MAX_OUTPUT_TOKENS,
-    thinking: bool = True,
+    thinking: bool = False,
 ) -> Client:
     """`temperature` given (e.g. --temperature): sent as is, nothing else. Not given: data/sampling.yaml's
     values for the model, else temperature 0."""
@@ -477,9 +477,14 @@ class OpenAISession:
 # --------------------------------------------------------------------------- Anthropic
 
 
+# Ways to turn thinking off, tried in this order: most models take the first, some only the second, and a
+# few can't turn it off at all.
+THINKING_OFF = ("disabled", "between_tools")
+
+
 class AnthropicClient:
     def __init__(
-        self, spec: ModelSpec, effort: str | None, max_output_tokens: int, thinking: bool = True
+        self, spec: ModelSpec, effort: str | None, max_output_tokens: int, thinking: bool = False
     ) -> None:
         import anthropic  # imported lazily: only needed for Claude models
 
@@ -487,13 +492,14 @@ class AnthropicClient:
         self.context_window: int | None = None
         self.effort = effort
         self.max_output_tokens = max_output_tokens
-        # False (--no-thinking): send thinking disabled. Recent Claude models think by default (adaptive), so
-        # leaving the parameter out does not turn it off. Models that can't run without thinking reject it.
+        # Thinking is off unless asked for (--thinking), so models are compared at their plainest. Recent
+        # Claude models think by default, so "off" has to be sent, and how depends on the model: check()
+        # settles on the first of THINKING_OFF the model accepts, else on the model's own default (on).
         self.thinking = thinking
+        self.thinking_param: dict[str, str] | None = None if thinking else {"type": THINKING_OFF[0]}
         self.sampling: dict[str, Any] = {"effort": effort}  # Claude models take no temperature
-        if not thinking:
-            self.sampling["thinking"] = "disabled"
-        flags = [f for f, on in (("--effort", effort), ("--no-thinking", not thinking)) if on]
+        self.sampling["thinking"] = "on" if thinking else THINKING_OFF[0]
+        flags = [f for f, on in (("--effort", effort), ("--thinking", thinking)) if on]
         self.sampling_source = " ".join(flags) or "default"
         kwargs: dict[str, Any] = {"max_retries": 3}
         if spec.base_url:
@@ -515,6 +521,37 @@ class AnthropicClient:
             raise ModelError("the Anthropic API key was rejected") from exc
         except self.sdk.APIError as exc:
             raise ModelError(f"Anthropic API: {exc}") from exc
+        except self.sdk.CredentialsError as exc:
+            raise ModelError(
+                "no usable Anthropic credentials: set ANTHROPIC_API_KEY in your shell or in a .env file in "
+                f"this folder (see .env.example), or run `ant auth login` ({exc})"
+            ) from exc
+        if not self.thinking:
+            self._settle_thinking_off()
+
+    def _settle_thinking_off(self) -> None:
+        """Find how this model turns thinking off, with one tiny request per way tried."""
+        probe: dict[str, Any] = {
+            "model": self.spec.model,
+            "max_tokens": 16,
+            "messages": [{"role": "user", "content": "Reply with: ok"}],
+            "tools": [{"name": "noop", "description": "Does nothing.", "input_schema": {"type": "object"}}],
+        }
+        if self.effort:
+            probe["output_config"] = {"effort": self.effort}
+        for kind in THINKING_OFF:
+            try:
+                self.client.messages.create(**probe | {"thinking": {"type": kind}})
+            except self.sdk.BadRequestError:
+                continue  # this model, or this effort, doesn't take it
+            except self.sdk.APIError as exc:
+                raise ModelError(f"Anthropic API: {exc}") from exc
+            self.thinking_param = {"type": kind}
+            self.sampling["thinking"] = kind
+            return
+        self.thinking_param = None
+        self.sampling["thinking"] = "on"
+        self.sampling_source = (self.sampling_source + " (thinking can't be turned off here)").strip()
 
     def new_session(
         self, system: str, prompt: str, tools: list[ToolDef], variables: dict[str, Any]
@@ -541,8 +578,8 @@ class AnthropicSession:
         }
         if self.c.effort:
             kwargs["output_config"] = {"effort": self.c.effort}
-        if not self.c.thinking:
-            kwargs["thinking"] = {"type": "disabled"}
+        if self.c.thinking_param:
+            kwargs["thinking"] = self.c.thinking_param
         t0 = time.monotonic()
         try:
             resp = self.c.client.messages.create(**kwargs)

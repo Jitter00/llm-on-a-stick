@@ -31,9 +31,23 @@ class ContainerlabError(RuntimeError):
     pass
 
 
+def lab_dir_base() -> Path:
+    """Where containerlab keeps a lab's working files (``clab-<name>/``, partly owned by root).
+
+    Outside the assets: next to the topology file they would sit inside the source tree or the
+    installed package, where files we can't read break the next build or upgrade.
+    """
+    state = os.environ.get("XDG_STATE_HOME") or str(Path.home() / ".local" / "state")
+    return Path(state) / "stick" / "labs"
+
+
 def _env() -> dict[str, str]:
     env = dict(os.environ)
     env.setdefault("STICK_FRR_IMAGE", DEFAULT_FRR_IMAGE)
+    if "CLAB_LABDIR_BASE" not in env:
+        base = lab_dir_base()
+        base.mkdir(parents=True, exist_ok=True)
+        env["CLAB_LABDIR_BASE"] = str(base)
     return env
 
 
