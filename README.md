@@ -227,6 +227,18 @@ Now let an AI model do the same tasks. You need a model server running on your m
 [Ollama](https://ollama.com) (`ollama pull qwen3:14b`), LM Studio, or Strata, or an API key for a paid model. The
 model must support **tool calling**.
 
+**Set the context window on your model server yourself.** The context window is how much conversation the model
+can hold at once, and `stick` doesn't change it: it only records the size the server reports. Set it before you
+start the server, and use the same size for every model you compare:
+
+- **Ollama**: its default is small, and a conversation that outgrows it is cut without warning. Start it with
+  `OLLAMA_CONTEXT_LENGTH=65536` (or another size your memory allows).
+- **Strata, LM Studio, llama.cpp, vLLM**: the context size in the server's own settings.
+
+Each attempt records the size that applied (`context_window` in its `metrics.json`). An attempt that fills the
+window stops with `context_full`. To test one model at several sizes, restart the server at each size and run
+into a separate folder (`--runs-dir`).
+
 **1. Check that `stick` sees your model server:**
 
 ```bash
