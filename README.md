@@ -8,14 +8,15 @@ troubleshooting. You run it on your own machine, against a small virtual network
 example one running in Ollama) with a paid one. It tells you **why** a model fails (wrong CLI syntax, made-up API
 fields, changing things it shouldn't), not just a score.
 
-> **Status: early days.** What works today: the virtual lab, the `stick` command, two tools (NetBox and
-> Oxidized), the **grader**, which checks an attempt at a task and explains what went wrong, the **first five
-> tasks** (getting router configs right over CLI and NETCONF), and the **runner**, which lets AI models attempt
-> them and compares the results. You can [be the agent yourself](#try-the-grader-be-the-agent) or
-> [run a model](#run-a-model). More tools and tasks come next. See [Roadmap](#roadmap).
+> **What works today:** the virtual lab; the `stick` command; six tools around it (NetBox, Nautobot, LibreNMS,
+> Zabbix, Oxidized, and an emulated AWS account for the AWS CLI and Terraform); **35 tasks** in seven sections,
+> from getting router configs right over CLI and NETCONF to keeping NetBox in sync and fixing monitoring; the
+> **grader**, which checks every attempt and explains what went wrong; and the **runner**, which lets AI models
+> attempt the tasks and compares the results in a report. Start with [Run a model](#run-a-model). What comes
+> next: [Roadmap](#roadmap).
 
 **Contents:** [What you need](#what-you-need) · [Install](#install-step-by-step) ·
-[Your first lab](#your-first-lab-about-10-minutes) · [Try the grader](#try-the-grader-be-the-agent) ·
+[Your first lab](#your-first-lab-about-10-minutes) ·
 [Run a model](#run-a-model) · [Commands at a glance](#commands-at-a-glance) · [Cheat sheet](#cheat-sheet) ·
 [Run the tests](#run-the-tests-yourself) · [Troubleshooting](#troubleshooting) · [Glossary](#glossary)
 
@@ -40,7 +41,7 @@ tools such as NetBox and Oxidized, connected to the lab's management network lik
 | | |
 |---|---|
 | **Operating system** | Linux (Ubuntu, Debian, Fedora...) or Windows 11 with WSL2. On a Mac you can bring up the lab but not run models against it yet; the way round is a Linux virtual machine on the Mac (see [docs/platforms.md](docs/platforms.md)). |
-| **Memory (RAM)** | About 8 GB free: the lab uses ~4 GB, NetBox ~1.5 GB, Oxidized ~50 MB. |
+| **Memory (RAM)** | About 6 GB free for one section, about 11 GB to run every section at once (`--all`). The lab uses ~4 GB; each tool adds its own: NetBox ~1.5 GB, Nautobot ~1.3 GB, Zabbix ~1.3 GB, LibreNMS ~0.8 GB, the emulated AWS account ~0.2 GB, Oxidized ~50 MB. A model running on the same machine needs its own memory on top. `stick doctor` shows what fits. |
 | **Disk** | About 10 GB free for the container images. |
 | **Internet** | For the first download of images and tools. |
 
@@ -185,45 +186,11 @@ stick env down
 
 Your NetBox data is kept for next time. To wipe it too, add `--volumes` to the `svc down` command.
 
-## Try the grader: be the agent
-
-The grader is what will score AI models: it looks at the lab after an attempt and checks, one by one, whether the
-task was done, and if not, why. You can try it now by doing a task yourself. With the lab running (see above):
-
-**1. Start a task.** It prints the instructions an AI model would get.
-
-```bash
-stick task start running-config-cli-frr
-```
-
-The task: save frr2's complete running config to a file. Before you start, it puts a random interface description
-on frr2 (a "canary"), so a made-up or memorised config can't pass.
-
-**2. Do the task.** Copy the run folder name from the output (`runs/running-config-cli-frr-...`):
-
-```bash
-ssh admin@clab-stick-base-frr2 "show running-config" > runs/<run folder>/work/frr2.cfg    # password: admin
-```
-
-**3. Grade it.**
-
-```bash
-stick grade
-```
-
-You'll see each check with `pass` or `fail`, and an overall result (`pass`, `partial` or `fail`). The full details go
-into `result.json` in the run folder.
-
-**4. Now fail on purpose** and grade again: delete half of the lines in `frr2.cfg`, or add a line that isn't on the
-router. The grader tells you what's missing or invented (`truncated-output`, `hallucinated-value`).
-
-**5. Try a harder one.** `stick task list` shows all five tasks, from saving a config to comparing CLI,
-NETCONF and Oxidized. What each one tests: [docs/tasks.md](docs/tasks.md). How grading works and how to write your
-own checks: [docs/grading.md](docs/grading.md).
-
 ## Run a model
 
-Now let an AI model do the same tasks. You need a model server running on your machine, for example
+Let an AI model attempt the tasks: `stick` gives it each task's instructions, grades what it did in the lab and
+tells you why it failed. (To see what the grader does by doing a task yourself, see
+[docs/grading.md](docs/grading.md#try-it-yourself-be-the-agent).) You need a model server running on your machine, for example
 [Ollama](https://ollama.com) (`ollama pull qwen3:14b`), LM Studio, or Strata, or an API key for a paid model. The
 model must support **tool calling**.
 
@@ -255,7 +222,7 @@ The model gets the task's instructions and one tool: running shell commands in a
 reach the lab. When it says it's done (or runs out of turns or time), the grader scores the attempt. The first run
 builds the toolbox image, which takes a few minutes (about 1.5 GB: it includes the AWS CLI and Terraform).
 
-**3. Compare two models on all five tasks**, three attempts each (models don't always do the same thing twice).
+**3. Compare two models on the five `cfg-mgmt` tasks**, three attempts each (models don't always do the same thing twice).
 **Run local models one after another, never at the same time**: they share your GPU and memory. Finish the first
 model, stop its server, then run the second:
 
@@ -399,7 +366,7 @@ stick env down
 | `stick grade` | Grades the latest attempt and writes `result.json` |
 | `stick run <task> --model <provider/model>` | Lets a model attempt a task, then grades it (`--section`, `--all`, `--repeat`) |
 | `stick report` | Compares model runs: passes, score, tokens, cost, time, common problems (`--html` writes the report page) |
-| `stick vs <model> <model>` | Runs two models on the same tasks and writes the side-by-side `report.html` |
+| `stick vs <model> <model>` | Runs two models on the same tasks and writes the side-by-side report |
 
 ## Run the tests yourself
 
