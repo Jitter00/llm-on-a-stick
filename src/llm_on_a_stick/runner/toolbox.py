@@ -19,7 +19,7 @@ from llm_on_a_stick.env import containerlab
 IMAGE = os.environ.get("STICK_TOOLBOX_IMAGE", "stick-toolbox:dev")
 # The `stick.toolbox.version` label of images/toolbox/Dockerfile. 2: adds aws, boto3 and terraform;
 # 3: adds snmpget and snmpwalk.
-TOOLBOX_VERSION = "3"
+TOOLBOX_VERSION = "4"
 
 
 class ToolboxError(RuntimeError):

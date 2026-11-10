@@ -16,6 +16,7 @@ from botocore.exceptions import ClientError
 ec2 = boto3.client("ec2")
 iam = boto3.client("iam")
 s3 = boto3.client("s3")
+sqs = boto3.client("sqs")
 
 
 def tag_name(obj: dict[str, Any]) -> str | None:
@@ -90,6 +91,34 @@ def buckets() -> dict[str, Any]:
     return out
 
 
+def network_acls() -> list[dict[str, Any]]:
+    """Every subnet without an ACL of its own is on its VPC's default one: a new subnet doesn't change it."""
+    acls = pages(ec2, "describe_network_acls", "NetworkAcls")
+    for acl in acls:
+        if acl.get("IsDefault"):
+            acl.pop("Associations", None)
+    return acls
+
+
+def snapshots() -> list[dict[str, Any]]:
+    """The account's own snapshots, minus the hundreds the emulator makes for its stock images."""
+    return [
+        s for s in pages(ec2, "describe_snapshots", "Snapshots", OwnerIds=["self"])
+        if s.get("Tags") or not s.get("Description", "").startswith("Auto-created snapshot for AMI")
+    ]  # fmt: skip
+
+
+def queues() -> dict[str, Any]:
+    out = {}
+    for url in pages(sqs, "list_queues", "QueueUrls"):
+        attrs = sqs.get_queue_attributes(QueueUrl=url, AttributeNames=["All"])["Attributes"]
+        for counter in [k for k in attrs if k.startswith("ApproximateNumberOf")]:
+            attrs.pop(counter)  # message counters move when the queue is read
+        name = url.rsplit("/", 1)[-1]
+        out[name] = {**attrs, "label": name}
+    return out
+
+
 def main() -> None:
     instances = [i for r in pages(ec2, "describe_instances", "Reservations") for i in r["Instances"]]
     snap = {
@@ -105,6 +134,9 @@ def main() -> None:
         "ec2/instances": keyed(instances, "InstanceId"),
         "ec2/volumes": keyed(pages(ec2, "describe_volumes", "Volumes"), "VolumeId"),
         "ec2/addresses": keyed(ec2.describe_addresses()["Addresses"], "AllocationId"),
+        "ec2/network-acls": keyed(network_acls(), "NetworkAclId"),
+        "ec2/snapshots": keyed(snapshots(), "SnapshotId"),
+        "ec2/images": keyed(ec2.describe_images(Owners=["self"])["Images"], "ImageId", "Name"),
         "iam/roles": roles(),
         "iam/policies": policies(),
         "iam/instance-profiles": keyed(
@@ -112,6 +144,7 @@ def main() -> None:
         ),
         "iam/users": keyed(pages(iam, "list_users", "Users"), "UserName"),
         "s3/buckets": buckets(),
+        "sqs/queues": queues(),
     }
     json.dump(snap, sys.stdout, default=str, sort_keys=True)
 

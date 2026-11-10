@@ -39,7 +39,7 @@ COPY ssh_config /etc/ssh/ssh_config.d/stick.conf
 
 # Raise together with TOOLBOX_VERSION in src/llm_on_a_stick/runner/toolbox.py when the image's tools change:
 # `stick run` rebuilds an older stick-toolbox:dev instead of running tasks without the new tools.
-LABEL stick.toolbox.version="3"
+LABEL stick.toolbox.version="4"
 
 ENV PAGER=cat TERM=dumb AWS_PAGER= CHECKPOINT_DISABLE=1 TF_IN_AUTOMATION=1
 WORKDIR /root

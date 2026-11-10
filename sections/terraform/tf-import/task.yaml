@@ -12,9 +12,11 @@ prompt: |
   Someone built a small network by hand:
     - the VPC with the Name tag {{ canaries.name }};
     - the subnet with the Name tag {{ canaries.name }}-a in it;
-    - the security group named {{ canaries.name }}-web in it.
+    - the security group named {{ canaries.name }}-web in it;
+    - the VPC's internet gateway;
+    - the route table with the Name tag {{ canaries.name }}-public, with its route.
 
-  Bring these three under Terraform in {{ workspace }}/legacy (it has a provider block already): write
+  Bring these five under Terraform in {{ workspace }}/legacy (it has a provider block already): write
   their configuration and import them, so that `terraform plan` there reports no changes. The resources
   themselves must stay exactly as they are: nothing recreated, modified or added in the account.
 requires:
@@ -27,10 +29,15 @@ setup: setup.sh
 oracle: oracle.sh
 checks:
   - type: terraform_state_has
-    name: Terraform manages the VPC, the subnet and the security group
+    name: Terraform manages the five resources
     params:
       path: legacy
-      types: {aws_vpc: 1, aws_subnet: 1, aws_security_group: 1}
+      types:
+        aws_vpc: 1
+        aws_subnet: 1
+        aws_security_group: 1
+        aws_internet_gateway: 1
+        aws_route_table: 1
     weight: 2
   - type: terraform_plan_clean
     name: terraform plan reports no changes
@@ -38,4 +45,4 @@ checks:
     weight: 2
   - type: aws_unchanged
     name: nothing was recreated, modified or added in the AWS account
-limits: {turns: 30}
+limits: {turns: 40}

@@ -1,0 +1,75 @@
+id: aws-iam-least-privilege
+section: aws
+title: Cut an application's IAM role down to what the application does
+tier: advanced
+tags: [tool:aws-cli, iface:rest, skill:cloud-iam]
+topology: none
+prompt: |
+  An AWS account is ready in your toolbox: `aws` and boto3 work as they are (the credentials, the region
+  eu-west-1 and the API endpoint, an emulator, are set in the environment).
+
+  An application on EC2 runs with the IAM role {{ canaries.role }}, which may do far more than the
+  application needs. This is everything the application does in AWS:
+    - S3: it downloads objects under reports/ in the bucket {{ canaries.bucket }}, and lists the objects
+      of that bucket;
+    - SQS: it receives messages from the queue {{ canaries.queue }} and deletes them;
+    - KMS: it decrypts data with the key that has the alias alias/{{ canaries.alias }};
+    - SSM: it reads the parameter /{{ canaries.role }}/config (that one parameter, by name).
+
+  Reduce the role to least privilege: when you are done its only permissions are one inline policy named
+  app, which allows the six IAM actions this needs (one per operation), each on the full ARN of exactly
+  the resource named above (the only wildcard is the one for the objects under reports/). No other inline
+  policy and no managed policy stay on the role.
+
+  The role is in use: do not delete or recreate it, and leave its trust policy and its instance profile
+  alone. Do not change anything else in the account.
+requires:
+  services: [moto]
+reset_services: [moto]
+canaries:
+  role: hostname
+  bucket: hostname
+  queue: hostname
+  alias: hostname
+  other: hostname
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: aws_policy_grants
+    name: the inline policy app grants exactly the six permissions
+    params:
+      command: iam get-role-policy --role-name {{ canaries.role }} --policy-name app
+      query: PolicyDocument
+      resolve:
+        CMK: kms describe-key --key-id alias/{{ canaries.alias }} --query KeyMetadata.Arn
+      grants:
+        - [Allow, "s3:GetObject", "arn:aws:s3:::{{ canaries.bucket }}/reports/*"]
+        - [Allow, "s3:ListBucket", "arn:aws:s3:::{{ canaries.bucket }}"]
+        - [Allow, "sqs:ReceiveMessage", "arn:aws:sqs:eu-west-1:123456789012:{{ canaries.queue }}"]
+        - [Allow, "sqs:DeleteMessage", "arn:aws:sqs:eu-west-1:123456789012:{{ canaries.queue }}"]
+        - [Allow, "kms:Decrypt", "<CMK>"]
+        - [Allow, "ssm:GetParameter", "arn:aws:ssm:eu-west-1:123456789012:parameter/{{ canaries.role }}/config"]
+    weight: 4
+  - type: aws_query
+    name: the role has no other inline policy
+    params:
+      command: iam list-role-policies --role-name {{ canaries.role }}
+      query: PolicyNames
+      expect: [app]
+  - type: aws_query
+    name: the role has no managed policy
+    params:
+      command: iam list-attached-role-policies --role-name {{ canaries.role }}
+      query: AttachedPolicies
+      count: 0
+  - type: aws_policy_grants
+    name: the trust policy is as it was
+    params:
+      command: iam get-role --role-name {{ canaries.role }}
+      query: Role.AssumeRolePolicyDocument
+      grants: [[Allow, "sts:AssumeRole", ec2.amazonaws.com]]
+  - type: aws_unchanged
+    name: nothing else was changed in the AWS account
+    params:
+      allow_changed: ["iam/roles:{{ canaries.role }}"]
+limits: {turns: 25}

@@ -113,7 +113,8 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
       what Nautobot does differently (Token auth, locations, required statuses, namespaces, IP-to-interface links,
       `termination_a_*` cables).
 - [x] **aws and terraform tasks** (5 + 5), against moto, with no lab devices (`topology: none`). Graded on
-      resource state only: the emulator enforces nothing. Later: a second cloud only if a broad emulator
+      resource state only: the emulator enforces nothing. Rewritten once (the first set was too easy:
+      docs/tasks.md, "Which tasks are kept"), with an `aws_reachable` check that reads reachability off the state. Later: a second cloud only if a broad emulator
       appears (Azurite covers Azure storage only, GCP has per-product emulators); OpenTofu next to Terraform.
 - [x] **librenms tasks** (5 of 5): query a port, add a device with a rotated community, fix a device that went
       down, an alert rule graded by what it fires, sync from NetBox. Graded after a poll the grader forces.

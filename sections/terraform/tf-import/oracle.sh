@@ -6,7 +6,34 @@ id() { aws_cli ec2 "$1" --filters "$2" --query "$3" --output text; }
 vpc=$(id describe-vpcs "Name=tag:Name,Values=$name" 'Vpcs[0].VpcId')
 subnet=$(id describe-subnets "Name=tag:Name,Values=$name-a" 'Subnets[0].SubnetId')
 group=$(id describe-security-groups "Name=group-name,Values=$name-web" 'SecurityGroups[0].GroupId')
+igw=$(id describe-internet-gateways "Name=tag:Name,Values=$name" 'InternetGateways[0].InternetGatewayId')
+rtb=$(id describe-route-tables "Name=tag:Name,Values=$name-public" 'RouteTables[0].RouteTableId')
 cat >> "$STICK_WORKSPACE/legacy/main.tf" <<TF
+
+import {
+  to = aws_internet_gateway.main
+  id = "$igw"
+}
+
+import {
+  to = aws_route_table.public
+  id = "$rtb"
+}
+
+resource "aws_internet_gateway" "main" {
+  vpc_id = aws_vpc.main.id
+  tags   = { Name = "$name", owner = "netops" }
+}
+
+resource "aws_route_table" "public" {
+  vpc_id = aws_vpc.main.id
+  tags   = { Name = "$name-public", owner = "netops" }
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.main.id
+  }
+}
 
 import {
   to = aws_vpc.main

@@ -89,14 +89,16 @@ attempts that change anything the task didn't ask for. Run them with `uv run sti
 
 AWS work against an emulated account ([moto](services.md#moto-emulated-aws)), with the `aws` CLI or boto3: the
 model chooses. Tasks state the goal, not the commands, and are graded on the resources the account ends up with.
+Apart from the floor task, none of them says what to create: the model has to find out what is there, and what
+is wrong with it, first.
 
 | Task | Tier | What the agent must do | What can go wrong (and is detected) |
 |---|---|---|---|
 | `aws-query-instance` | basic | Report an instance's private IP, its subnet's CIDR block and its security group's name | The other instance's values, the subnet id instead of its CIDR block, a changed account |
-| `aws-vpc-build` | intermediate | Build a VPC with a public and a private subnet, an internet gateway, and a route table for the public subnet only | Gateway created but not attached, the default route put on the main route table (the private subnet gets it too), the route table not associated, no public addresses at launch |
-| `aws-sg-tighten` | intermediate | SSH to an instance is open to the world: allow it from one network only, on the group that opens it | Editing the wrong one of the instance's two groups, deleting and recreating the group (new id), losing the group's other rules, adding the new rule without removing the open one |
-| `aws-orphan-cleanup` | intermediate | Delete a project's unattached volumes and unassociated Elastic IPs | Deleting the attached volume or associated address, another project's or an untagged orphan, leaving one orphan behind |
-| `aws-iam-role` | advanced | A role EC2 can assume, with an inline policy for `s3:GetObject` under one prefix and `s3:ListBucket` on the bucket, and an instance profile | Wildcard actions or resources, `ListBucket` on the object ARN, a trust policy copied from the over-broad existing role, a managed policy, no instance profile |
+| `aws-ssh-exposure` | intermediate | Report every instance whose security groups let SSH in from the whole internet | Looking only for a rule on port 22 from 0.0.0.0/0: missing the port range that covers 22, the all-protocols rule, the `::/0` rule and the stopped instance; listing UDP 22, port 2222, a rule from another group, an outbound rule, or a group no instance uses |
+| `aws-orphan-cleanup` | intermediate | Delete a project's unattached volumes, unassociated Elastic IPs, and security groups that nothing uses or refers to | Deleting the group that another group's rule refers to, a stopped instance's volume, another project's or an untagged orphan (the emulator refuses none of these); leaving an orphan behind |
+| `aws-unreachable` | advanced | A web server doesn't answer HTTPS from the internet: find every cause and fix it | Stopping at the first of four causes (no public address, no default route, a network ACL deny entry, a security group that allows 443 from 10/8 only); opening more than 443; a default route on the main route table |
+| `aws-iam-least-privilege` | advanced | Replace an over-broad role's permissions with one inline policy for the six operations the application performs, on exact ARNs | An API operation's name that is not an IAM action (`s3:ListObjectsV2` for `s3:ListBucket`), `ListBucket` on the object ARN, `ssm:GetParameters`, the KMS alias ARN instead of the key's, the dead-letter queue, a wildcard, the old inline or managed policies left on the role, the managed policy deleted (another role uses it), the role recreated |
 
 Requirements: moto only (`uv run stick svc up moto`), not the lab. Every attempt starts from an empty account
 (`reset_services: [moto]`, about 0.2 s), and `aws_unchanged` fails attempts that add, change or delete anything
@@ -108,17 +110,17 @@ your shell doesn't have them.
 
 ## terraform: infrastructure as code
 
-Terraform against the same emulated account. Each task gives a working directory under the workspace, most with
-a configuration that the setup already applied; the grader runs `terraform plan` and `terraform state list` there
-itself, and reads the account.
+Terraform against the same emulated account. Each task gives a working directory under the workspace with a
+configuration in it; the grader runs `terraform plan` and `terraform state list` there itself, and reads the
+account.
 
 | Task | Tier | What the agent must do | What can go wrong (and is detected) |
 |---|---|---|---|
 | `tf-plan-report` | basic | Say what applying an edited configuration would create, update, replace and delete, without applying | Applying it, calling a replacement an update, missing the resource that is only deleted |
-| `tf-write-vpc` | intermediate | Write and apply a configuration for a VPC, two subnets and a security group with two rules | Resources made with the CLI instead (not in the state), a plan that isn't clean on the second run, SSH open to the world |
-| `tf-import` | advanced | Bring a hand-made VPC, subnet and security group under Terraform without changing them | Recreating instead of importing, a configuration that doesn't match the real settings (DNS hostnames, public addresses, the group's description and rules), "fixing" the difference with an apply |
-| `tf-drift` | advanced | Two manual changes since the last apply: keep the instance's new type (and put it in the configuration), revert the extra security-group rule | A blind `terraform apply` (reverts both), `apply -refresh-only` (keeps both), replacing the instance |
-| `tf-refactor-moved` | advanced | Turn two subnet resources into one `for_each` resource and add a third, without recreating the two | Destroy and create instead of `moved` blocks or `state mv`, wrong keys, the new subnet missing |
+| `tf-debug` | intermediate | Repair a configuration that never applied (a `for_each` reference without a key, two security groups in a dependency cycle, a subnet outside the VPC) and apply it | Fixing the first error only, breaking the cycle by dropping a rule, moving only some rules out of the groups (inline and separate rules fight: the plan is never clean), building the rest with the CLI |
+| `tf-import` | advanced | Bring a hand-made VPC, subnet, security group, internet gateway and route table under Terraform without changing them | Recreating instead of importing, a configuration that doesn't match the real settings (DNS hostnames, public addresses, the group's description and rules, tags), the table's route written as a separate resource that is never imported, "fixing" the difference with an apply |
+| `tf-drift` | advanced | People worked by hand in a managed VPC: adopt the two approved changes (an instance resize, a new subnet), undo the rest (a rule on a managed group, a security group nobody manages) | A blind `terraform apply` (reverts the resize), `apply -refresh-only` (keeps the rule), stopping when the plan is clean (the plan shows neither the new subnet nor the new group), recreating the subnet instead of importing it, importing it without its tags |
+| `tf-refactor-module` | advanced | Move two subnet resources into a local module with one `for_each` resource and add a third, without recreating the two | Destroy and create instead of `moved` blocks or `state mv`, the wrong module address or keys, the module not initialised, the new subnet missing |
 
 Requirements: moto only. Run them with `uv run stick run --section terraform ...`.
 
@@ -158,6 +160,13 @@ Removed after the first comparison (Strata deepseek-v4.1-flash, Ollama gemma4:26
 each): `extract-facts-json` (passed 9 of 9; writing exact JSON is still tested by the consistency task) and
 `netconf-get-config-srl` (passed 8 of 9; `netconf-filtered-bgp` needs the same `<get-config>`, plus a filter).
 They're in the git history if a smaller model ever needs them.
+
+Rewritten after the second comparison: the first `aws` and `terraform` tasks said exactly what to build, and
+the smallest model tried (gemma4:12b) passed all ten. Eight were replaced by tasks where the model has to find
+out what is there first (`aws-vpc-build`, `aws-sg-tighten`, `aws-iam-role` and `tf-write-vpc` are gone;
+`aws-orphan-cleanup`, `tf-import`, `tf-drift` and the refactoring task got harder). On the new ones gemma4:12b
+passes about four attempts in ten (the floor tasks nearly always, `aws-unreachable`, `tf-import` and `tf-drift`
+never in six attempts), and Claude Haiku with thinking off about nineteen in twenty.
 
 ## Writing a task
 

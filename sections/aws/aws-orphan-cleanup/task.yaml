@@ -1,6 +1,6 @@
 id: aws-orphan-cleanup
 section: aws
-title: Delete a project's unused volumes and Elastic IPs
+title: Delete a project's unused volumes, addresses and security groups
 tier: intermediate
 tags: [tool:aws-cli, iface:rest, skill:cloud-cleanup]
 topology: none
@@ -8,12 +8,15 @@ prompt: |
   An AWS account is ready in your toolbox: `aws` and boto3 work as they are (the credentials, the region
   eu-west-1 and the API endpoint, an emulator, are set in the environment).
 
-  The project "{{ canaries.project }}" has ended, but its server is still running. Its resources carry the
-  tag project={{ canaries.project }}. Clean up what the project no longer uses:
+  The project "{{ canaries.project }}" has been scaled down, but its server is still running. Its
+  resources carry the tag project={{ canaries.project }}. Clean up what the project no longer uses:
     - delete its EBS volumes that are not attached to an instance;
-    - release its Elastic IP addresses that are not associated with anything.
+    - release its Elastic IP addresses that are not associated with anything;
+    - delete its security groups that no network interface uses and that no other security group's rules
+      refer to.
 
-  Leave everything that is in use, and everything that belongs to other projects, as it is.
+  Leave everything that is in use, and everything that belongs to other projects, as it is. The emulator
+  lets you delete things that real AWS would refuse to delete, so check before you delete.
 requires:
   services: [moto]
 reset_services: [moto]
@@ -22,6 +25,7 @@ canaries:
   vol1: hostname
   vol2: hostname
   eip: hostname
+  sg: hostname
 setup: setup.sh
 oracle: oracle.sh
 checks:
@@ -42,13 +46,20 @@ checks:
       count: 0
     weight: 2
   - type: aws_query
-    name: the project's attached volume is still there
+    name: only the security groups in use or referred to are left
+    params:
+      command: ec2 describe-security-groups --filters Name=tag:project,Values={{ canaries.project }}
+      query: SecurityGroups[].GroupName
+      expect: ["{{ canaries.project }}-app", "{{ canaries.project }}-clients"]
+    weight: 2
+  - type: aws_query
+    name: the project's attached volumes are still there
     params:
       command: >-
         ec2 describe-volumes --filters Name=tag:project,Values={{ canaries.project }}
         Name=status,Values=in-use
       query: Volumes[]
-      count: 1
+      count: 2
   - type: aws_query
     name: the project's associated Elastic IP is still there
     params:
@@ -62,4 +73,5 @@ checks:
         - "ec2/volumes:{{ canaries.vol1 }}"
         - "ec2/volumes:{{ canaries.vol2 }}"
         - "ec2/addresses:{{ canaries.eip }}"
-limits: {turns: 25}
+        - "ec2/security-groups:{{ canaries.sg }}"
+limits: {turns: 30}

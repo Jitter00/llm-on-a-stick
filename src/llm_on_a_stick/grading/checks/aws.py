@@ -106,11 +106,24 @@ def _rows(grants: set[tuple[str, str, str]]) -> list[list[str]]:
 
 
 @check("aws_policy_grants")
-def aws_policy_grants(ctx: GradeContext, command: str, query: str, grants: list[list[str]]) -> Verdict:
+def aws_policy_grants(
+    ctx: GradeContext,
+    command: str,
+    query: str,
+    grants: list[list[str]],
+    resolve: dict[str, str] | None = None,
+) -> Verdict:
     """The IAM policy document that `aws <command>` returns at the JMESPath `query` grants exactly `grants`,
     a list of [effect, action, resource or principal], e.g. ["Allow", "s3:GetObject", "arn:aws:s3:::b/x/*"]:
     nothing missing and nothing more (a wildcard action or resource is more). Works for a role's trust
-    policy too: ["Allow", "sts:AssumeRole", "ec2.amazonaws.com"]."""
+    policy too: ["Allow", "sts:AssumeRole", "ec2.amazonaws.com"]. For an ARN only the account knows,
+    `resolve` maps a name to an `aws` command that prints it (`CMK: kms describe-key --key-id alias/x
+    --query KeyMetadata.Arn`), and the grants write it as `<CMK>`."""
+    for name, lookup in (resolve or {}).items():
+        code, out, err = _run(None, f"aws {lookup} --output text")
+        if code != 0 or not out.strip():
+            return Verdict("error", f"aws {lookup}: {err.strip()[-300:] or 'no answer'}", hints=["env-error"])
+        grants = [[str(part).replace(f"<{name}>", out.strip()) for part in grant] for grant in grants]
     code, out, err = _run(None, f"aws {command} --output json --query {shlex.quote(query)}")
     if code != 0:
         return Verdict(
@@ -141,8 +154,8 @@ def aws_unchanged(
     """The AWS account matches its state at `stick task start` (baseline/moto.json), except what the lists
     allow. An entry is a kind (`ec2/subnets`: any of them) or `kind:label` for one resource, the label being
     its Name tag, else its name (`ec2/security-groups:web`, `iam/roles:app`), else its id. Kinds: ec2/vpcs,
-    subnets, route-tables, internet-gateways, security-groups, instances, volumes, addresses; iam/roles,
-    policies, instance-profiles, users; s3/buckets."""
+    subnets, route-tables, internet-gateways, security-groups, network-acls, instances, volumes, snapshots,
+    images, addresses; iam/roles, policies, instance-profiles, users; s3/buckets; sqs/queues."""
     path = ctx.run.baseline_dir / f"{awsstate.SERVICE}.json"
     if not path.exists():
         return Verdict(
@@ -165,6 +178,30 @@ def aws_unchanged(
             expected=allowed, observed=problems[:SAMPLE], hints=["collateral-change"],
         )  # fmt: skip
     return Verdict("pass", "nothing else changed in the AWS account")
+
+
+@check("aws_reachable")
+def aws_reachable(
+    ctx: GradeContext, instance: str, port: int, source: str = "198.51.100.10", reachable: bool = True
+) -> Verdict:
+    """A TCP connection from the internet address `source` to `port` on the running instance with the Name
+    tag `instance` would get through (or, with `reachable: false`, would not), judging by the account's
+    state: a public address, the subnet's route to an attached internet gateway, the network ACL in both
+    directions, a security group rule. Whichever way it was fixed (or left closed) counts."""
+    try:
+        found = awsstate.blockers(awsstate.snapshot(), instance, int(port), source)
+    except awsstate.AwsStateError as exc:
+        raise ServiceUnavailable(str(exc)) from exc
+    what = f"TCP {port} on {instance} from {source}"
+    if reachable:
+        if not found:
+            return Verdict("pass", f"{what}: gets through")
+        return Verdict(
+            "fail", f"{what}: stopped in {len(found)} place(s)", observed=found, hints=["wrong-config"]
+        )
+    if found:
+        return Verdict("pass", f"{what}: still closed", observed=found[:SAMPLE])
+    return Verdict("fail", f"{what}: gets through, and must not", hints=["collateral-change"])
 
 
 def _terraform_dir(ctx: GradeContext, path: str) -> Verdict | None:
