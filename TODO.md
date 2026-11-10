@@ -67,7 +67,10 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
       admin user, token and settings, five tasks in `sections/librenms/`. SR Linux: SNMP was on already (containerlab),
       the startup config sets the community and the host name. FRR: generic `linux`, no BGP MIB (FRR isn't built with
       SNMP), descriptions don't reach `ifAlias`.
-- [ ] **Zabbix.** Same SNMP findings as LibreNMS (docs/services.md); seed host groups and templates via the API.
+- [x] **Zabbix.** Done: 8.0.0 (server, web frontend, MariaDB), `init` steps for the API token, the global
+      community and the `Routers` group, reset by loading the database with the server stopped (~10 s), five tasks
+      in `sections/zabbix/`. Same SNMP findings as LibreNMS; ports come from the stock template
+      `Network Generic Device by SNMP`, which only discovers ports that are administratively up.
 - [ ] **SuzieQ.** Poller against SR Linux and FRR; check which of the two it supports.
 - [ ] **Batfish.** Expected: no SR Linux support, partial FRR. Record the actual result. It becomes fully useful once cEOS or Junos are added.
 - [ ] **Compatibility spike leftovers.** SR Linux SSH CLI, NETCONF and gNMI, LLDP on both OSes, remote syslog
@@ -118,6 +121,8 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
       appears (Azurite covers Azure storage only, GCP has per-product emulators); OpenTofu next to Terraform.
 - [x] **librenms tasks** (5 of 5): query a port, add a device with a rotated community, fix a device that went
       down, an alert rule graded by what it fires, sync from NetBox. Graded after a poll the grader forces.
+- [x] **zabbix tasks** (5 of 5): find a host by tag, add a host with a rotated community, fix a host Zabbix
+      can't reach, a trigger graded by the problem it raises, a maintenance graded by which hosts are in it.
 - [ ] **At most 5 tasks for each of the other sections, none obvious** (rules: docs/tasks.md, "Which tasks are
       kept"; pick the ones local models are likely to get wrong). New sections are per tool (powerdns, kea,
       ...); the groupings are in sections/README.md. Also `lab-mgmt` and `troubleshooting` (fault injection:

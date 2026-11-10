@@ -1,0 +1,100 @@
+# Zabbix for llm-on-a-stick: the server (it polls the devices over SNMP), the web frontend with the JSON-RPC
+# API, and MariaDB.
+#   - lab-only credentials, overridable from the shell
+#   - the server joins the lab's management network at a fixed address: it polls the devices from there
+#   - the API token and the settings are created by `stick svc up zabbix` (service.yaml: init)
+name: stick-zabbix
+
+x-zabbix-db: &zabbix-db
+  DB_SERVER_HOST: db
+  MYSQL_DATABASE: zabbix
+  MYSQL_USER: zabbix
+  MYSQL_PASSWORD: ${STICK_ZABBIX_DB_PASSWORD:-stick-zabbix-db}
+
+services:
+  server:
+    image: docker.io/zabbix/zabbix-server-mysql:alpine-8.0.0
+    hostname: zabbix-server
+    depends_on:
+      db: {condition: service_healthy}
+    environment:
+      <<: *zabbix-db
+      # A lab of four routers: few processes, and quick to notice a change (a new host, a wrong community).
+      ZBX_CACHEUPDATEFREQUENCY: "5"
+      ZBX_STARTPOLLERS: "2"
+      ZBX_STARTSNMPPOLLERS: "2"
+      ZBX_STARTPOLLERSUNREACHABLE: "1"
+      ZBX_STARTTRAPPERS: "2"
+      ZBX_STARTPINGERS: "1"
+      ZBX_STARTDISCOVERERS: "1"
+      ZBX_STARTHTTPPOLLERS: "1"
+      ZBX_STARTPREPROCESSORS: "2"
+      ZBX_STARTLLDPROCESSORS: "1"
+      ZBX_CACHESIZE: 64M
+      ZBX_TIMEOUT: "3"
+      ZBX_UNREACHABLEPERIOD: "6"
+      ZBX_UNREACHABLEDELAY: "3"
+      ZBX_UNAVAILABLEDELAY: "15"
+    healthcheck:
+      # The trapper port opens once the database schema is in place (first boot: a few minutes).
+      test: nc -z 127.0.0.1 10051 || exit 1
+      start_period: 400s
+      timeout: 5s
+      interval: 3s
+    networks:
+      default: {}
+      stick-mgmt:
+        ipv4_address: 172.30.30.106
+
+  web:
+    image: docker.io/zabbix/zabbix-web-nginx-mysql:alpine-8.0.0
+    hostname: zabbix-web
+    depends_on:
+      server: {condition: service_healthy}
+    environment:
+      <<: *zabbix-db
+      ZBX_SERVER_HOST: server
+      ZBX_SERVER_NAME: stick
+      PHP_TZ: UTC
+    healthcheck:
+      test: curl -fsS -o /dev/null http://localhost:8080/ping || exit 1
+      start_period: 60s
+      timeout: 5s
+      interval: 3s
+    ports:
+      - "127.0.0.1:${STICK_ZABBIX_PORT:-8085}:8080"
+    networks:
+      default: {}
+      stick-mgmt:
+        ipv4_address: 172.30.30.107
+
+  db:
+    image: docker.io/library/mariadb:11.8
+    command:
+      - mariadbd
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_bin
+      # Zabbix creates triggers while it loads its schema.
+      - --log-bin-trust-function-creators=1
+    environment:
+      MARIADB_RANDOM_ROOT_PASSWORD: "yes"
+      MARIADB_DATABASE: zabbix
+      MARIADB_USER: zabbix
+      MARIADB_PASSWORD: ${STICK_ZABBIX_DB_PASSWORD:-stick-zabbix-db}
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      start_period: 30s
+      timeout: 5s
+      interval: 3s
+      retries: 20
+    volumes:
+      - zabbix-db:/var/lib/mysql
+      - zabbix-snapshots:/snapshots
+
+networks:
+  stick-mgmt:
+    external: true
+
+volumes:
+  zabbix-db:
+  zabbix-snapshots:

@@ -1,0 +1,41 @@
+id: zabbix-maintenance
+section: zabbix
+title: Put one host group in maintenance in Zabbix
+tier: advanced
+tags: [tool:zabbix, iface:json-rpc, skill:nms-maintenance]
+prompt: |
+  Zabbix is at {{ services.zabbix.url }} (JSON-RPC API: POST to /api_jsonrpc.php, header
+  "Authorization: Bearer {{ services.zabbix.token }}").
+
+  The routers in the Zabbix host group "{{ canaries.site }}" are being upgraded. Create a maintenance
+  period in Zabbix, named {{ canaries.window }}, that starts now and lasts 2 hours, for exactly the hosts
+  of that group, without data collection.
+
+  The maintenance is checked by what it does: within a minute or two Zabbix must show those hosts, and no
+  other host, as in maintenance. Create one maintenance only, and do not change anything else in Zabbix
+  (hosts, host groups) or on any router.
+requires:
+  devices: [srl1, srl2, frr1, frr2]
+  services: [zabbix]
+reset_services: [zabbix]
+canaries:
+  site: hostname
+  window: hostname
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: zabbix_maintenance
+    name: the two routers of the group, and only they, are in a 2-hour maintenance without data collection
+    params:
+      name: "{{ canaries.window }}"
+      hosts: [srl1, frr1]
+      duration_s: 7200
+      data_collection: false
+    weight: 3
+  - type: zabbix_unchanged
+    name: nothing else was changed in Zabbix
+    params: {allow_new: ["maintenances:{{ canaries.window }}"]}
+  - type: no_change_outside
+    name: no router was changed
+    params: {allowed: []}
+limits: {turns: 25}

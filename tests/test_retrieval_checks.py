@@ -183,6 +183,7 @@ def test_builtin_tasks_are_complete() -> None:
         # The same for the emulated AWS account (moto), whose check is aws_unchanged.
         for sot, unchanged in (
             ("netbox", "netbox"), ("nautobot", "nautobot"), ("moto", "aws"), ("librenms", "librenms"),
+            ("zabbix", "zabbix"),
         ):  # fmt: skip
             if sot in services:
                 assert sot in task.reset_services, f"{task.id} doesn't reset {sot}"

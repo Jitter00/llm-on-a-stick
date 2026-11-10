@@ -1,0 +1,72 @@
+# How `stick svc` drives Zabbix. ${VAR:-default} is expanded from the environment, using the same variables
+# and defaults as compose.yaml.
+name: zabbix
+description: Zabbix 8.0 network monitoring (SNMP polling, triggers, maintenance; JSON-RPC API)
+compose: compose.yaml
+project: stick-zabbix
+wait_timeout_s: 600
+
+# Healthy = the API answers a request made with the token, which only exists once `init` below has run.
+# (The API answers HTTP 200 to everything; an error is in the body.)
+health:
+  url: http://127.0.0.1:${STICK_ZABBIX_PORT:-8085}/api_jsonrpc.php
+  headers:
+    Authorization: Bearer ${STICK_ZABBIX_TOKEN:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
+  post: {jsonrpc: "2.0", method: host.get, params: {countOutput: true}, id: 1}
+  expect: '"result"'
+
+endpoints:
+  web (host): http://127.0.0.1:${STICK_ZABBIX_PORT:-8085}
+  api (host): http://127.0.0.1:${STICK_ZABBIX_PORT:-8085}/api_jsonrpc.php
+  api (lab mgmt network): http://172.30.30.107:8080/api_jsonrpc.php
+
+credentials:
+  username: Admin
+  password: zabbix
+  api_token (Authorization Bearer): ${STICK_ZABBIX_TOKEN:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
+
+api:
+  base_url: http://127.0.0.1:${STICK_ZABBIX_PORT:-8085}/
+  headers:
+    Authorization: Bearer ${STICK_ZABBIX_TOKEN:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
+
+# Run once, after the first boot (while the service isn't healthy yet).
+init:
+  steps:
+    # A fixed API token for Admin (user 1): tokens are 64 hex characters, stored as their SHA-512.
+    # No fallback community either: the global {$SNMP_COMMUNITY} is "public" out of the box.
+    - service: db
+      cmd:
+        - sh
+        - -c
+        - >-
+          mariadb -u"$MARIADB_USER" -p"$MARIADB_PASSWORD" "$MARIADB_DATABASE" -e "INSERT IGNORE INTO token
+          (tokenid, name, userid, token, status, expires_at, created_at, creator_userid) VALUES (1, 'stick', 1,
+          SHA2('${STICK_ZABBIX_TOKEN:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}', 512),
+          0, 0, UNIX_TIMESTAMP(), 1);
+          UPDATE globalmacro SET value = 'not-a-lab-community' WHERE macro = '{\$SNMP_COMMUNITY}'"
+    # Only the lab's devices are monitored: remove the "Zabbix server" host the image ships (its agent isn't
+    # there, so it would sit in the problem list), and add the host group the tasks use.
+    - service: web
+      cmd:
+        - sh
+        - -c
+        - >-
+          rpc() { curl -fsS -H 'Content-Type: application/json' -H
+          'Authorization: Bearer ${STICK_ZABBIX_TOKEN:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}'
+          --data "{\"jsonrpc\": \"2.0\", \"method\": \"$1\", \"params\": $2, \"id\": 1}"
+          http://localhost:8080/api_jsonrpc.php | grep -q '"result"'; };
+          rpc host.delete '["10084"]' && rpc hostgroup.create '{"name": "Routers"}'
+  restart: [server]
+
+# The baseline is the database right after init (no hosts); reset stops the server, loads it back and starts
+# the server again (about 10 s). Loading it under a running server would leave what the server holds in
+# memory (problems, availability, queued values) to be written back.
+snapshot:
+  kind: mysql
+  service: db
+  database: zabbix
+  user: zabbix
+  password: ${STICK_ZABBIX_DB_PASSWORD:-stick-zabbix-db}
+  path: /snapshots/baseline.sql
+  stop: [server]

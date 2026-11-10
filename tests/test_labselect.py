@@ -72,3 +72,12 @@ def test_the_librenms_section_and_its_service() -> None:
     assert s == Selection(sections={"librenms"}, services={"librenms", "netbox"}, core=False)
     assert sel("sections/librenms/librenms-alert-rule/task.yaml").sections == {"librenms"}
     assert sel("configs/srl/srl1.cli").core  # the boot config every section starts from
+
+
+def test_the_zabbix_section_and_its_service() -> None:
+    s = sel("services/zabbix/service.yaml")
+    assert s == Selection(sections={"zabbix"}, services={"zabbix"}, core=False)
+    assert sel("sections/zabbix/zabbix-trigger/setup.sh") == Selection(
+        sections={"zabbix"}, services={"zabbix"}
+    )
+    assert sel("tests/integration/test_zabbix.py").services == {"zabbix"}

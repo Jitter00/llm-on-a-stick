@@ -4,8 +4,8 @@ A run directory holds everything about one attempt:
     run.json       task id, task dir, canaries, rendered prompt, timestamps
     work/          the agent's workspace (files the task asks for go here)
     baseline/      every router's config right after setup (for collateral-change checks), and
-                   <service>.json for tasks that need NetBox, Nautobot, LibreNMS or moto (the emulated AWS
-                   account)
+                   <service>.json for tasks that need NetBox, Nautobot, LibreNMS, Zabbix or moto (the
+                   emulated AWS account)
     restore.log    how long putting each router back to its boot config took
     setup.log      output of the task's setup script, if any
     result.json    written later by `stick grade`
@@ -26,7 +26,7 @@ from urllib.parse import urlparse
 from pydantic import BaseModel
 
 from llm_on_a_stick import paths, services
-from llm_on_a_stick.grading import awsstate, librenmsstate, sotstate
+from llm_on_a_stick.grading import awsstate, librenmsstate, sotstate, zabbixstate
 from llm_on_a_stick.grading import canaries as canary_mod
 from llm_on_a_stick.grading.labstate import LabState, LabStateError
 from llm_on_a_stick.grading.template import render
@@ -69,6 +69,7 @@ BASELINES: dict[str, Callable[[], Any]] = {
     "netbox": lambda: sotstate.snapshot(rest_client("netbox"), sotstate.ENDPOINTS["netbox"]),
     "nautobot": lambda: sotstate.snapshot(rest_client("nautobot"), sotstate.ENDPOINTS["nautobot"]),
     "librenms": lambda: librenmsstate.snapshot(rest_client("librenms")),
+    "zabbix": lambda: zabbixstate.snapshot(rest_client("zabbix")),
     "moto": lambda: awsstate.snapshot(),  # the emulated AWS account, through the toolbox's tools
 }
 

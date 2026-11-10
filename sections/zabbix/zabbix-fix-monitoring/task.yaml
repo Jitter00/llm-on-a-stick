@@ -1,0 +1,38 @@
+id: zabbix-fix-monitoring
+section: zabbix
+title: Get a router that Zabbix can't reach monitored again
+tier: intermediate
+tags: [tool:zabbix, iface:json-rpc, skill:nms-troubleshooting]
+prompt: |
+  Zabbix is at {{ services.zabbix.url }} (JSON-RPC API: POST to /api_jsonrpc.php, header
+  "Authorization: Bearer {{ services.zabbix.token }}").
+
+  Zabbix has not been able to poll one of its routers over SNMP since the network team changed that
+  router's SNMP community to {{ canaries.community }}. The router itself works. Find out which host it is
+  and make Zabbix monitor it again. (host.get with "selectInterfaces": "extend" and "selectMacros": "extend"
+  shows, per host, whether Zabbix reaches its interface and where its community is set.)
+
+  Keep the host in Zabbix (its history must not be lost: don't delete it and add it again). Do not change
+  the other hosts in Zabbix, or any router.
+requires:
+  devices: [srl1, srl2, frr1, frr2]
+  services: [zabbix]
+reset_services: [zabbix]
+canaries:
+  community: description
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: zabbix_host
+    name: Zabbix reaches the router again, with the new community
+    params:
+      ip: "{{ nodes.srl2.mgmt_ip }}"
+      expect: {status: 0, available: 1, community: "{{ canaries.community }}"}
+    weight: 3
+  - type: zabbix_unchanged
+    name: the host was kept and no other host was changed
+    params: {allow_changed: ["hosts:srl2"]}
+  - type: no_change_outside
+    name: no router was changed
+    params: {allowed: []}
+limits: {turns: 20}

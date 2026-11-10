@@ -19,14 +19,14 @@ Every attempt starts from the same state. The lab stays up between attempts, tas
 `stick env up` / `env down` deploy or remove it), so `stick task start` resets it first:
 
 1. the services the task lists under `reset_services` go back to their baseline (NetBox's seeded snapshot:
-   ~20 s, Nautobot's: ~25 s, LibreNMS's empty database: ~1 s, moto's empty account: ~0.2 s);
+   ~20 s, Nautobot's: ~25 s, LibreNMS's empty database: ~1 s, Zabbix's: ~10 s, moto's empty account: ~0.2 s);
 2. **every router goes back to the config it booted with**, without a restart, so BGP stays up:
    - SR Linux reverts to `clab-initial`, the checkpoint containerlab takes once the startup config is applied;
    - FRR runs `frr-reload.py` against its startup config, `configs/frr/<node>/frr.conf`;
    - it takes about 2 s for the four routers, and the times are in the run's `restore.log`;
 3. the task's `setup.sh` plants this run's canaries (or a fault);
-4. the baseline is taken, for `no_change_outside`, `netbox_unchanged`, `nautobot_unchanged`, `librenms_unchanged`
-   and `aws_unchanged`.
+4. the baseline is taken, for `no_change_outside`, `netbox_unchanged`, `nautobot_unchanged`, `librenms_unchanged`,
+   `zabbix_unchanged` and `aws_unchanged`.
 
 A task with `topology: none` (the `aws` and `terraform` sections) uses no lab device: step 2 is skipped, and the
 lab doesn't need to be running at all.
@@ -143,6 +143,25 @@ also needs NetBox. Every attempt starts from an empty LibreNMS (`reset_services:
 and `librenms_unchanged` fails attempts that add, change or delete anything the task didn't ask for. Run them
 with `uv run stick run --section librenms ...`.
 
+## zabbix: monitoring
+
+Zabbix polls the routers over SNMP (see [Services](services.md#zabbix)). These tasks drive it through its
+JSON-RPC API. Three of them are graded by what Zabbix then does: whether it reaches the host, whether the
+trigger raises a problem, which hosts it puts in maintenance. The grader forces the polls it needs.
+
+| Task | Tier | What the agent must do | What can go wrong (and is detected) |
+|---|---|---|---|
+| `zabbix-query-host` | basic | Find the host with a given tag value among three; report its name and the address of its SNMP interface | The `auth` property instead of the header, a host whose tag value merely starts the same, no interface in the answer (`selectInterfaces`), changing anything |
+| `zabbix-add-host` | intermediate | Add srl1 over SNMPv2c with this run's community, in a given group and with a given template, so that Zabbix really polls it | A wrong interface (`details`), names where ids are wanted, a wrong community (Zabbix takes it; the host is listed and never reached), touching frr1 |
+| `zabbix-fix-monitoring` | intermediate | One router can't be polled since its community was changed on the device: find which, and fix its host in Zabbix | Deleting and re-adding the host (new id, history lost), changing the router instead, the global macro instead of the host's, "fixing" a healthy host |
+| `zabbix-trigger` | advanced | Create one High trigger for the port with a given description that is down (a port with the same description is up on the other router); it must raise a problem | A trigger on the wrong router or port (no problem), a bad expression, one trigger per router, wrong severity |
+| `zabbix-maintenance` | advanced | Put exactly the hosts of one host group in a 2-hour maintenance without data collection, starting now | A group whose name merely contains the wanted one, "with data collection" (the default), times that aren't epoch seconds or a period that isn't 2 hours, no time period, editing the hosts instead |
+
+Requirements: the lab and Zabbix (`uv run stick env up`, `uv run stick svc up zabbix`). Every attempt starts
+from a Zabbix with no hosts (`reset_services: [zabbix]`, about 10 s), and `zabbix_unchanged` fails attempts
+that add, change or delete anything the task didn't ask for. Run them with
+`uv run stick run --section zabbix ...`.
+
 ## Which tasks are kept
 
 Most models tested here run locally, where one attempt can take minutes, so every task has to earn its place.
@@ -181,7 +200,7 @@ Scripts get these environment variables:
 | `STICK_NODE_<NODE>` / `STICK_NODE_<NODE>_IP` | Container name / management IP of each lab node, e.g. `STICK_NODE_SRL1` |
 | `STICK_<SERVICE>_URL` / `STICK_<SERVICE>_AUTH` | A service's host URL and, if it has an API token, its `Authorization` header value, e.g. `STICK_NETBOX_URL` |
 | `AWS_ENDPOINT_URL`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION` | Only for tasks that require `moto`: what the AWS tools need to reach the emulator |
-| `STICK_LIB` | Folder with shared helpers: `source "$STICK_LIB/common.sh"` gives `srl_set`, `srl_cli`, `frr_conf`, `frr_cli`, `netconf_get_config`, `oxidized_backup_now`, `netbox_api`, `netbox_id`, `nautobot_api`, `nautobot_id`, `librenms_api`, `librenms_add_device(s)`, `librenms_poll`, `librenms_wait_snmp`, `srl_snmp_community` |
+| `STICK_LIB` | Folder with shared helpers: `source "$STICK_LIB/common.sh"` gives `srl_set`, `srl_cli`, `frr_conf`, `frr_cli`, `netconf_get_config`, `oxidized_backup_now`, `netbox_api`, `netbox_id`, `nautobot_api`, `nautobot_id`, `librenms_api`, `librenms_add_device(s)`, `librenms_poll`, `librenms_wait_snmp`, `srl_snmp_community`, `zabbix_api`, `zabbix_add_host`, `zabbix_group_id`, `zabbix_poll`, `zabbix_wait_available`, `zabbix_wait_items`, `snmp_wait` |
 
 Prompts can use `{{ services.<name>.url }}` and, for services with an API token, `{{ services.<name>.token }}`
 (the value after `Bearer`/`Token`, or the whole `X-Auth-Token` for LibreNMS).
@@ -207,7 +226,9 @@ Things learned while writing these tasks:
 - SR Linux startup configs (`configs/srl/*.cli`) take no `#` comment lines: containerlab stops applying the
   file at the first one, silently.
 - SR Linux publishes a configuration change (a description, a community) over SNMP a few seconds later;
-  `librenms_wait_snmp` waits for it before LibreNMS reads the device.
+  `librenms_wait_snmp` waits for it before LibreNMS reads the device (`snmp_wait` does the same from the toolbox
+  image, with numeric OIDs: the image has no MIB files).
+- Zabbix's `discoveryrule.get` ignores a `host` parameter (it lists every template's rules): pass `hostids`.
 - A full NETCONF reply from SR Linux is ~300 KB: pass it through files, not environment variables.
 - SR Linux has `<interface>` elements in several places (network-instances, LLDP...) reusing interface names; take
   top-level interfaces from directly under `<data>`.

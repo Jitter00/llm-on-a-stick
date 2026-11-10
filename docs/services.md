@@ -28,14 +28,20 @@ Each service is a directory under `services/`:
 
 Resetting between benchmark attempts restores a database snapshot rather than recreating containers, which is
 what makes repeated runs cheap. Tasks that list a service under `reset_services` (all NetBox, Nautobot, aws,
-terraform and LibreNMS tasks) do this themselves at `stick task start`, before their setup.
+terraform, LibreNMS and Zabbix tasks) do this themselves at `stick task start`, before their setup.
 
 A reset is one of four kinds (`snapshot.kind` in `service.yaml`): `postgres` restores a database dump (NetBox,
-Nautobot), `mysql` loads a `mariadb-dump` back into the running database (LibreNMS), `volumes` deletes the
+Nautobot), `mysql` loads a `mariadb-dump` back into the database (LibreNMS, while it runs; Zabbix, with its server
+stopped), `volumes` deletes the
 service's volumes and recreates it (Oxidized), and `http` sends one request to the running service (moto).
 
 A service that can't be configured from compose alone (LibreNMS: its admin user, API token and settings)
-lists `init` steps: commands run in its containers once, after the first boot, followed by a restart.
+lists `init` steps: commands run in its containers once, after the first boot, followed by a restart. Zabbix
+has them too (its API token and two settings).
+
+A service is healthy when its `health.url` answers 2xx. Zabbix's JSON-RPC API answers 200 to everything, with
+errors in the body, so its health check posts a request (`health.post`) and looks for a text in the answer
+(`health.expect`).
 
 ## NetBox
 
@@ -162,6 +168,50 @@ descriptions become `ifAlias`, and it needs a few seconds to show a configuratio
     - alert rules take effect at the next poll of each device; `GET /alerts?state=1` lists what fired;
     - a device deleted and added again has a new id and no history: the `librenms_unchanged` check counts
       that as deleting it.
+
+## Zabbix
+
+| | |
+|---|---|
+| Version | Zabbix 8.0.0 (`zabbix/zabbix-server-mysql` and `zabbix-web-nginx-mysql`, `alpine-8.0.0`), MariaDB 11.8 |
+| Web UI (host) | <http://127.0.0.1:8085> (`STICK_ZABBIX_PORT`), user `Admin` / `zabbix` |
+| API | JSON-RPC: `POST http://127.0.0.1:8085/api_jsonrpc.php`; from the lab `http://172.30.30.107:8080/api_jsonrpc.php`. The server polls from 172.30.30.106 |
+| API token | `Authorization: Bearer 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef` (`STICK_ZABBIX_TOKEN`) |
+| RAM (measured) | ~1.25 GiB with 4 hosts: MariaDB 1140 MiB (mostly cache), web 53 MiB, server 47 MiB |
+| Timings (measured) | cold first boot ~25 s on a desktop (plus the images); `svc reset` ~10 s; a new host is reached over SNMP ~10 s after a forced poll |
+
+No seed: the baseline is a Zabbix with no hosts, and each task's setup adds the ones it needs over SNMPv2c,
+the way Zabbix's own templates expect it: the interface's community is `{$SNMP_COMMUNITY}` and the host has
+that macro. Hosts use the stock template `Network Generic Device by SNMP`. Settings made by `init`: a fixed API
+token for `Admin`, the global `{$SNMP_COMMUNITY}` set to something that is not a lab community (it ships as
+`public`), the image's own "Zabbix server" host removed, and a host group `Routers`. The server is tuned for
+a small lab: it reads new configuration every 5 s and gives up on an unreachable host after a few seconds.
+
+Zabbix polls on its own schedule (a port's status once a minute, port discovery once an hour). Setup scripts
+and the grader don't wait: they have the server reload its configuration (`zabbix_server -R
+config_cache_reload`) and poll the items they need now (API `task.create`, type 6), then wait for the result
+they are looking for. A reset stops the server, loads the database and starts the server again: loaded
+under a running server, what it holds in memory (problems, availability) would be written back.
+
+What Zabbix makes of the lab: both SR Linux and FRR answer the generic template. Port discovery only keeps
+ports that are administratively up (3 on srl1 out of the box), and names each port's items after the port
+and its description, e.g. `Interface ethernet-1/1(to frr1): Operational status`, key
+`net.if.status[ifOperStatus.32768]` (1 = up, 2 = down).
+
+!!! note "What trips models"
+    - every call is a `POST` of a JSON-RPC envelope to one URL, and an error comes back with HTTP 200;
+    - the token goes in `Authorization: Bearer`; the `auth` property in the body, which most examples
+      still show, was removed in 7.2, and `user.login` is not needed;
+    - `host.create` takes any community: a wrong one only shows as an interface with `available: 2`
+      (0 = not known yet, 1 = reached);
+    - `status: 0` means a host (or trigger) is enabled;
+    - the community is usually not on the interface but in the host macro `{$SNMP_COMMUNITY}`;
+    - a trigger expression names the host and the item key (`last(/srl1/net.if.status[ifOperStatus.32776])=2`),
+      and the key of a port's item has its ifIndex, not its name;
+    - maintenance times are epoch seconds, the default type is "with data collection", and a maintenance
+      needs a time period as well as `active_since`/`active_till`;
+    - a host deleted and added again has a new id and no history: the `zabbix_unchanged` check counts that
+      as deleting it.
 
 ## Oxidized
 

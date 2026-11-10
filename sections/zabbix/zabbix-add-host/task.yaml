@@ -1,0 +1,50 @@
+id: zabbix-add-host
+section: zabbix
+title: Add a router to Zabbix over SNMP
+tier: intermediate
+tags: [tool:zabbix, vendor:srl, iface:json-rpc, skill:nms-onboarding]
+prompt: |
+  Zabbix is at {{ services.zabbix.url }} (JSON-RPC API: POST to /api_jsonrpc.php, header
+  "Authorization: Bearer {{ services.zabbix.token }}").
+
+  Add the router srl1 to Zabbix (method host.create) so that Zabbix monitors it over SNMP version 2c:
+    - host name: {{ canaries.name }}
+    - SNMP interface: its management address {{ nodes.srl1.mgmt_ip }}, port 161, community {{ canaries.community }}.
+      In host.create an SNMPv2c interface looks like this:
+      {"type": 2, "main": 1, "useip": 1, "ip": "<address>", "dns": "", "port": "161",
+       "details": {"version": 2, "community": "<community>"}}
+    - host group: Routers (it exists)
+    - template: Network Generic Device by SNMP (it exists)
+
+  Zabbix must really reach it: a host that is listed but can't be polled over SNMP doesn't count. Do not
+  change the other hosts in Zabbix, or any router.
+requires:
+  devices: [srl1, frr1]
+  services: [zabbix]
+reset_services: [zabbix]
+canaries:
+  name: hostname
+  community: description
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: zabbix_host
+    name: Zabbix monitors srl1 and reaches it over SNMP
+    params:
+      ip: "{{ nodes.srl1.mgmt_ip }}"
+      expect:
+        host: "{{ canaries.name }}"
+        status: 0
+        available: 1
+        snmp_version: 2
+        community: "{{ canaries.community }}"
+        groups: [Routers]
+        templates: [Network Generic Device by SNMP]
+    weight: 3
+  - type: zabbix_unchanged
+    name: nothing else was changed in Zabbix
+    params: {allow_new: ["hosts:{{ canaries.name }}"]}
+  - type: no_change_outside
+    name: no router was changed
+    params: {allowed: []}
+limits: {turns: 20}

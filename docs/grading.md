@@ -175,6 +175,11 @@ Use these in a task's `checks:` list. Parameters can use `{{ canaries.<name> }}`
 | `librenms_absent` | `hostname` | LibreNMS does not monitor it |
 | `librenms_alert` | `rule`, `devices`, `count`, `severity` | Exactly one rule has that name (and severity), and after a poll of every device it has active alerts on exactly those devices, `count` in all (one per matching port) |
 | `librenms_unchanged` | `allow_new`, `allow_changed`, `allow_deleted` | Devices (how they are monitored), alert rules and device groups match `baseline/librenms.json`, except what the lists allow: a kind (`devices`, `rules`, `groups`) or `kind:label` (`devices:172.30.30.11`, `rules:name`). A device deleted and re-added counts as deleted. Needs `librenms` in `requires.services` |
+| `zabbix_host` | `ip`, `expect`, `poll` (default true), `wait_s` (45) | Zabbix has a host whose SNMP interface is at that address and, after a poll the grader forces, it has those values: `host`, `status` (0 = enabled), `community` (macros resolved), `snmp_version`, `available` (1 = Zabbix reached it over SNMP), `groups` and `templates` (lists: at least these) |
+| `zabbix_absent` | `ip` | Zabbix has no host with an SNMP interface there |
+| `zabbix_problem` | `trigger`, `hosts`, `severity` (0-5), `wait_s` (40) | Exactly one trigger made by hand has that name (and severity), it is enabled and on exactly those hosts, and after a poll of its items it has one open problem |
+| `zabbix_maintenance` | `name`, `hosts`, `duration_s`, `data_collection` (default false), `tolerance_s` (300), `wait_s` (100) | Exactly one maintenance has that name and type, it ends `duration_s` after it was made (between the start of the run and now), and Zabbix really has exactly those hosts in it (it works that out once a minute) |
+| `zabbix_unchanged` | `allow_new`, `allow_changed`, `allow_deleted` | Hosts (how they are monitored), hand-made triggers, maintenances, host groups and global macros match `baseline/zabbix.json`, except what the lists allow: a kind (`hosts`) or `kind:label` (`hosts:srl1`, `triggers:my trigger`) |
 
 
 The cloud checks have no AWS client of their own: they run `aws`, `terraform` and a boto3 script in a throwaway

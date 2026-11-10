@@ -13,6 +13,7 @@ New tasks get one section per tool, so you can test only the tools you use; `cfg
 | `aws` | 5 | AWS with the `aws` CLI or boto3, against an emulated account (moto): queries, an audit of SSH exposure, cleaning up unused resources, a web server unreachable for several reasons, cutting a role down to least privilege |
 | `terraform` | 5 | Terraform against the same account: reading a plan, repairing a broken configuration, importing, reconciling manual changes, refactoring into a module |
 | `librenms` | 5 | LibreNMS 26.10 REST API over SNMP-polled routers: a port query, adding a device, fixing a device that went down, an alert rule that must fire for the right port, adding what NetBox lists as active |
+| `zabbix` | 5 | Zabbix 8.0 JSON-RPC API over SNMP-polled routers: a host query, adding a host, fixing a host Zabbix can't reach, a trigger that must raise a problem on the right router, a maintenance for exactly one host group |
 
 ## Groupings
 
@@ -23,7 +24,7 @@ The wider areas the sections belong to, for orientation only (nothing in `task.y
 | Lab management | *lab-mgmt* (containerlab, later CML) |
 | Configuration management | `cfg-mgmt`, *gitea* (GitOps) |
 | Source of truth and DDI | `netbox`, `nautobot`, *powerdns*, *kea* |
-| Validation and observability | `librenms`, *batfish*, *suzieq*, *gnmic-prometheus*, *syslog*, *zabbix*, *pyats* (Cisco/CML only) |
+| Validation and observability | `librenms`, `zabbix`, *batfish*, *suzieq*, *gnmic-prometheus*, *syslog*, *pyats* (Cisco/CML only) |
 | Cloud | `aws`, `terraform` (no lab devices: `topology: none`) |
 | Troubleshooting | *troubleshooting*: injected faults, correlating events across tools |
 
