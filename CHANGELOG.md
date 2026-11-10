@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.1](https://github.com/Jitter00/llm-on-a-stick/compare/v0.14.0...v0.14.1) (2026-11-10)
+
+
+### Documentation
+
+* **readme:** bring the status, memory needs and roadmap up to date ([#35](https://github.com/Jitter00/llm-on-a-stick/issues/35)) ([4ffcb39](https://github.com/Jitter00/llm-on-a-stick/commit/4ffcb39eb9d1fafefb84a522f75364ba90cc3dda))
+
 ## [0.14.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.13.0...v0.14.0) (2026-11-10)
 
 
