@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.1](https://github.com/Jitter00/llm-on-a-stick/compare/v0.15.0...v0.15.1) (2026-11-11)
+
+
+### Documentation
+
+* **readme:** add a quick start and refresh stale notes ([#39](https://github.com/Jitter00/llm-on-a-stick/issues/39)) ([d434539](https://github.com/Jitter00/llm-on-a-stick/commit/d434539b860c9be7e9139d1ac7b9edf6fa0cec65))
+
 ## [0.15.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.14.1...v0.15.0) (2026-11-11)
 
 
