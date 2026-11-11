@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.14.1...v0.15.0) (2026-11-11)
+
+
+### Features
+
+* **report:** compare up to three models, show total time, line up the score cards ([#37](https://github.com/Jitter00/llm-on-a-stick/issues/37)) ([0e21f1e](https://github.com/Jitter00/llm-on-a-stick/commit/0e21f1e39dee6faf4ed107df68795b5bcf80fcee))
+
 ## [0.14.1](https://github.com/Jitter00/llm-on-a-stick/compare/v0.14.0...v0.14.1) (2026-11-10)
 
 
