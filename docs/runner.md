@@ -260,13 +260,16 @@ writes it for runs you already have:
 ```bash
 uv run stick report runs/compare --html                    # -> runs/compare/report.html
 uv run stick report runs/haiku runs/gemma --html --out vs.html --title "Zabbix: Haiku vs Gemma"
+uv run stick report runs/haiku runs/gemma runs/strata --html --out three.html    # three models
 ```
 
 It is one self-contained file (no network needed, so you can mail it or attach it to an issue) with:
 
 - **What a turn is**, at the top: one reply from the model, in which it asks for commands or says it has
   finished, and how many turns an attempt may use in these runs.
-- **Scores**: per model, attempts passed, mean score, time, turns, tokens and cost.
+- **Scores**: per model, attempts passed, mean score, time, turns, tokens, cost and total time. The line under
+  the title ends with the total time of all attempts as HH:MM:SS: the time spent in the attempts themselves,
+  which is less than first-to-last when there were pauses between them.
 - **Tasks**: one square per attempt (pass, partial, fail, error); select a square to open that attempt.
 - **Where it struggled**: what the model never or only sometimes passed, how its attempts ended, the failure
   hints by how many attempts had them, and the checks that failed most, with the grader's message. This comes
@@ -274,8 +277,10 @@ It is one self-contained file (no network needed, so you can mail it or attach i
 - **Attempts**: each attempt's checks (expected and observed for the failed ones), metrics, prompt and the whole
   conversation: what the model said, every command, its exit code and output.
 
-With two models in the data the page puts them side by side and says which did better on each task (pass rate
-first, then mean score). `report.json` next to it has the same numbers without the transcripts. The transcripts
+With two or three models in the data the page puts them side by side and says which did better on each task
+(pass rate first, then mean score). When two of three share the lead the page names both, and the line at the top
+counts for each model the tasks where it was best or joint best. More than three are still listed side by side,
+without that comparison. `report.json` next to it has the same numbers without the transcripts. The transcripts
 contain the lab's logins and API tokens; they only work inside the lab.
 
 ## Head to head: `stick vs`

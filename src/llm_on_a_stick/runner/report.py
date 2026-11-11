@@ -376,36 +376,52 @@ def _stats(mine: list[AttemptDetail]) -> dict[str, Any]:
         "tokens_out": sum(int(a.metrics.get("tokens_out") or 0) for a in mine),
         "cost_usd": None if any(c is None for c in costs) else round(sum(c or 0.0 for c in costs), 4),
         "mean_wall_s": round(mean(float(a.metrics.get("wall_s") or 0) for a in mine), 1),
+        "total_wall_s": round(sum(float(a.metrics.get("wall_s") or 0) for a in mine), 1),
         "mean_turns": round(mean(int(a.metrics.get("turns") or 0) for a in mine), 1),
     }
 
 
-def _versus(a: dict[str, Any], b: dict[str, Any], tasks: list[dict[str, Any]]) -> dict[str, Any]:
-    """Head to head for exactly two contenders, over the tasks both attempted."""
-    wins: dict[str, list[str]] = {a["id"]: [], b["id"]: [], "tie": []}
-    only: dict[str, list[str]] = {a["id"]: [], b["id"]: []}
+MAX_VERSUS = 3  # the head-to-head comparison is made for two or three contenders
+
+
+def _versus(contenders: list[dict[str, Any]], tasks: list[dict[str, Any]]) -> dict[str, Any]:
+    """Head to head for two or three contenders, over the tasks all of them attempted."""
+    ids = [c["id"] for c in contenders]
+    wins: dict[str, list[str]] = {**{i: [] for i in ids}, "tie": []}
+    top: dict[str, list[str]] = {i: [] for i in ids}
+    only: dict[str, list[str]] = {i: [] for i in ids}
     for t in tasks:
-        pa, pb = t["per"].get(a["id"]), t["per"].get(b["id"])
-        if not (pa and pb):
+        per = t["per"]
+        if not all(i in per for i in ids):
             continue
         wins[t["better"] or "tie"].append(t["id"])
-        if pa["passed"] and not pb["passed"]:
-            only[a["id"]].append(t["id"])
-        if pb["passed"] and not pa["passed"]:
-            only[b["id"]].append(t["id"])
-    na, nb = len(wins[a["id"]]), len(wins[b["id"]])
-    shared = na + nb + len(wins["tie"])
+        for i in t["leaders"]:
+            top[i].append(t["id"])
+        passed = [i for i in ids if per[i]["passed"]]
+        if len(passed) == 1:
+            only[passed[0]].append(t["id"])
+    counts = {i: len(wins[i]) for i in ids}
+    tied = len(wins["tie"])
+    shared = sum(counts.values()) + tied
     if not shared:
-        headline = "The two attempted no task in common."
-    elif na == nb:
-        headline = f"Level: each did better on {_plural(na, 'task')}, {len(wins['tie'])} tied."
-    else:
-        first, second, n1 = (a, b, na) if na > nb else (b, a, nb)
+        headline = f"The {'two' if len(ids) == 2 else 'models'} attempted no task in common."
+    elif len(ids) > 2:
+        # With three, two often share the lead, so "did better" alone says little: count best or joint best.
+        order = sorted(contenders, key=lambda c: len(top[c["id"]]), reverse=True)  # stable: ties keep order
         headline = (
-            f"{first['label']} did better on {n1} of {_plural(shared, 'task')}, {second['label']} on "
-            f"{min(na, nb)}, {len(wins['tie'])} tied."
+            f"Best or joint best on the {_plural(shared, 'task')} all attempted: "
+            + ", ".join(f"{c['label']} on {len(top[c['id']])}" for c in order)
+            + "."
         )
-    return {"a": a["id"], "b": b["id"], "wins": wins, "only_passed_by": only, "headline": headline}
+    elif len(set(counts.values())) == 1:
+        headline = f"Level: each did better on {_plural(counts[ids[0]], 'task')}, {tied} tied."
+    else:
+        first, second = sorted(contenders, key=lambda c: counts[c["id"]], reverse=True)
+        headline = (
+            f"{first['label']} did better on {counts[first['id']]} of {_plural(shared, 'task')}, "
+            f"{second['label']} on {counts[second['id']]}, {tied} tied."
+        )
+    return {"contenders": ids, "wins": wins, "top": top, "only_passed_by": only, "headline": headline}
 
 
 def _rank(per: dict[str, Any]) -> tuple[float, float]:
@@ -451,10 +467,9 @@ def build_report(attempts: list[AttemptDetail], title: str = "") -> dict[str, An
                     "passed": sum(a.outcome == "pass" for a in theirs),
                     "mean_score": round(mean(a.score for a in theirs), 3),
                 }
-        ranked = sorted(per, key=lambda c: _rank(per[c]), reverse=True)
-        better = None
-        if len(ranked) > 1 and _rank(per[ranked[0]]) != _rank(per[ranked[1]]):
-            better = ranked[0]
+        best = max((_rank(p) for p in per.values()), default=None)
+        leaders = [c for c in per if _rank(per[c]) == best]  # more than one: they share the lead
+        better = leaders[0] if len(per) > 1 and len(leaders) == 1 else None
         tasks.append(
             {
                 "id": task_id,
@@ -463,6 +478,7 @@ def build_report(attempts: list[AttemptDetail], title: str = "") -> dict[str, An
                 "tier": mine[0].tier,
                 "per": per,
                 "better": better,
+                "leaders": leaders,
             }
         )
     tasks.sort(key=lambda t: (t["section"], t["id"]))
@@ -474,6 +490,8 @@ def build_report(attempts: list[AttemptDetail], title: str = "") -> dict[str, An
         "generated_by": f"stick {__version__}",
         "first_attempt": started[0] if started else None,
         "last_attempt": started[-1] if started else None,
+        # time spent in the attempts themselves; first to last attempt also spans the pauses between them
+        "total_wall_s": round(sum(float(a.metrics.get("wall_s") or 0) for a in attempts), 1),
         "sections": sorted({a.section for a in attempts if a.section}),
         "stick_versions": sorted({a.stick_version for a in attempts}),
         "turn_limits": sorted(
@@ -481,7 +499,7 @@ def build_report(attempts: list[AttemptDetail], title: str = "") -> dict[str, An
         ),
         "contenders": contenders,
         "tasks": tasks,
-        "versus": _versus(contenders[0], contenders[1], tasks) if len(contenders) == 2 else None,
+        "versus": _versus(contenders, tasks) if 2 <= len(contenders) <= MAX_VERSUS else None,
         "attempts": {a.id: asdict(a) for a in attempts},
         "hint_text": HINT_TEXT,
     }

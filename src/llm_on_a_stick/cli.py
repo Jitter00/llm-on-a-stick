@@ -763,7 +763,7 @@ def report_cmd(
     """Compare model runs: pass rate, score, tokens, cost, time and the most common problems.
 
     With --html: one self-contained page with the scores, where each model struggled, and every attempt's
-    checks and transcript. Two models in the data are shown side by side.
+    checks and transcript. Two or three models in the data are shown side by side, with which did better.
     """
     from llm_on_a_stick.runner import report
 

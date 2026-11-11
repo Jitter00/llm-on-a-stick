@@ -328,8 +328,9 @@ stick run --section cfg-mgmt --model strata/deepseek-v4.1-flash --runs-dir runs/
 stick report runs/gemma runs/strata --html --out runs/gemma-vs-strata.html
 ```
 
-Use folders that hold only these runs: the report counts every attempt it finds in them, and a third model or
-setting in there turns the two-way comparison into a three-way one. For every task instead of one section, replace
+`stick report` compares up to three models this way: give it a third folder (for example `runs/haiku`) and the
+page shows all three side by side. Use folders that hold only these runs: the report counts every attempt it finds
+in them, and another model or setting in there joins the comparison as one more model. For every task instead of one section, replace
 `--section cfg-mgmt` with `--all` in steps 1 and 3.
 
 **Stop everything afterwards** (the tools that are running, then the lab):
