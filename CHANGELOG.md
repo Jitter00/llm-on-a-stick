@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.15.1...v0.16.0) (2026-11-11)
+
+
+### Features
+
+* **runner:** add recommended sampling for Qwen3.8 Flash Next ([#41](https://github.com/Jitter00/llm-on-a-stick/issues/41)) ([379a247](https://github.com/Jitter00/llm-on-a-stick/commit/379a247af15ff979e9748cafc485dfbb907784c1))
+
 ## [0.15.1](https://github.com/Jitter00/llm-on-a-stick/compare/v0.15.0...v0.15.1) (2026-11-11)
 
 
