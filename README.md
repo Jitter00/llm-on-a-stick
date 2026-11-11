@@ -3,8 +3,9 @@
 **One eval harness, many LLMs. Start poking.**
 
 llm-on-a-stick is a free, open-source benchmark that tests how well AI models (LLMs) handle real network engineering
-work: building labs, pulling and changing router configs, keeping NetBox in sync, validating changes and
-troubleshooting. You run it on your own machine, against a small virtual network, and compare a local model (for
+work: pulling router configs over CLI and NETCONF, keeping NetBox and Nautobot in sync with the network, fixing
+monitoring in LibreNMS and Zabbix, and working with the AWS CLI and Terraform. You run it on your own machine,
+against a small virtual network, and compare a local model (for
 example one running in Ollama) with a paid one. It tells you **why** a model fails (wrong CLI syntax, made-up API
 fields, changing things it shouldn't), not just a score.
 
@@ -12,13 +13,42 @@ fields, changing things it shouldn't), not just a score.
 > Zabbix, Oxidized, and an emulated AWS account for the AWS CLI and Terraform); **35 tasks** in seven sections,
 > from getting router configs right over CLI and NETCONF to keeping NetBox in sync and fixing monitoring; the
 > **grader**, which checks every attempt and explains what went wrong; and the **runner**, which lets AI models
-> attempt the tasks and compares the results in a report. Start with [Run a model](#run-a-model). What comes
+> attempt the tasks and compares the results in a report. Start with the [Quick start](#quick-start). What comes
 > next: [Roadmap](#roadmap).
 
-**Contents:** [What you need](#what-you-need) · [Install](#install-step-by-step) ·
+**Contents:** [Quick start](#quick-start) · [What you need](#what-you-need) · [Install](#install-step-by-step) ·
 [Your first lab](#your-first-lab-about-10-minutes) ·
 [Run a model](#run-a-model) · [Commands at a glance](#commands-at-a-glance) · [Cheat sheet](#cheat-sheet) ·
 [Run the tests](#run-the-tests-yourself) · [Troubleshooting](#troubleshooting) · [Glossary](#glossary)
+
+## Quick start
+
+One model, one section, one report. For when you already have Docker, containerlab and uv, and a model server
+such as [Ollama](https://ollama.com) running. (Missing any of them? Start at
+[Install, step by step](#install-step-by-step).)
+
+```bash
+git clone https://github.com/Jitter00/llm-on-a-stick.git
+cd llm-on-a-stick
+uv sync
+uv run stick doctor                                            # checks your machine and lists your models
+uv run stick image build frr                                   # once, about a minute
+uv run stick run --section cfg-mgmt --model ollama/gemma4:12b  # five tasks, one model
+```
+
+`stick run` starts the lab and the tools the tasks need, lets the model attempt the five config management
+tasks, and prints the address of a report page: what passed, and why the rest failed. The first run also
+downloads and builds about 2.5 GB of container images, so it takes longer than the ones after it.
+
+Two things to know before you trust the result:
+
+- **Give the model enough context.** Ollama's default can be as small as 4k, and these tasks need far more:
+  start it with `OLLAMA_CONTEXT_LENGTH=65536`. Details in [Run a model](#run-a-model).
+- **Any model with tool calling works**: use a name `stick doctor` lists, or a paid model such as
+  `anthropic/claude-haiku-5-5` with its API key set.
+
+Next: [compare two models](#commands-at-a-glance), or look around the lab yourself in
+[Your first lab](#your-first-lab-about-10-minutes).
 
 ## The lab
 
@@ -168,7 +198,7 @@ stick svc up netbox oxidized
 Then open them in your browser:
 
 - NetBox: <http://127.0.0.1:8081> (user `admin`, password `admin`). It comes with a site, roles, platforms and device
-  types, but no devices: documenting the lab is one of the future benchmark tasks.
+  types, but no devices: documenting the lab is what the `netbox` tasks ask a model to do.
 - Oxidized: <http://127.0.0.1:8888>. It has already backed up the configs of all four routers.
 
 **6. Reset a tool to its starting state.** This is what the benchmark does between attempts.
@@ -198,8 +228,9 @@ model must support **tool calling**.
 can hold at once, and `stick` doesn't change it: it only records the size the server reports. Set it before you
 start the server, and use the same size for every model you compare:
 
-- **Ollama**: its default is small, and a conversation that outgrows it is cut without warning. Start it with
-  `OLLAMA_CONTEXT_LENGTH=65536` (or another size your memory allows).
+- **Ollama**: its default depends on your GPU (4k under 24 GB of VRAM, 32k from 24 GB), and a conversation that
+  outgrows it is cut without warning. Start it with `OLLAMA_CONTEXT_LENGTH=65536` (or another size your memory
+  allows); `ollama ps` shows the size a loaded model got.
 - **Strata, LM Studio, llama.cpp, vLLM**: the context size in the server's own settings.
 
 Each attempt records the size that applied (`context_window` in its `metrics.json`). An attempt that fills the
@@ -351,6 +382,10 @@ stick env down
 |---|---|---|---|
 | NetBox 4.7 | <http://127.0.0.1:8081> | `http://172.30.30.100:8080` | `admin` / `admin`; API token in [docs/services.md](docs/services.md) |
 | Oxidized 0.37 | <http://127.0.0.1:8888> | `http://172.30.30.101:8888` | none |
+| Nautobot 3.2 | <http://127.0.0.1:8082> | `http://172.30.30.102:8080` | `admin` / `admin` |
+| Emulated AWS (moto 5.2) | <http://127.0.0.1:8083/moto-api/> | `http://172.30.30.103:5000` | none |
+| LibreNMS 26.10 | <http://127.0.0.1:8084> | `http://172.30.30.104:8000` | `admin` / `Stick-lab-9x!Qz` |
+| Zabbix 8.0 | <http://127.0.0.1:8085> | `http://172.30.30.107:8080` | `Admin` / `zabbix` |
 
 | Command | What it does |
 |---|---|
@@ -379,13 +414,13 @@ The project checks itself with automated tests. There are two kinds.
 uv run pytest
 ```
 
-These check the code and configuration files. The last line should look like `122 passed, 28 deselected`
+These check the code and configuration files. The last line should look like `260 passed, 85 deselected`
 ("deselected" are the lab tests below, which are skipped by default).
 
-### Lab tests (about 5 minutes, more the first time)
+### Lab tests (several minutes, more the first time)
 
-These build the real lab, start NetBox and Oxidized, and check that everything works: BGP comes up, hosts can ping
-each other, NetBox has its starting data and resets correctly, Oxidized backs up every router, and so on.
+These build the real lab, start every tool, and check that everything works: BGP comes up, hosts can ping
+each other, each tool has its starting data and resets correctly, Oxidized backs up every router, and so on.
 
 ```bash
 sudo apt install sshpass         # once: the NETCONF task checks use it
@@ -393,8 +428,8 @@ stick image build frr     # only needed once, or after updating the code
 uv run pytest -m lab -v
 ```
 
-Each test prints `PASSED` or `FAILED` as it runs; the last line is the summary, for example `30 passed`. The first
-run takes longer because of image downloads and NetBox's first start.
+Each test prints `PASSED` or `FAILED` as it runs; the last line is the summary, for example `85 passed`. The first
+run takes longer because of image downloads and each tool's first start.
 
 To test just one area, name its file:
 
@@ -402,14 +437,18 @@ To test just one area, name its file:
 uv run pytest -m lab -v tests/integration/test_base_lab.py   # the lab itself
 uv run pytest -m lab -v tests/integration/test_netbox.py     # NetBox
 uv run pytest -m lab -v tests/integration/test_oxidized.py   # Oxidized
+uv run pytest -m lab -v tests/integration/test_nautobot.py   # Nautobot
+uv run pytest -m lab -v tests/integration/test_librenms.py   # LibreNMS
+uv run pytest -m lab -v tests/integration/test_zabbix.py     # Zabbix
+uv run pytest -m lab -v tests/integration/test_moto.py       # the emulated AWS account
 uv run pytest -m lab -v tests/integration/test_grading_lab.py # the grader
 uv run pytest -m lab -v tests/integration/test_tasks_lab.py   # every task can be solved, and can't be faked
 uv run pytest -m lab -v tests/integration/test_runner_lab.py  # the runner and its toolbox
 ```
 
-> **Note:** the lab tests redeploy the lab from scratch and reset NetBox and Oxidized to their starting state, so
-> don't run them while you're in the middle of using the lab. Afterwards they clean up: the lab is removed, and NetBox
-> and Oxidized are stopped again unless they were already running before the tests started. To keep them running
+> **Note:** the lab tests redeploy the lab from scratch and reset the tools to their starting state, so
+> don't run them while you're in the middle of using the lab. Afterwards they clean up: the lab is removed, and the
+> tools are stopped again unless they were already running before the tests started. To keep them running
 > after the tests (to look around), use `STICK_KEEP_SERVICES=1 uv run pytest -m lab -v`.
 
 **If a test fails**, the output shows which check failed and why. The container logs usually tell you the rest:
