@@ -32,6 +32,13 @@ models:
     top_p: 0.95  # DeepSeek: 0.95 for agentic use (this benchmark), 1.0 otherwise
     source: "https://unsloth.ai/docs/models/deepseek-v4"
 
+  - name: Qwen3.8 Flash Next (thinking mode, its default)
+    match: ["qwen3.8*", "qwen-3.8*", "*/qwen3.8*", "*/qwen-3.8*"]
+    temperature: 1.0
+    top_p: 0.95  # plus top_k 20; non-thinking mode would be 0.7 / 0.8 with presence_penalty 1.5
+    source: "https://huggingface.co/Qwen/Qwen3.8-Flash-Next (best practices, thinking mode: 1.0 / 0.95 /
+      top_k 20; checked 2026-11-11)"
+
   - name: Qwen3 (original release; thinking mode)
     match: ["qwen3:*", "qwen3-[0-9]*", "*/qwen3-[0-9]*"]  # not qwen3.5 / qwen3.6: they differ
     temperature: 0.6
