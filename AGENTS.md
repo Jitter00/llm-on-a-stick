@@ -57,10 +57,12 @@ Don't parse the terminal table. Each run ends by printing two paths:
 - `report-<model>-<what>-<time>.html`: the page for the user. Give them the `file://` address as printed.
 - The `.json` file with the same name: the same numbers, for you.
     - `contenders[]`: one per model and setting, with `attempts`, `passed`, `mean_score`, `tokens_in`,
-      `tokens_out`, `cost_usd`, `mean_wall_s`, `mean_turns`, and `sampling` (what was really sent).
+      `tokens_out`, `cost_usd`, `mean_wall_s`, `total_wall_s` (seconds, all attempts), `mean_turns`, and
+      `sampling` (what was really sent).
     - `attempts{}`: one per attempt, with `task_id`, `outcome` (`pass`, `partial`, `fail`, `error`), `score`,
       `hints` (what probably went wrong), `checks` and `run_dir`.
-    - `versus`: set only when there are exactly two contenders.
+    - `versus`: set only when there are two or three contenders: `wins` (task ids per contender, and `tie`),
+      `top` (task ids where the contender was best or joint best), `only_passed_by` and `headline`.
 
 Each attempt's folder (`run_dir`) holds `result.json` (outcome and every check), `metrics.json` (tokens, time,
 `stop_reason`) and `transcript.jsonl` (every model turn and command). To explain why an attempt failed, read

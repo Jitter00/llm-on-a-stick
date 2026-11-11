@@ -712,9 +712,11 @@ def test_report_compares_models(demo: Any, tmp_path: Path) -> None:
     assert ("ollama/a", "temperature 1.0, top_p 0.95") in lines and ("ollama/a", "") in lines
 
 
-def _two_model_runs(demo: Any, runs: Path) -> None:
+def _two_model_runs(
+    demo: Any, runs: Path, specs: tuple[str, ...] = ("ollama/a", "ollama/a", "strata/b")
+) -> None:
     task, lab = demo
-    for spec in ("ollama/a", "ollama/a", "strata/b"):
+    for spec in specs:
         turns = [
             Turn("", [_call("echo '</script><b>x'")], Usage(10, 1), "tool_use"),
             Turn("no", [], Usage(5, 1), "end"),
@@ -741,12 +743,15 @@ def test_full_report_and_html(demo: Any, tmp_path: Path) -> None:
     assert a["struggles"]["never_passed"] == [attempts[0].task_id]
     assert a["struggles"]["failed_checks"][0]["failed"] == 2
     assert a["struggles"]["summary"][0] == "Passed 0 of 2 attempts."
+    assert a["total_wall_s"] == pytest.approx(sum(x.metrics["wall_s"] for x in attempts[:2]), abs=0.2)
+    assert data["total_wall_s"] == pytest.approx(a["total_wall_s"] + b["total_wall_s"], abs=0.2)
     assert data["tasks"][0]["better"] is None and "Level" in data["versus"]["headline"]
     assert data["turn_limits"] == [attempts[0].metrics["limits"]["turns"]]
 
     attempts[2].outcome, attempts[2].score = "pass", 1.0  # as if strata/b had passed
     data = report.build_report(attempts)
     assert data["tasks"][0]["better"] == b["id"]
+    assert data["versus"]["contenders"] == [a["id"], b["id"]]
     assert data["versus"]["only_passed_by"] == {a["id"]: [], b["id"]: [attempts[0].task_id]}
     assert data["versus"]["headline"].startswith("strata/b did better on 1 of 1 task")
 
@@ -759,6 +764,49 @@ def test_full_report_and_html(demo: Any, tmp_path: Path) -> None:
     slim = json.loads(out.with_suffix(".json").read_text(encoding="utf-8"))
     assert "events" not in next(iter(slim["attempts"].values()))
     assert html.write([tmp_path / "nothing"], tmp_path / "none.html") is None
+
+
+def test_report_compares_up_to_three_models(demo: Any, tmp_path: Path) -> None:
+    from llm_on_a_stick.runner import html
+
+    runs = tmp_path / "runs"
+    _two_model_runs(demo, runs, ("ollama/a", "strata/b", "strata/c"))
+    attempts = report.collect_attempts([runs])
+    task_id = attempts[0].task_id
+
+    data = report.build_report(attempts)
+    a, b, c = (x["id"] for x in data["contenders"])
+    assert data["versus"]["contenders"] == [a, b, c]
+    assert data["versus"]["wins"] == {a: [], b: [], c: [], "tie": [task_id]}
+    assert data["tasks"][0]["leaders"] == [a, b, c]
+    assert data["versus"]["top"] == {a: [task_id], b: [task_id], c: [task_id]}
+    assert data["versus"]["headline"] == (
+        "Best or joint best on the 1 task all attempted: ollama/a on 1, strata/b on 1, strata/c on 1."
+    )
+
+    attempts[2].outcome, attempts[2].score = "pass", 1.0  # as if strata/c alone had passed
+    data = report.build_report(attempts)
+    assert data["tasks"][0]["better"] == c and data["tasks"][0]["leaders"] == [c]
+    assert data["versus"]["only_passed_by"] == {a: [], b: [], c: [task_id]}
+    assert data["versus"]["headline"] == (
+        "Best or joint best on the 1 task all attempted: strata/c on 1, ollama/a on 0, strata/b on 0."
+    )
+
+    attempts[1].outcome, attempts[1].score = "pass", 1.0  # two of the three pass: they share the lead
+    data = report.build_report(attempts)
+    assert data["tasks"][0]["better"] is None and data["tasks"][0]["leaders"] == [b, c]
+    assert data["versus"]["wins"]["tie"] == [task_id]
+    assert data["versus"]["top"] == {a: [], b: [task_id], c: [task_id]}
+    assert data["versus"]["only_passed_by"] == {a: [], b: [], c: []}
+
+    assert html.write([runs], tmp_path / "three.html") is not None
+
+    # a fourth model: still a report, without the head-to-head
+    _two_model_runs(demo, runs, ("strata/d",))
+    out = tmp_path / "four.html"
+    four = html.write([runs], out)
+    assert four is not None and four["versus"] is None and len(four["contenders"]) == 4
+    assert html.PLACEHOLDER not in out.read_text(encoding="utf-8")
 
 
 def test_report_survives_old_runs_and_removed_tasks(demo: Any, tmp_path: Path) -> None:
