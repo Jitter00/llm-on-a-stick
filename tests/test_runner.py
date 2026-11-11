@@ -636,6 +636,8 @@ def test_answer_in_reply_when_the_reply_quotes_a_canary(demo: Any, tmp_path: Pat
         ("qwen3:14b", 0.6, "Qwen3"),
         ("Qwen/Qwen3-14B", 0.6, "Qwen3"),  # vLLM-style name, any case
         ("qwen3.5:9b", 0.0, "default"),  # newer Qwen releases differ: not matched
+        ("qwen3.8-flash-next-unsloth-ud-iq4_xs", 1.0, "Qwen3.8"),
+        ("qwen/qwen3.8-flash-next", 1.0, "Qwen3.8"),
         ("llama3.3:70b", 0.0, "default"),
     ],
 )
