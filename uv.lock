@@ -845,7 +845,7 @@ wheels = [
 
 [[package]]
 name = "llm-on-a-stick"
-version = "0.15.1"
+version = "0.16.0"
 source = { editable = "." }
 dependencies = [
     { name = "anthropic" },
