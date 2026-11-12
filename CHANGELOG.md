@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.18.0...v0.19.0) (2026-11-12)
+
+
+### Features
+
+* **loki:** add the loki section, three tasks through Grafana's MCP server ([#47](https://github.com/Jitter00/llm-on-a-stick/issues/47)) ([e0be50c](https://github.com/Jitter00/llm-on-a-stick/commit/e0be50c0087c67fcddff047afd90774152121314))
+
 ## [0.18.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.17.0...v0.18.0) (2026-11-12)
 
 
