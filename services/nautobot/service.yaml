@@ -38,3 +38,43 @@ snapshot:
   after_restore:
     - service: redis
       cmd: [sh, -c, 'valkey-cli --pass "$REDIS_PASSWORD" --no-auth-warning FLUSHALL']
+
+# The mcp section: the community server nautobot-mcp. Its tools can change Nautobot only with
+# NAUTOBOT_MCP_ALLOW_WRITES. 28 of its 77 tools are offered: the inventory and IPAM ones and the generic REST
+# and GraphQL ones (not circuits, virtualisation, jobs, users, webhooks...).
+mcp:
+  server: nautobot
+  version: 0.2.5
+  env:
+    NAUTOBOT_URL: http://127.0.0.1:${STICK_NAUTOBOT_PORT:-8082}
+    NAUTOBOT_TOKEN: ${STICK_NAUTOBOT_TOKEN:-0123456789abcdef0123456789abcdef01234567}
+    NAUTOBOT_MCP_ALLOW_WRITES: "true"
+  allow:
+    - list_endpoints_in
+    - list_content_types
+    - rest_list
+    - rest_get
+    - rest_create
+    - rest_update
+    - rest_delete
+    - graphql_query
+    - list_devices
+    - get_device
+    - get_device_interfaces
+    - list_locations
+    - list_namespaces
+    - list_prefixes
+    - get_prefix
+    - get_available_prefixes
+    - get_available_ips
+    - list_ip_addresses
+    - get_ip_address
+    - list_vlans
+    - list_vrfs
+    - list_tenants
+    - list_statuses
+    - list_roles
+    - list_tags
+    - search_devices
+    - search_prefixes
+    - search_ip_addresses

@@ -5,10 +5,14 @@
 Every model gets the same system prompt, the same single tool and the same limits. Everything is recorded in
 the run folder: transcript.jsonl (each turn and command), metrics.json, and result.json with `metrics`
 filled in.
+
+A task with `tools: {mcp: [...]}` (the mcp section) swaps the toolbox and its one tool for the tools of
+those MCP servers (runner/mcp.py) plus `submit_answer`: no shell, another system prompt, the same limits.
 """
 
 from __future__ import annotations
 
+import contextlib
 import json
 import time
 from collections.abc import Callable
@@ -22,12 +26,14 @@ from typing import Any
 import psutil
 import yaml
 
+from llm_on_a_stick import services
 from llm_on_a_stick.grading import grade as grade_mod
 from llm_on_a_stick.grading import run as run_mod
 from llm_on_a_stick.grading import validate as validate_mod
 from llm_on_a_stick.grading.labstate import LabState
 from llm_on_a_stick.grading.results import FailureHint, Result
 from llm_on_a_stick.grading.transcript import transcript_hints
+from llm_on_a_stick.runner import mcp as mcp_mod
 from llm_on_a_stick.runner import toolbox as toolbox_mod
 from llm_on_a_stick.runner.models import (
     Client,
@@ -57,6 +63,20 @@ is {workdir}.
 it with grep, head or sed -n.
 - Do only what the task asks. Only what it asks you to produce (files, device configuration) is checked, \
 not your reply. When done, reply with a short summary and no tool call.
+"""
+
+# The prompt of tasks whose tools are MCP servers. It has its own version: the two prompts change apart.
+MCP_SYSTEM_PROMPT_VERSION = 1
+MCP_SYSTEM_PROMPT = """\
+You are a network engineer in a lab. You have no shell and no files: you work only through the tools you \
+are given, which come from these MCP servers: {servers}. A tool call times out after {cmd_timeout}s. \
+It is now {now} (Unix time {epoch}).
+
+- You see at most {max_output} characters of each tool result: use the tools' filters, field selection and \
+limits to ask for only what you need.
+- Do only what the task asks. Only what it asks you to change or to submit is checked, not your reply. \
+When the task asks for an answer, give it with submit_answer (the last call counts). When done, reply with \
+a short summary and no tool call.
 """
 
 # One nudge per attempt, the same for every model, when a reply is cut off without a tool call (it hit
@@ -90,6 +110,22 @@ RUN_COMMAND = ToolDef(
     },
 )
 
+# How a model without a shell hands in an answer: the runner writes it to answer.json in the workspace, where
+# the checks that read files find it.
+ANSWER_FILE = "answer.json"
+SUBMIT_ANSWER = ToolDef(
+    name="submit_answer",
+    description=(
+        "Submit the answer the task asks for, as a JSON object with the keys the task names. "
+        "Calling it again replaces the earlier answer."
+    ),
+    parameters={
+        "type": "object",
+        "properties": {"answer": {"type": "object", "description": "The answer, as a JSON object."}},
+        "required": ["answer"],
+    },
+)
+
 
 SAFETY_TIMEOUT_S = 3600
 
@@ -114,7 +150,9 @@ class Metrics:
     provider: str
     base_url: str
     task_id: str
-    system_prompt_version: int = SYSTEM_PROMPT_VERSION
+    system_prompt_version: int = SYSTEM_PROMPT_VERSION  # of MCP_SYSTEM_PROMPT when tools_mode is mcp
+    tools_mode: str = "shell"  # shell: run_command in the toolbox | mcp: the tools of MCP servers
+    tool_schema_chars: int = 0  # mcp: characters of tool names, descriptions and schemas sent every turn
     # done | max_turns | timeout | token_limit | model_error | refusal | low_memory | output_limit
     # | empty_reply | context_full
     stop_reason: str = ""
@@ -122,7 +160,7 @@ class Metrics:
     turns: int = 0
     tool_calls: int = 0
     tool_errors: int = 0  # malformed tool calls (bad JSON, unknown tool)
-    command_failures: int = 0  # commands with a non-zero exit code
+    command_failures: int = 0  # commands with a non-zero exit code; MCP calls that returned an error
     command_timeouts: int = 0
     truncated_outputs: int = 0
     output_limit_hits: int = 0  # replies cut off at the output-token cap
@@ -217,21 +255,36 @@ class Transcript:
             fh.write(json.dumps(entry, default=str) + "\n")
 
 
-def _run_tool(
-    call: ToolCall, box: toolbox_mod.Toolbox, s: Settings, m: Metrics, tr: Transcript
-) -> ToolResult:
+@dataclass
+class Tools:
+    """What the model can call in this attempt: the toolbox's shell, or MCP servers and submit_answer."""
+
+    defs: list[ToolDef]
+    box: toolbox_mod.Toolbox | None = None
+    hub: mcp_mod.McpHub | None = None
+    workspace: Path = Path()
+
+    @property
+    def names(self) -> str:
+        return ", ".join(d.name for d in self.defs) if len(self.defs) <= 8 else f"the {len(self.defs)} listed"
+
+
+def _tool_error(call: ToolCall, problem: str, m: Metrics, tr: Transcript) -> ToolResult:
+    m.tool_errors += 1
+    tr.write("tool_error", id=call.id, name=call.name, arguments=call.raw_arguments, error=problem)
+    return ToolResult(call.id, f"error: {problem}", is_error=True)
+
+
+def _run_tool(call: ToolCall, tools: Tools, s: Settings, m: Metrics, tr: Transcript) -> ToolResult:
     m.tool_calls += 1
+    if tools.box is None:
+        return _run_mcp_tool(call, tools, s, m, tr)
     command = (call.arguments or {}).get("command")
-    if call.name != RUN_COMMAND.name or not isinstance(command, str) or not command.strip():
-        m.tool_errors += 1
-        problem = (
-            f"unknown tool {call.name!r}; the only tool is run_command"
-            if call.name != RUN_COMMAND.name
-            else 'invalid arguments: expected {"command": "<bash command>"}'
-        )
-        tr.write("tool_error", id=call.id, name=call.name, arguments=call.raw_arguments, error=problem)
-        return ToolResult(call.id, f"error: {problem}", is_error=True)
-    res = box.exec(command, s.cmd_timeout_s)
+    if call.name != RUN_COMMAND.name:
+        return _tool_error(call, f"unknown tool {call.name!r}; the only tool is run_command", m, tr)
+    if not isinstance(command, str) or not command.strip():
+        return _tool_error(call, 'invalid arguments: expected {"command": "<bash command>"}', m, tr)
+    res = tools.box.exec(command, s.cmd_timeout_s)
     m.tools_s += res.seconds
     m.command_failures += res.exit_code != 0
     m.command_timeouts += res.timed_out
@@ -250,6 +303,51 @@ def _run_tool(
     return ToolResult(call.id, f"exit code {res.exit_code}{note}\n{res.output}", is_error=res.exit_code != 0)
 
 
+def _run_mcp_tool(call: ToolCall, tools: Tools, s: Settings, m: Metrics, tr: Transcript) -> ToolResult:
+    hub = tools.hub
+    if hub is None or call.arguments is None:
+        return _tool_error(call, "invalid arguments: expected a JSON object", m, tr)
+    if call.name == SUBMIT_ANSWER.name:
+        answer = call.arguments.get("answer")
+        if not isinstance(answer, dict):
+            return _tool_error(call, 'invalid arguments: expected {"answer": {<JSON object>}}', m, tr)
+        (tools.workspace / ANSWER_FILE).write_text(json.dumps(answer, indent=2) + "\n", encoding="utf-8")
+        tr.write("answer", id=call.id, answer=answer)
+        return ToolResult(call.id, "answer recorded")
+    if not hub.knows(call.name):
+        return _tool_error(call, f"unknown tool {call.name!r}; your tools are: {tools.names}", m, tr)
+    res = hub.call(call.name, call.arguments, s.cmd_timeout_s)
+    m.tools_s += res.seconds
+    m.command_failures += res.is_error
+    m.command_timeouts += res.timed_out
+    m.truncated_outputs += res.truncated
+    server, tool = call.name.split(mcp_mod.SEPARATOR, 1)
+    tr.write(
+        "tool_call",
+        id=call.id,
+        server=server,
+        tool=tool,
+        arguments=call.arguments,
+        is_error=res.is_error,
+        seconds=res.seconds,
+        timed_out=res.timed_out,
+        output_chars=res.output_chars,
+        output=res.output,
+    )
+    return ToolResult(call.id, res.output, is_error=res.is_error)
+
+
+def mcp_servers(task: Task) -> dict[str, services.McpServer]:
+    """How to start each MCP server the task lists under `tools.mcp`, from those services' service.yaml."""
+    out: dict[str, services.McpServer] = {}
+    for name in task.tools.get("mcp") or []:
+        server = services.load(name).mcp
+        if server is None:
+            raise run_mod.RunError(f"{task.id}: service {name!r} has no `mcp:` block in its service.yaml")
+        out[name] = server
+    return out
+
+
 def run_task(
     task: Task,
     client: Client,
@@ -266,6 +364,7 @@ def run_task(
     timeout_s = s.timeout_s or max(int(task.limits.get("time_s", 0)), SAFETY_TIMEOUT_S)
     max_tokens = s.max_tokens or task.limits.get("tokens")
 
+    servers = mcp_servers(task)
     info = run_mod.start(task, runs_dir, lab, seed=s.seed, workdir=toolbox_mod.WORKDIR)
     spec = client.spec
     m = Metrics(
@@ -285,18 +384,52 @@ def run_task(
     m.sampling = dict(getattr(client, "sampling", {}))
     m.sampling_source = str(getattr(client, "sampling_source", ""))
     tr = Transcript(info.run_dir / "transcript.jsonl")
-    system = SYSTEM_PROMPT.format(
-        cmd_timeout=s.cmd_timeout_s, workdir=toolbox_mod.WORKDIR, max_output=s.max_output_chars
-    )
-    tr.write("start", model=spec.spec, task=task.id, system=system, prompt=info.prompt, limits=m.limits)
-
     t0 = time.monotonic()
-    box_name = f"stick-toolbox-{info.run_id}".lower()[:120]
     final_text = ""
-    tool_env = run_mod.service_env(task.requires.get("services") or [])
-    with toolbox_mod.Toolbox(info.workspace, box_name, s.max_output_chars, tool_env) as box:
+    with contextlib.ExitStack() as stack:
+        if servers:
+            try:
+                hub = stack.enter_context(
+                    mcp_mod.McpHub(servers, info.run_id, info.run_dir, s.max_output_chars)
+                )
+            except mcp_mod.McpError as exc:
+                raise run_mod.RunError(f"{task.id}: {exc}") from exc
+            tools = Tools([*hub.defs, SUBMIT_ANSWER], hub=hub, workspace=info.workspace)
+            m.tools_mode, m.system_prompt_version = "mcp", MCP_SYSTEM_PROMPT_VERSION
+            now = datetime.now(UTC)
+            m.tool_schema_chars = mcp_mod.schema_chars(tools.defs)
+            system = MCP_SYSTEM_PROMPT.format(
+                servers=", ".join(servers),
+                cmd_timeout=s.cmd_timeout_s,
+                max_output=s.max_output_chars,
+                now=now.strftime("%Y-%m-%d %H:%M UTC"),  # no shell, so no `date`
+                epoch=int(now.timestamp()),
+            )
+        else:
+            box_name = f"stick-toolbox-{info.run_id}".lower()[:120]
+            tool_env = run_mod.service_env(task.requires.get("services") or [])
+            box = stack.enter_context(
+                toolbox_mod.Toolbox(info.workspace, box_name, s.max_output_chars, tool_env)
+            )
+            tools = Tools([RUN_COMMAND], box=box)
+            system = SYSTEM_PROMPT.format(
+                cmd_timeout=s.cmd_timeout_s, workdir=toolbox_mod.WORKDIR, max_output=s.max_output_chars
+            )
+        start: dict[str, Any] = {"tools_mode": m.tools_mode}
+        if servers:
+            start["mcp"] = tools.hub.info if tools.hub else {}
+            start["tools"] = [asdict(d) for d in tools.defs]
+        tr.write(
+            "start",
+            model=spec.spec,
+            task=task.id,
+            system=system,
+            prompt=info.prompt,
+            limits=m.limits,
+            **start,
+        )
         variables = run_mod.template_vars(info.canaries, PurePosixPath(toolbox_mod.WORKDIR), lab)
-        session = client.new_session(system, info.prompt, [RUN_COMMAND], variables)
+        session = client.new_session(system, info.prompt, tools.defs, variables)
         while True:
             if m.turns >= max_turns:
                 m.stop_reason = "max_turns"
@@ -387,7 +520,7 @@ def run_task(
                     [ToolResult(c.id, CUT_OFF_COMMAND, is_error=True) for c in turn.tool_calls]
                 )
                 continue
-            session.add_results([_run_tool(c, box, s, m, tr) for c in turn.tool_calls])
+            session.add_results([_run_tool(c, tools, s, m, tr) for c in turn.tool_calls])
     m.wall_s = round(time.monotonic() - t0, 3)
     m.model_s, m.tools_s = round(m.model_s, 3), round(m.tools_s, 3)
     m.cost_usd = cost(spec.spec, spec.endpoint.local, m.tokens_in, m.tokens_out)

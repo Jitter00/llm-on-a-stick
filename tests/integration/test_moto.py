@@ -11,7 +11,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
-from labutil import service_session
+from labutil import check_mcp_server, service_session
 
 from llm_on_a_stick import lab as lab_consts
 from llm_on_a_stick.grading import awsstate
@@ -94,3 +94,7 @@ def test_reachable_from_the_lab_network(moto: ServiceSpec) -> None:
         capture_output=True, text=True, check=False,
     )  # fmt: skip
     assert res.stdout.strip() == "200", res.stderr
+
+
+def test_its_mcp_server_starts_and_answers(moto: ServiceSpec) -> None:
+    check_mcp_server("moto", "call_aws", {"cli_command": "aws sts get-caller-identity"}, "123456789012")

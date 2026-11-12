@@ -53,6 +53,10 @@ def lint_file(path: Path) -> list[LintError]:
             errors.append(
                 LintError(path, f"id {data.get('id')!r} must match its directory {path.parent.name!r}")
             )
+        services_ = (data.get("requires") or {}).get("services") or []
+        for name in (data.get("tools") or {}).get("mcp") or []:
+            if name not in services_:
+                errors.append(LintError(path, f"tools.mcp names {name!r}, which is not in requires.services"))
         for key in ("setup", "oracle"):
             if key in data and not (path.parent / data[key]).exists():
                 errors.append(LintError(path, f"{key} script {data[key]!r} does not exist"))
@@ -93,6 +97,9 @@ class Task(BaseModel):
     tags: list[str] = Field(default_factory=list)
     topology: str = "base"
     requires: dict[str, Any] = Field(default_factory=dict)
+    # What the model works with. Empty: a shell in the toolbox. {"mcp": [services]}: only the tools of those
+    # services' MCP servers.
+    tools: dict[str, list[str]] = Field(default_factory=dict)
     canaries: dict[str, str] = Field(default_factory=dict)
     setup: str | None = None
     oracle: str | None = None

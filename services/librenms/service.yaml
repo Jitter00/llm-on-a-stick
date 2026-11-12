@@ -64,3 +64,47 @@ snapshot:
   after_restore:
     - service: redis
       cmd: [valkey-cli, FLUSHALL]
+
+# The mcp section: the community server librenms-mcp. 33 of its 113 tools are offered: devices, ports,
+# addresses, neighbours, alerts and logs (not billing, graphs, locations, services, Oxidized, port groups...).
+mcp:
+  server: librenms
+  version: 1.13.0
+  env:
+    LIBRENMS_URL: http://127.0.0.1:${STICK_LIBRENMS_PORT:-8084}
+    LIBRENMS_TOKEN: ${STICK_LIBRENMS_TOKEN:-0123456789abcdef0123456789abcdef}
+    LOG_LEVEL: WARNING
+  allow:
+    - system_info
+    - devices_list
+    - device_get
+    - device_add
+    - device_update
+    - device_delete
+    - device_discover
+    - device_ports
+    - device_ports_get
+    - device_links
+    - device_vlans
+    - device_availability
+    - devicegroups_list
+    - devicegroup_devices
+    - ports_list
+    - ports_search
+    - ports_search_field
+    - ports_search_mac
+    - port_get
+    - port_ip_info
+    - routing_ip_addresses
+    - arp_search
+    - fdb_lookup
+    - switching_links
+    - bgp_sessions
+    - alerts_get
+    - alert_rules_list
+    - alert_rule_get
+    - alert_rule_add
+    - alert_rule_edit
+    - alert_rule_delete
+    - logs_eventlog
+    - inventory_device

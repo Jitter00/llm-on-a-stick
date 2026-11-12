@@ -91,6 +91,33 @@ and again when a new version of `stick` changes its tools (`uv run stick image b
 It is about 1.5 GB, most of it the AWS CLI and Terraform's AWS provider. For a task that requires a service with
 client settings (moto: `AWS_ENDPOINT_URL`, credentials, region), the toolbox gets them as environment variables.
 
+### MCP servers instead of a shell
+
+A task with `tools: {mcp: [<service>, ...]}` (the [`mcp` section](tasks.md#mcp-the-same-tools-through-mcp-servers))
+replaces all of the above:
+
+- **No toolbox and no `run_command`.** The model's tools are those of the listed services' MCP servers, named
+  `<service>__<tool>` (`netbox__netbox_get_objects`, `moto__call_aws`), with the servers' own descriptions.
+  Each server runs in its own container for the attempt, from the `stick-mcp` image
+  (`uv run stick image build mcp`; built automatically like the toolbox), on the host's network. Which server,
+  its environment and the tools shown are the `mcp:` block of the service's `service.yaml`
+  ([Services](services.md#mcp-servers)).
+- **`submit_answer`**, a tool of the runner: without a shell the model can't write a file, so an answer goes
+  there, as a JSON object. The runner writes it to `answer.json` in the workspace, where the checks read it;
+  the last call counts.
+- **Its own system prompt** (`MCP_SYSTEM_PROMPT` in `runner/loop.py`, with its own version number): no shell, no
+  files, the names of the servers, the same limit on what it sees of each result, and the current time (there
+  is no `date` to ask).
+- **The tools' schemas are simplified the same way for every model**: references inlined, "X or null" reduced to
+  X, and keywords that some model servers reject (`format`, `pattern`, `default`, bounds) removed.
+
+The limits are the same (turns, time, `--cmd-timeout` per call, 4,000 characters of each result). In the
+metrics, `tools_mode` is `mcp`, `tool_schema_chars` is the size of the tool list sent on every turn,
+`command_failures` counts calls that returned an error and `command_timeouts` those that timed out. In the
+transcript a call is a `tool_call` entry (server, tool, arguments, result) and a submitted answer an `answer`
+entry; the `start` entry lists the servers, their versions and the tools shown. Each server's own log is
+`mcp-<service>.log` in the run folder.
+
 ### Keeping the input small
 
 Most models tested here run locally, where reading the prompt is a large part of the time: every turn re-sends
@@ -169,7 +196,7 @@ providers: local servers each have their own switch for it.
 Each attempt is a normal run folder (see [Grading](grading.md)) plus:
 
 - `transcript.jsonl`: every model turn (text, tool calls, tokens, time) and every command (exit code, output,
-  time), one JSON object per line;
+  time) or MCP tool call, one JSON object per line;
 - `metrics.json`, also copied into `result.json` under `metrics`:
 
 | Field | Meaning |
@@ -310,6 +337,19 @@ a task work together, and a quick way to check your own task end to end:
 commands:
   - sshpass -p admin ssh admin@{{ nodes.frr2.mgmt_ip }} "show running-config" > {{ workspace }}/frr2.cfg
 final: Saved frr2's running config.
+```
+
+For a task whose tools are MCP servers, the file has `steps:` instead, each one a tool call. A step can keep a
+value from its result for later steps (`capture:`, the first group of a regular expression), and
+`{{ time.now }}`, `{{ time.in_1h }}` and `{{ time.in_2h }}` are Unix times:
+
+```yaml
+steps:
+  - tool: netbox__netbox_get_objects
+    args: {object_type: dcim.device, filters: {asset_tag: "{{ canaries.tag }}"}, fields: [id, name]}
+    capture: {id: '"id":\s*(\d+)', name: '"name":\s*"([^"]+)"'}
+  - tool: submit_answer
+    args: {answer: {device: "{{ captured.name }}"}}
 ```
 
 ## Local models and your machine

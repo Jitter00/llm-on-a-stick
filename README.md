@@ -10,8 +10,9 @@ example one running in Ollama) with a paid one. It tells you **why** a model fai
 fields, changing things it shouldn't), not just a score.
 
 > **What works today:** the virtual lab; the `stick` command; six tools around it (NetBox, Nautobot, LibreNMS,
-> Zabbix, Oxidized, and an emulated AWS account for the AWS CLI and Terraform); **35 tasks** in seven sections,
-> from getting router configs right over CLI and NETCONF to keeping NetBox in sync and fixing monitoring; the
+> Zabbix, Oxidized, and an emulated AWS account for the AWS CLI and Terraform); **40 tasks** in eight sections,
+> from getting router configs right over CLI and NETCONF to keeping NetBox in sync and fixing monitoring, and
+> the same tools through their MCP servers instead of a shell; the
 > **grader**, which checks every attempt and explains what went wrong; and the **runner**, which lets AI models
 > attempt the tasks and compares the results in a report. Start with the [Quick start](#quick-start). What comes
 > next: [Roadmap](#roadmap).
@@ -252,6 +253,8 @@ stick run running-config-cli-frr --model ollama/qwen3:14b
 The model gets the task's instructions and one tool: running shell commands in a small "toolbox" container that can
 reach the lab. When it says it's done (or runs out of turns or time), the grader scores the attempt. The first run
 builds the toolbox image, which takes a few minutes (about 1.5 GB: it includes the AWS CLI and Terraform).
+In the `mcp` section the model has no shell: its tools are those of the tools' MCP servers
+([docs/tasks.md](docs/tasks.md#mcp-the-same-tools-through-mcp-servers)).
 
 **3. Compare two models on the five `cfg-mgmt` tasks**, three attempts each (models don't always do the same thing twice).
 **Run local models one after another, never at the same time**: they share your GPU and memory. Finish the first
@@ -442,7 +445,7 @@ uv run pytest -m lab -v tests/integration/test_librenms.py   # LibreNMS
 uv run pytest -m lab -v tests/integration/test_zabbix.py     # Zabbix
 uv run pytest -m lab -v tests/integration/test_moto.py       # the emulated AWS account
 uv run pytest -m lab -v tests/integration/test_grading_lab.py # the grader
-uv run pytest -m lab -v tests/integration/test_tasks_lab.py   # every task can be solved, and can't be faked
+uv run pytest -m lab -v tests/integration/test_tasks_lab.py   # every task can be solved, and can't be faked (and the mcp tasks through their MCP servers)
 uv run pytest -m lab -v tests/integration/test_runner_lab.py  # the runner and its toolbox
 ```
 
@@ -499,7 +502,8 @@ What is still to do:
 - **More task sections**: lab management and troubleshooting (faults put into the lab for the model to find).
 - **A judge model** for the few things code can't grade.
 - **Your own tasks**: a scaffold command, and tasks loaded from a git address.
-- **Run variants**: the same model at different context sizes and quantisations, CLI against MCP tools.
+- **Run variants**: the same model at different context sizes and quantisations, and the same task with a
+  shell and with MCP tools (today the `mcp` section has its own tasks).
 - **Several labs in parallel**, so a cloud model and a local model can run at the same time.
 - **More devices**: Cisco CML as a lab backend, and your own Arista, Juniper or Cisco images.
 - **A public leaderboard.**

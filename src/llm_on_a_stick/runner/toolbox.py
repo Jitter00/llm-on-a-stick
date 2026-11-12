@@ -39,16 +39,16 @@ class CommandResult:
         return len(self.output) < self.output_chars
 
 
-def shorten(text: str, limit: int) -> str:
-    """Keep the head and the tail; say how much was left out (so the model knows)."""
+LONG_OUTPUT = "Save long output to a file and read it with grep, head or sed -n"
+
+
+def shorten(text: str, limit: int, advice: str = LONG_OUTPUT) -> str:
+    """Keep the head and the tail; say how much was left out (so the model knows) and what to do about it."""
     if len(text) <= limit:
         return text
     head, tail = int(limit * 0.75), int(limit * 0.25)
     omitted = len(text) - head - tail
-    return (
-        f"{text[:head]}\n[... {omitted} characters omitted. Save long output to a file and read it with grep,"
-        f" head or sed -n ...]\n{text[-tail:]}"
-    )
+    return f"{text[:head]}\n[... {omitted} characters omitted. {advice} ...]\n{text[-tail:]}"
 
 
 def ensure_image(log: object = print) -> None:

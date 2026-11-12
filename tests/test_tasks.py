@@ -69,3 +69,17 @@ def test_unparseable_yaml(tmp_path: Path) -> None:
 
 def test_empty_root(tmp_path: Path) -> None:
     assert tasks.lint([tmp_path]) == ([], [])
+
+
+def test_mcp_tools_must_be_required_services(tmp_path: Path) -> None:
+    task = {**VALID, "section": "mcp", "requires": {"services": ["netbox"]}, "tools": {"mcp": ["netbox"]}}
+    assert tasks.lint([write_task(tmp_path, task).parent])[1] == []
+    assert tasks.load_task(tmp_path / "mcp" / str(task["id"])).tools == {"mcp": ["netbox"]}
+
+    task = {**task, "id": "two", "tools": {"mcp": ["netbox", "zabbix"]}}
+    _, errors = tasks.lint([write_task(tmp_path, task).parent])
+    assert [e.message for e in errors] == ["tools.mcp names 'zabbix', which is not in requires.services"]
+
+    for bad in ({"mcp": []}, {"shell": ["x"]}, {}):
+        task = {**task, "id": f"bad{len(bad)}{'mcp' in bad}".lower(), "tools": bad}
+        assert tasks.lint([write_task(tmp_path, task).parent])[1], bad

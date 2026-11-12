@@ -37,3 +37,13 @@ snapshot:
   after_restore:
     - service: valkey
       cmd: [sh, -c, 'valkey-cli --pass "$REDIS_PASSWORD" --no-auth-warning FLUSHALL']
+
+# The mcp section: NetBox Labs' server. Read-only by design: four tools, which take NetBox object types
+# ("dcim.device") and API filters.
+mcp:
+  server: netbox
+  version: 1.2.2
+  env:
+    NETBOX_URL: http://127.0.0.1:${STICK_NETBOX_PORT:-8081}
+    NETBOX_TOKEN: nbt_${STICK_NETBOX_TOKEN_KEY:-stickadmin01}.${STICK_NETBOX_TOKEN:-0123456789abcdef0123456789abcdef01234567}
+    LOG_LEVEL: WARNING

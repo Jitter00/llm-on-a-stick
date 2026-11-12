@@ -70,3 +70,32 @@ snapshot:
   password: ${STICK_ZABBIX_DB_PASSWORD:-stick-zabbix-db}
   path: /snapshots/baseline.sql
   stop: [server]
+
+# The mcp section: the community server zabbix-mcp. It supports Zabbix up to 7.4 and refuses to talk to 8.0
+# without ZABBIX_SKIP_VERSION_CHECK. 16 of its 53 tools are offered: hosts, groups, templates, items,
+# triggers, problems and maintenance (not users, proxies, macros, scripts, import/export, SLAs...).
+mcp:
+  server: zabbix
+  version: 0.8.0
+  env:
+    ZABBIX_URL: http://127.0.0.1:${STICK_ZABBIX_PORT:-8085}/api_jsonrpc.php
+    ZABBIX_TOKEN: ${STICK_ZABBIX_TOKEN:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
+    ZABBIX_SKIP_VERSION_CHECK: "true"
+    LOG_LEVEL: WARNING
+  allow:
+    - api_version
+    - host_get
+    - host_create
+    - host_update
+    - host_delete
+    - hostgroup_get
+    - hostgroup_create
+    - template_get
+    - item_get
+    - trigger_get
+    - trigger_create
+    - problem_get
+    - maintenance_get
+    - maintenance_create
+    - maintenance_update
+    - maintenance_delete

@@ -12,7 +12,7 @@ from collections.abc import Iterator
 from typing import Any
 
 import pytest
-from labutil import service_session, wait_for
+from labutil import check_mcp_server, service_session, wait_for
 
 from llm_on_a_stick import lab as lab_consts
 from llm_on_a_stick import services
@@ -144,3 +144,7 @@ def test_reachable_from_the_lab_network(zabbix: seed.RestClient) -> None:
         capture_output=True, text=True, check=False,
     )  # fmt: skip
     assert '"result":"8.0' in res.stdout, res.stderr
+
+
+def test_its_mcp_server_starts_and_answers(zabbix: seed.RestClient) -> None:
+    check_mcp_server("zabbix", "hostgroup_get", {}, "Zabbix servers")

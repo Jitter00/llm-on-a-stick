@@ -10,7 +10,7 @@ import subprocess
 from collections.abc import Iterator
 
 import pytest
-from labutil import service_session
+from labutil import check_mcp_server, service_session
 
 from llm_on_a_stick import lab, services
 from llm_on_a_stick.services import lifecycle, seed
@@ -84,3 +84,7 @@ def test_reset_is_repeatable(nautobot: seed.RestClient) -> None:
     lifecycle.restore_snapshot(spec)
     after = [count(nautobot, p) for p in paths]
     assert before == after
+
+
+def test_its_mcp_server_starts_and_answers(nautobot: seed.RestClient) -> None:
+    check_mcp_server("nautobot", "list_namespaces", {}, "stick-lab")

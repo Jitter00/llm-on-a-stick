@@ -585,7 +585,7 @@ def _run_models(
     no_report: bool,
 ) -> None:
     """`stick run` and `stick vs`: every model's whole batch, one model after the other."""
-    from llm_on_a_stick.runner import loop, models, report, toolbox
+    from llm_on_a_stick.runner import loop, mcp, models, report, toolbox
 
     try:
         selected = _select_tasks(task_refs, section, all_, _task_roots(tasks_dir))
@@ -606,7 +606,15 @@ def _run_models(
                 shown = ", ".join(f"{k} {v}" for k, v in c.sampling.items() if v is not None) or "defaults"
                 console.print(f"  sampling: {shown} ({c.sampling_source})", highlight=False)
         toolbox.ensure_image(console.print)
-    except (tasks.TaskError, models.ModelError, toolbox.ToolboxError, containerlab.ContainerlabError) as exc:
+        if any(t.tools.get("mcp") for t in selected):
+            mcp.ensure_image(console.print)
+    except (
+        tasks.TaskError,
+        models.ModelError,
+        toolbox.ToolboxError,
+        mcp.McpError,
+        containerlab.ContainerlabError,
+    ) as exc:
         err.print(f"[red]{exc}[/]")
         raise typer.Exit(2) from exc
     if not selected:

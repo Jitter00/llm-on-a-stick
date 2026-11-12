@@ -49,7 +49,8 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
 - [ ] Runner follow-ups: scheduler (parallel *lab work* only: **never run several local models at the same time**;
       local models always go one after another, and API models may run in parallel; for `stick vs`, a lab instance per
       model so that a cloud and a local model can run at the same time), publish `stick-toolbox` to GHCR, Inspect-format log export,
-      optional MCP/structured tools as a variant (`--tools mcp`), context-window variants (`--num-ctx`), streaming for
+      MCP tools as a variant of any task (`--tools mcp`; today only the `mcp` section's own tasks use MCP
+      servers), an MCP server for the routers themselves, context-window variants (`--num-ctx`), streaming for
       long Anthropic turns, macOS support for the toolbox.
 - [ ] **Judge model** (`--judge-model`): see "Next up" and the grading policy in docs/grading.md.
 - [ ] **Report.** `stick report` (table/md/json per model and attempt), the HTML page (`--html`, also written by
@@ -77,7 +78,8 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
       The network change affects Linux too, so every section needs re-testing.
 - [ ] CML backend (lab-per-sample via `virl2_client`; CML-Free 5-node limit; Cisco refplat images only inside CML).
 - [ ] BYO vendor images: Arista cEOS, Juniper vJunos/cRPD (vrnetlab), Cisco XRd/Cat8kv. Fetch/build scripts only, never redistributed.
-- [ ] Use NetClaw's MCP servers (Apache-2.0) as the tool layer for the "CLI vs MCP" variant; NetClaw itself as an agent under test.
+- [ ] NetClaw's MCP servers (Apache-2.0) as another tool layer for the "CLI vs MCP" variant (the `mcp` section
+      uses each tool's own published server); NetClaw itself as an agent under test.
 - [ ] IETF draft-cui-nmrg-llm-benchmark task import.
 - [ ] Public leaderboard (local models broken out by hardware and quantisation).
 
@@ -103,3 +105,10 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
 - SR Linux NETCONF trees contain `<interface>` under network-instances, LLDP etc. with reused names; use
   `data/interface` for the real interfaces.
 - Oxidized only stores a new version when the config changed: wait for the backup *run* (nodes.json `last.end`).
+- MCP (the `mcp` section): the Python SDK is at 2.x (`MCPServer`, snake_case fields; 1.x examples don't run).
+  AWS's API server takes `AWS_ENDPOINT_URL` only for a loopback address, hence host networking, and needs the
+  internet at start. `zabbix-mcp` refuses Zabbix 8.0 without `ZABBIX_SKIP_VERSION_CHECK=true`. Its
+  `maintenance_create` can't make a maintenance without data collection.
+- LibreNMS learns IP addresses from FRR only (SR Linux's SNMP agent doesn't list them), and FRR interface
+  descriptions don't reach `ifAlias`.
+- A model without a shell has no clock: the MCP system prompt gives the time.

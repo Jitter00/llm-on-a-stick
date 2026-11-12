@@ -1,0 +1,21 @@
+# The task's reference steps as MCP calls: stick run mcp-netbox-lookup --model script/<this file>
+steps:
+  - tool: netbox__netbox_get_objects
+    args:
+      object_type: dcim.device
+      filters: {asset_tag: "{{ canaries.tag }}"}
+      fields: [id, name, rack]
+    capture:
+      id: '"id":\s*(\d+)'
+      name: '"name":\s*"([^"]+)"'
+      rack: '"rack":\s*\{.*?"name":\s*"([^"]+)"'
+  - tool: netbox__netbox_get_objects
+    args:
+      object_type: ipam.ipaddress
+      filters: {device_id: "{{ captured.id }}", interface: eth1}
+      fields: [address]
+    capture:
+      address: '"address":\s*"([^"]+)"'
+  - tool: submit_answer
+    args:
+      answer: {device: "{{ captured.name }}", rack: "{{ captured.rack }}", address: "{{ captured.address }}"}

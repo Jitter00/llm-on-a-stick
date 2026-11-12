@@ -159,8 +159,8 @@ def to_markdown(rows: list[Row]) -> str:
 
 # Runner counters worth a line in "where it struggled", with the words for them.
 COUNTERS = {
-    "command_failures": "Commands that failed (non-zero exit code)",
-    "command_timeouts": "Commands that timed out",
+    "command_failures": "Commands that failed (non-zero exit code, or an MCP tool's error)",
+    "command_timeouts": "Commands or MCP tool calls that timed out",
     "tool_errors": "Malformed tool calls",
     "commands_not_run": "Commands cut off before they could run",
     "output_limit_hits": "Replies that hit the output-token cap",

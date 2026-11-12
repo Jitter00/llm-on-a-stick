@@ -28,8 +28,8 @@ Every attempt starts from the same state. The lab stays up between attempts, tas
 4. the baseline is taken, for `no_change_outside`, `netbox_unchanged`, `nautobot_unchanged`, `librenms_unchanged`,
    `zabbix_unchanged` and `aws_unchanged`.
 
-A task with `topology: none` (the `aws` and `terraform` sections) uses no lab device: step 2 is skipped, and the
-lab doesn't need to be running at all.
+A task with `topology: none` (the `aws` and `terraform` sections, and three of the `mcp` tasks) uses no lab
+device: step 2 is skipped, and the lab doesn't need to be running at all.
 
 ## cfg-mgmt: getting configuration right
 
@@ -162,6 +162,34 @@ from a Zabbix with no hosts (`reset_services: [zabbix]`, about 10 s), and `zabbi
 that add, change or delete anything the task didn't ask for. Run them with
 `uv run stick run --section zabbix ...`.
 
+## mcp: the same tools through MCP servers
+
+In the other sections the model has a shell and writes its own `curl`, `aws` or Python. Here it has **no shell
+and no files**: its only tools are those of an MCP server (see
+[Running models](runner.md#mcp-servers-instead-of-a-shell)), the way many agents reach these tools in practice.
+There is one task per server, from easy to hard. The servers are the published ones, at pinned versions, not
+ours: what their tools offer, how they name things and how much they return is part of what is tested.
+
+| Task | Tier | Server | What the agent must do | What can go wrong (and is detected) |
+|---|---|---|---|---|
+| `mcp-netbox-lookup` | basic | NetBox Labs' `netbox-mcp-server` (4 read-only tools) | Find the device with a given asset tag, the rack it is in and the address on its eth1 | Reading the first page only (the server returns five objects unless asked for more), a device whose tag merely contains the wanted one, eth0's address, an answer in the reply instead of `submit_answer` |
+| `mcp-aws-move-eip` | intermediate | AWS's `aws-api-mcp-server` (one tool: an AWS CLI command per call) | Move an Elastic IP from a stopped instance to a named running one | No pipes or `$(...)`: ids go from one call to the next by hand. Associating without `--allow-reassociation`, moving the other address (its Name tag starts the same), starting or terminating an instance |
+| `mcp-nautobot-carve-prefix` | intermediate | `nautobot-mcp` (28 of 77 tools) | Reserve the first free /28 of a /24 in a namespace: the third one, a hole between taken blocks | "The one after the last", the same /24 in the Global namespace, a status or namespace given by name where the API wants a reference, more than one prefix |
+| `mcp-librenms-ip-owner` | intermediate | `librenms-mcp` (33 of 113 tools) | Which device and port carries an address, and every IPv4 address on that port | The address list ties addresses to ports only by id: three lookups to join. Stopping at the first address, the other router's port (it has an extra address too), ifDescr or an id instead of ifName |
+| `mcp-zabbix-netbox-maintenance` | advanced | `zabbix-mcp` (16 of 53 tools) and NetBox's | A 2-hour maintenance for exactly the Zabbix hosts of one NetBox tenant's devices; the names differ, the addresses match | Joining on names, the tenant whose name starts the same, times that aren't epoch seconds or 2 hours apart, a host group instead of the two hosts, two maintenances |
+
+Requirements: the five services, and the lab for `mcp-librenms-ip-owner` only; `stick run --section mcp ...`
+starts what is missing, and builds the MCP server image the first time (`stick-mcp`, about 0.8 GB, a few minutes).
+The AWS server downloads AWS's service reference each time it starts, so `mcp-aws-move-eip` needs internet
+access. Each task also has a `script.yaml`: its reference solution as MCP calls
+(`stick run mcp-netbox-lookup --model script/sections/mcp/mcp-netbox-lookup/script.yaml`), which the lab tests
+run to prove the task can be solved with the tools the model gets.
+
+Large servers are cut down: a service's `mcp: allow:` list in its `service.yaml` names the tools the model is
+shown (NetBox's and the AWS one are shown whole, except a tool that calls a hosted AWS service). Zabbix's 53
+tools alone would cost about 18,000 tokens on every turn. So a result here is about the server as it is
+configured in this repository, at that version; the transcript's first entry lists the tools.
+
 ## Which tasks are kept
 
 Most models tested here run locally, where one attempt can take minutes, so every task has to earn its place.
@@ -191,7 +219,10 @@ never in six attempts), and Claude Haiku with thinking off about nineteen in twe
 
 A task is a folder with a `task.yaml`, optional `setup.sh` (runs before the attempt) and `oracle.sh` (reference
 solution). The fields are described in [Grading](grading.md); copying one of the tasks above is the quickest start.
-Scripts get these environment variables:
+A task gives the model a shell unless it says `tools: {mcp: [<service>, ...]}`: then the model gets only
+those services' MCP servers and `submit_answer` (the services must be under `requires.services`; a check that
+reads the answer uses `path: answer.json`), and a `script.yaml` next to the task holds its solution as tool
+calls. Scripts get these environment variables:
 
 | Variable | Meaning |
 |---|---|

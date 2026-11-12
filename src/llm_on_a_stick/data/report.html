@@ -301,12 +301,14 @@ function checksTable(a) {
     }))));
 }
 function transcript(a) {
-  const ran = new Set(a.events.filter(e => e.kind === "command" || e.kind === "command_not_run" || e.kind === "tool_error").map(e => e.id));
+  const ran = new Set(a.events.filter(e => e.kind === "command" || e.kind === "tool_call" || e.kind === "answer" || e.kind === "command_not_run" || e.kind === "tool_error").map(e => e.id));
   const when = e => el("div", {class: "when"}, `${Number(e.t || 0).toFixed(1)} s`);
   const out = [];
   for (const e of a.events) {
     if (e.kind === "start") {
       out.push(el("details", {class: "fold"}, el("summary", {}, "System prompt"), el("pre", {}, e.system || "")));
+      if (e.tools) out.push(el("details", {class: "fold"}, el("summary", {}, `Tools (${e.tools.length}, from MCP servers: ${Object.keys(e.mcp || {}).join(", ")})`),
+        el("pre", {}, e.tools.map(t => t.name).join("\n"))));
     } else if (e.kind === "turn") {
       const u = e.usage || {};
       const orphans = (e.tool_calls || []).filter(c => !ran.has(c.id));
@@ -321,6 +323,14 @@ function transcript(a) {
         el("div", {class: "when"}, (e.timed_out ? "timed out" : "exit " + e.exit_code) + ` · ${Number(e.seconds || 0).toFixed(1)} s` +
           (e.output_chars > (e.output || "").length ? ` · output cut from ${num(e.output_chars)} characters` : "")),
         e.output ? el("pre", {style: "max-height:220px"}, e.output) : el("div", {class: "muted", style: "font-size:12px"}, "(no output)")));
+    } else if (e.kind === "tool_call") {
+      const failed = e.timed_out || e.is_error;
+      out.push(el("div", {class: "ev"}, when(e), el("pre", {class: "cmd" + (failed ? " failed" : "")}, `${e.server}: ${e.tool} ${show(e.arguments)}`),
+        el("div", {class: "when"}, (e.timed_out ? "timed out" : e.is_error ? "tool error" : "ok") + ` · ${Number(e.seconds || 0).toFixed(1)} s` +
+          (e.output_chars > (e.output || "").length ? ` · result cut from ${num(e.output_chars)} characters` : "")),
+        e.output ? el("pre", {style: "max-height:220px"}, e.output) : el("div", {class: "muted", style: "font-size:12px"}, "(empty result)")));
+    } else if (e.kind === "answer") {
+      out.push(el("div", {class: "ev"}, when(e), el("div", {class: "when"}, "answer submitted"), el("pre", {class: "cmd"}, show(e.answer))));
     } else if (e.kind === "end") {
       out.push(el("div", {class: "ev"}, when(e), el("div", {class: "say sub"}, `Ended: ${e.stop_reason}`)));
     } else {
