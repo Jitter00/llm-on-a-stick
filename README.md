@@ -404,6 +404,7 @@ stick env down
 | `stick task start <task>` | Prepares an attempt and prints the instructions |
 | `stick grade` | Grades the latest attempt and writes `result.json` |
 | `stick run <task> --model <provider/model>` | Lets a model attempt a task, then grades it (`--section`, `--all`, `--repeat`) |
+| `stick judge <folder> --judge-model <provider/model>` | Has a second model say why failed attempts went wrong and score how the model worked (also `--judge-model` on `stick run` and `stick vs`) |
 | `stick report` | Compares model runs: passes, score, tokens, cost, time, common problems (`--html` writes the report page) |
 | `stick vs <model> <model>` | Runs two models on the same tasks and writes the side-by-side report |
 
@@ -500,7 +501,8 @@ What is still to do:
 
 - **More tools**, each with its own tasks: Gitea, syslog, telemetry (gNMI), DNS and DHCP, SuzieQ, Batfish.
 - **More task sections**: lab management and troubleshooting (faults put into the lab for the model to find).
-- **A judge model** for the few things code can't grade.
+- **The judge model**: a set of human-graded examples to check it against, judge checks for the sections
+  beyond NetBox, and tasks that ask for a written explanation.
 - **Your own tasks**: a scaffold command, and tasks loaded from a git address.
 - **Run variants**: the same model at different context sizes and quantisations, and the same task with a
   shell and with MCP tools (today the `mcp` section has its own tasks).

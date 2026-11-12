@@ -274,19 +274,76 @@ def task_validate(
     raise typer.Exit(1 if failures else 0)
 
 
+def _judge_client(spec: str, base_url: str | None, tested: list[str]) -> Any:
+    """The judge's client, checked. Refused (exit 2) when the judge is one of the tested models."""
+    from llm_on_a_stick.grading import judge as judge_mod
+    from llm_on_a_stick.runner import models
+
+    try:
+        for name in tested:
+            judge_mod.refuse_self(spec, name)
+        client = judge_mod.make_judge(spec, base_url)
+        console.print(f"checking the judge {spec} at {client.spec.base_url or client.spec.provider} ...",
+                      highlight=False)  # fmt: skip
+        client.check()
+    except (judge_mod.JudgeError, models.ModelError) as exc:
+        err.print(f"[red]{exc}[/]")
+        raise typer.Exit(2) from exc
+    return client
+
+
+def _judge_attempt(run_dir: Path, client: Any, repeats: int, force: bool = False) -> bool | None:
+    """Judge one attempt and print one line about it. True: judged; False: this judge had done it already;
+    None: it could not be judged (said in red)."""
+    from llm_on_a_stick.grading import judge as judge_mod
+    from llm_on_a_stick.runner import models
+
+    try:
+        result, asked = judge_mod.judge_run(run_dir, client, repeats, force)
+    except (judge_mod.JudgeError, models.ModelError) as exc:
+        err.print(f"  [red]judge: {exc}[/]")
+        return None
+    j = result.judge
+    if j is None or not asked:
+        return False
+    parts = []
+    for c in j.checks:
+        if c.status == "graded":
+            agreed = "" if c.agreement == 1 else f", repeats gave {'/'.join(str(n) for n in c.scores)}"
+            parts.append(f"{c.name}: {c.score}/{c.scale}{agreed}")
+        else:
+            parts.append(f"{c.name}: {c.status} ({c.reason})")
+    console.print(f"  [cyan]judge[/] {'; '.join(parts) or 'no judge checks in this task'}", highlight=False)
+    if j.summary:
+        console.print(f"  [cyan]why[/] {j.summary}", highlight=False, soft_wrap=True)
+    return True
+
+
 @app.command("grade")
 def grade_cmd(
     run_dir: Annotated[Path | None, typer.Argument(help="Run folder (default: the latest one).")] = None,
     runs_dir: RunsDirOpt = Path("runs"),
     as_json: Annotated[bool, typer.Option("--json", help="Print result.json instead of a table.")] = False,
+    judge_model: JudgeModelOpt = None,
+    judge_base_url: JudgeBaseUrlOpt = None,
+    judge_repeats: JudgeRepeatsOpt = 3,
 ) -> None:
-    """Grade an attempt against the live lab and write result.json. Exit: 0 pass, 1 fail/partial, 2 error."""
+    """Grade an attempt against the live lab and write result.json. Exit: 0 pass, 1 fail/partial, 2 error.
+
+    With --judge-model, that model then judges the attempt (see `stick judge`); the exit code is still the
+    code checks' alone.
+    """
     try:
         target = run_dir or run_mod.latest(runs_dir)
+        judge_client = _judge_client(judge_model, judge_base_url, []) if judge_model else None
         result = grade_mod.grade(target)
     except (run_mod.RunError, tasks.TaskError, LabStateError) as exc:
         err.print(f"[red]{exc}[/]")
         raise typer.Exit(2) from exc
+    if judge_client is not None and _judge_attempt(target, judge_client, judge_repeats, force=True):
+        from llm_on_a_stick.grading.results import Result
+
+        result = Result.model_validate_json((target / "result.json").read_text(encoding="utf-8"))
     if as_json:
         console.print_json(result.model_dump_json())
     else:
@@ -479,6 +536,21 @@ MinFreeRamOpt = Annotated[
     ),
 ]
 SeedOpt = Annotated[int | None, typer.Option(help="Seed for canary values.")]
+JudgeModelOpt = Annotated[
+    str | None,
+    typer.Option(
+        "--judge-model",
+        help="A second model, provider/model, that scores the tasks' llm_judge checks and says why failed "
+        "attempts went wrong. Never the model being tested. Its results never change outcome or score.",
+    ),
+]
+JudgeBaseUrlOpt = Annotated[
+    str | None,
+    typer.Option("--judge-base-url", help="The judge's server, when it isn't its provider's default."),
+]
+JudgeRepeatsOpt = Annotated[
+    int, typer.Option("--judge-repeats", min=1, max=9, help="Times the judge is asked for each judgement.")
+]
 NoReportOpt = Annotated[
     bool, typer.Option("--no-report", help="Don't write report.html and report.json into the runs folder.")
 ]
@@ -503,6 +575,9 @@ def run_cmd(
     runs_dir: RunsDirOpt = Path("runs"),
     seed: SeedOpt = None,
     no_report: NoReportOpt = False,
+    judge_model: JudgeModelOpt = None,
+    judge_base_url: JudgeBaseUrlOpt = None,
+    judge_repeats: JudgeRepeatsOpt = 3,
 ) -> None:
     """Let models attempt tasks in the lab, grade each attempt and compare.
 
@@ -518,6 +593,7 @@ def run_cmd(
     _run_models(
         model, task_refs, section, all_, repeat, base_url, max_turns, timeout_s, cmd_timeout, temperature,
         effort, thinking, min_free_ram, tasks_dir, runs_dir, seed, no_report,
+        judge_model, judge_base_url, judge_repeats,
     )  # fmt: skip
 
 
@@ -547,6 +623,9 @@ def vs_cmd(
         typer.Option(help="Where the attempts and the report go (default: runs/vs-<a>-vs-<b>-<time>)."),
     ] = None,
     seed: SeedOpt = None,
+    judge_model: JudgeModelOpt = None,
+    judge_base_url: JudgeBaseUrlOpt = None,
+    judge_repeats: JudgeRepeatsOpt = 3,
 ) -> None:
     """Two models on the same tasks, side by side: runs both, then writes the versus report.
 
@@ -562,6 +641,7 @@ def vs_cmd(
     _run_models(
         [model_a, model_b], task_refs, section, all_, repeat, base_url, max_turns, timeout_s, cmd_timeout,
         temperature, effort, thinking, min_free_ram, tasks_dir, runs_dir, seed, False,
+        judge_model, judge_base_url, judge_repeats,
     )  # fmt: skip
 
 
@@ -583,9 +663,16 @@ def _run_models(
     runs_dir: Path,
     seed: int | None,
     no_report: bool,
+    judge_model: str | None = None,
+    judge_base_url: str | None = None,
+    judge_repeats: int = 3,
 ) -> None:
     """`stick run` and `stick vs`: every model's whole batch, one model after the other."""
+    from llm_on_a_stick.grading import judge as judge_mod
     from llm_on_a_stick.runner import loop, mcp, models, report, toolbox
+
+    # First: a judge that is one of the tested models is refused before anything starts.
+    judge_client = _judge_client(judge_model, judge_base_url, model) if judge_model else None
 
     try:
         selected = _select_tasks(task_refs, section, all_, _task_roots(tasks_dir))
@@ -605,6 +692,11 @@ def _run_models(
             if c.sampling:
                 shown = ", ".join(f"{k} {v}" for k, v in c.sampling.items() if v is not None) or "defaults"
                 console.print(f"  sampling: {shown} ({c.sampling_source})", highlight=False)
+        if judge_client is not None:
+            calls = (
+                sum(judge_mod.calls_needed(t.checks, judge_repeats) for t in selected) * repeat * len(clients)
+            )
+            console.print(f"  the judge will be asked up to {calls} times", highlight=False)
         toolbox.ensure_image(console.print)
         if any(t.tools.get("mcp") for t in selected):
             mcp.ensure_image(console.print)
@@ -660,6 +752,8 @@ def _run_models(
                     highlight=False,
                 )
                 console.print(f"  [dim]{info.run_dir}[/]", soft_wrap=True, highlight=False)
+                if judge_client is not None:
+                    _judge_attempt(info.run_dir, judge_client, judge_repeats, force=True)
     rows = report.collect(done)
     if rows:
         console.print()
@@ -697,13 +791,16 @@ def _bring_up(selected: list[tasks.Task]) -> None:
 def _print_report(rows: list[Any]) -> None:
     from llm_on_a_stick.runner import report
 
+    summaries = report.summarise(rows)
+    judged = any(s.judge_score is not None for s in summaries)  # its own column: never part of the score
     table = Table(
-        "model", "sampling", "runs", "passed", "mean score", "tokens", "cost", "mean time",
-        "most common problems",
+        "model", "sampling", "runs", "passed", "mean score", *(["judge"] if judged else []), "tokens", "cost",
+        "mean time", "most common problems",
     )  # fmt: skip
-    for s in report.summarise(rows):
+    for s in summaries:
         cost = "?" if s.cost_usd is None else f"${s.cost_usd:.4f}"
-        table.add_row(s.model, s.sampling or "-", str(s.runs), str(s.passed), f"{s.mean_score:.2f}",
+        judge = ["-" if s.judge_score is None else f"{s.judge_score:.2f}"] if judged else []
+        table.add_row(s.model, s.sampling or "-", str(s.runs), str(s.passed), f"{s.mean_score:.2f}", *judge,
                       str(s.tokens), cost, f"{s.mean_wall_s}s", ", ".join(s.common_hints) or "-")  # fmt: skip
     console.print(table)
 
@@ -745,6 +842,64 @@ def _report_name(model: list[str], task_refs: list[str] | None, section: list[st
         what = refs[0] if len(refs) == 1 else f"{len(refs)}-tasks"
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     return f"report-{'-vs-'.join(_slug(m) for m in model)}-{_slug(what)}-{stamp}.html"
+
+
+@app.command("judge")
+def judge_cmd(
+    paths_: Annotated[list[Path], typer.Argument(help="Run folders, or folders of runs.")],
+    judge_model: Annotated[
+        str, typer.Option("--judge-model", help="The judge, provider/model. Never the model that was tested.")
+    ],
+    judge_base_url: JudgeBaseUrlOpt = None,
+    judge_repeats: JudgeRepeatsOpt = 3,
+    force: Annotated[bool, typer.Option("--force", help="Judge again what this judge has judged.")] = False,
+) -> None:
+    """Have a second model judge attempts you already have. Needs no lab.
+
+    For each attempt it scores the task's llm_judge checks against their rubrics (asked --judge-repeats
+    times, so disagreement shows) and, when the attempt didn't pass, says why in a few sentences. The answers
+    go into the attempt's result.json under `judge`. Outcome and score stay as the code checks gave them.
+
+    Exit: 0 every attempt was judged (or had been), 1 some could not be, 2 nothing to judge or the judge is
+    one of the tested models.
+    """
+    from llm_on_a_stick.grading import judge as judge_mod
+    from llm_on_a_stick.grading.results import Result
+    from llm_on_a_stick.runner import report
+
+    files = report._result_files(paths_)
+    if not files:
+        err.print("[yellow]no graded attempts found (no result.json)[/]")
+        raise typer.Exit(2)
+    tested, todo, calls = set(), [], 0
+    for f in files:
+        try:
+            r = Result.model_validate_json(f.read_text(encoding="utf-8"))
+        except ValueError:
+            continue
+        if r.metrics.get("model"):
+            tested.add(str(r.metrics["model"]))
+        if force or not judge_mod.judged_by(r, judge_model):
+            todo.append(f.parent)
+            try:
+                specs = tasks.load_task(run_mod.load(f.parent).task_dir).checks
+            except (run_mod.RunError, tasks.TaskError, OSError, ValueError):
+                specs = []
+            calls += judge_mod.calls_needed(specs, judge_repeats)
+    if not todo:
+        console.print(f"all {len(files)} attempts were judged by {judge_model} already (--force to redo)")
+        return
+    client = _judge_client(judge_model, judge_base_url, sorted(tested))
+    console.print(
+        f"judging {len(todo)} attempt{'' if len(todo) == 1 else 's'}, asking the judge up to {calls} times",
+        highlight=False,
+    )
+    failed = 0
+    for run_dir in todo:
+        console.print(f"[bold]{run_dir.name}[/]", highlight=False)
+        if _judge_attempt(run_dir, client, judge_repeats, force) is None:
+            failed += 1
+    raise typer.Exit(1 if failed else 0)
 
 
 @app.command("report")

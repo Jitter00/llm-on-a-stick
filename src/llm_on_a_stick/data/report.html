@@ -188,7 +188,12 @@ function header() {
     el("p", {class: "sub explain"}, el("strong", {}, "What a turn is: "),
       "one reply from the model. In each turn it reads the conversation so far, then either asks for commands to run in the lab " +
       "or says it has finished. " + turnLimit() + "An attempt that reaches the limit is stopped and graded as it stands, " +
-      "so fewer turns means the model got to the result more directly."));
+      "so fewer turns means the model got to the result more directly."),
+    (R.judges || []).length ? el("p", {class: "sub explain"}, el("strong", {}, "What the judge is: "),
+      `a second model (${R.judges.join(", ")}) that read each attempt without being told which model made it. ` +
+      "It scored how the work was done against a written rubric and, for attempts that did not pass, said why. " +
+      "Its score is shown apart and is never part of the score: pass, fail and score come from code checks alone. " +
+      "The judge's scores have not been compared with human grading.") : null);
 }
 function turnLimit() {
   const t = R.turn_limits || [];
@@ -231,7 +236,9 @@ function scoreboard() {
         tile("Mean turns", c.mean_turns.toFixed(1), "per attempt"),
         tile("Tokens", short(c.tokens_in + c.tokens_out), `${short(c.tokens_in)} in, ${short(c.tokens_out)} out`),
         tile("Cost", cost(c.cost_usd), c.cost_usd === 0 ? "local model" : null),
-        tile("Total time", hms(c.total_wall_s), "all attempts"))));
+        tile("Total time", hms(c.total_wall_s), "all attempts"),
+        c.judge_score === null || c.judge_score === undefined ? null
+          : tile("Judge score", c.judge_score.toFixed(2), `${c.judge_attempts} judged, not in the score`))));
   })));
 }
 
@@ -347,6 +354,22 @@ function transcript(a) {
   }
   return out.length ? out : el("p", {class: "muted"}, "No transcript recorded.");
 }
+function judgeBlock(a) {
+  const j = a.judge;
+  if (!j) return null;
+  const by = j.model ? `by ${j.model}` : "no judge model was used";
+  const row = c => {
+    const graded = c.status === "graded";
+    const spread = graded && c.scores.length > 1 ? (c.agreement === 1 ? `all ${c.scores.length} repeats agreed` : `repeats gave ${c.scores.join(", ")}`) : "";
+    return el("tr", {}, el("td", {}, c.name, el("div", {class: "mono muted"}, "judged from: " + c.artifact)),
+      el("td", {class: "num"}, graded ? `${c.score} / ${c.scale}` : c.status.replace("-", " ")),
+      el("td", {}, el("div", {}, c.reason), spread ? el("div", {class: "muted"}, spread) : null));
+  };
+  return [el("h4", {}, "Judge ", el("span", {class: "sub", style: "font-weight:400"}, `(${by}; not part of the score)`)),
+    j.summary ? el("p", {}, el("strong", {}, "Why it did not pass: "), j.summary) : null,
+    j.checks.length ? el("div", {class: "scroll"}, el("table", {}, el("thead", {}, el("tr", {}, el("th", {}, "Judged"),
+      el("th", {class: "num"}, "Score"), el("th", {}, "Reason"))), el("tbody", {}, j.checks.map(row)))) : null];
+}
 function attemptBody(a) {
   const m = a.metrics || {};
   const flat = Object.entries(m).filter(([, v]) => v === null || typeof v !== "object")
@@ -355,6 +378,7 @@ function attemptBody(a) {
     el("h4", {}, "Checks"), checksTable(a),
     a.hints.length ? [el("h4", {}, "Problems"), el("ul", {class: "plain"}, a.hints.map(h => el("li", {}, el("span", {class: "hint"}, h), " ",
       el("span", {class: "sub"}, R.hint_text[h] || ""))))] : null,
+    judgeBlock(a),
     el("details", {class: "fold"}, el("summary", {}, "Task prompt"), el("pre", {}, a.prompt || "(not recorded)")),
     el("details", {class: "fold"}, el("summary", {}, "Metrics"), el("div", {class: "kv"}, flat.map(([k, v]) =>
       el("div", {}, el("span", {}, k), el("span", {}, v === null || v === "" ? "-" : String(v)))))),

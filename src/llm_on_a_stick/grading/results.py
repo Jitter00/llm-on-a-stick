@@ -84,6 +84,44 @@ class CheckResult(BaseModel):
     hints: list[FailureHint] = Field(default_factory=list)
 
 
+# What a judge model says: kept apart from the code checks, and never part of `outcome` or `score`.
+JudgeStatus = Literal["graded", "not-graded", "error"]
+
+
+class JudgeCheck(BaseModel):
+    name: str
+    status: JudgeStatus = "not-graded"
+    artifact: str = "transcript"  # what was judged: transcript, reply, or a file in the workspace
+    scale: int = 5  # scores run from 1 (worst) to this
+    score: int | None = Field(default=None, description="The median of `scores`.")
+    scores: list[int] = Field(default_factory=list, description="One per repeat of the judgement.")
+    agreement: float | None = Field(
+        default=None, description="Share of the repeats that gave the most common score (1.0: all agreed)."
+    )
+    reason: str = Field(default="", description="The judge's reason, or why the check was not graded.")
+
+
+class Judgement(BaseModel):
+    model: str | None = Field(default=None, description="The judge, provider/model. None: no judge has run.")
+    sampling: dict[str, Any] = Field(default_factory=dict, description="Sampling settings sent to the judge.")
+    repeats: int = 0
+    checks: list[JudgeCheck] = Field(default_factory=list)
+    score: float | None = Field(
+        default=None,
+        ge=0,
+        le=1,
+        description="Mean of the graded checks, each put on 0..1. Not part of `score`.",
+    )
+    summary: str = Field(
+        default="",
+        description="Why the attempt did not pass, in plain language. Not scored; empty on a pass.",
+    )
+    tokens_in: int = 0
+    tokens_out: int = 0
+    cost_usd: float | None = None
+    judged_at: datetime | None = None
+
+
 class Result(BaseModel):
     schema_version: int = SCHEMA_VERSION
     task_id: str
@@ -99,6 +137,11 @@ class Result(BaseModel):
     metrics: dict[str, Any] = Field(
         default_factory=dict,
         description="Filled in by the runner: tokens, cost, wall time, turns, tool calls.",
+    )
+    judge: Judgement | None = Field(
+        default=None,
+        description="The task's `llm_judge` checks and the failure summary. None: the task has no judge "
+        "check and no judge has run. Never changes `outcome` or `score`.",
     )
 
 

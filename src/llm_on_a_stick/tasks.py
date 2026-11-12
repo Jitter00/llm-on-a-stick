@@ -14,6 +14,11 @@ import yaml
 from jsonschema import Draft202012Validator
 from pydantic import BaseModel, Field
 
+# The one check type that code doesn't grade: a judge model scores it (grading/judge.py), apart from the rest.
+JUDGE_CHECK = "llm_judge"
+JUDGE_ARTIFACTS = ("transcript", "reply")  # or a file in the workspace, by its relative path
+JUDGE_SCALE = 5
+
 
 @dataclass
 class LintError:
@@ -57,10 +62,38 @@ def lint_file(path: Path) -> list[LintError]:
         for name in (data.get("tools") or {}).get("mcp") or []:
             if name not in services_:
                 errors.append(LintError(path, f"tools.mcp names {name!r}, which is not in requires.services"))
+        checks = [c for c in data.get("checks") or [] if isinstance(c, dict)]
+        judged = [c for c in checks if c.get("type") == JUDGE_CHECK]
+        if judged and len(judged) == len(checks):
+            errors.append(LintError(path, "every check is an llm_judge check: a task needs a code check too"))
+        for c in judged:
+            errors.extend(LintError(path, f"llm_judge check: {m}") for m in _judge_problems(c.get("params")))
         for key in ("setup", "oracle"):
             if key in data and not (path.parent / data[key]).exists():
                 errors.append(LintError(path, f"{key} script {data[key]!r} does not exist"))
     return errors
+
+
+def _judge_problems(params: Any) -> list[str]:
+    params = params if isinstance(params, dict) else {}
+    problems = []
+    unknown = sorted(set(params) - {"artifact", "rubric", "reference", "scale"})
+    if unknown:
+        problems.append(f"unknown parameter(s) {', '.join(unknown)}")
+    rubric = params.get("rubric")
+    if not isinstance(rubric, str) or len(rubric.strip()) < 20:
+        problems.append("needs a `rubric` (what each end of the scale means)")
+    artifact = params.get("artifact", "transcript")
+    if not isinstance(artifact, str) or not artifact.strip():
+        problems.append("`artifact` must be transcript, reply or a file in the workspace")
+    elif artifact not in JUDGE_ARTIFACTS and (artifact.startswith("/") or ".." in artifact.split("/")):
+        problems.append(f"`artifact` {artifact!r} must be a path inside the workspace")
+    if "reference" in params and not isinstance(params["reference"], str):
+        problems.append("`reference` must be text")
+    scale = params.get("scale", JUDGE_SCALE)
+    if isinstance(scale, bool) or not isinstance(scale, int) or not 2 <= scale <= 10:
+        problems.append("`scale` must be a whole number from 2 to 10")
+    return problems
 
 
 def lint(roots: Iterable[Path]) -> tuple[list[Path], list[LintError]]:

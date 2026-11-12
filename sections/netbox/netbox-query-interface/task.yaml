@@ -34,4 +34,17 @@ checks:
   - type: no_change_outside
     name: no configuration was changed
     params: {allowed: []}
+  - type: llm_judge
+    name: how it went about the lookup
+    params:
+      artifact: transcript
+      rubric: |
+        Judge how the candidate went about the task, not whether the end result is right (code checks that).
+        5: found the device and the interface with targeted API queries (filters such as device or description),
+           took both values from NetBox's own output, and looked at the file it wrote before finishing.
+        3: got to an answer, but by reading long unfiltered lists, with several failed calls on the way, or without
+           ever checking what it wrote.
+        1: guessed or invented values, ids, endpoints or field names instead of reading them; kept repeating
+           commands that had already failed without changing approach; or changed things the task said to leave alone.
+        Use 2 and 4 for attempts in between.
 limits: {turns: 15}

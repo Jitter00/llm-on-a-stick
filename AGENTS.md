@@ -16,7 +16,8 @@ Some things only the user can do. Check them first, and ask instead of working a
 - **Local model servers.** The user starts and stops them (Ollama, Strata, LM Studio...). `stick doctor --json`
   shows which servers answer and which models are loaded. Check that yourself before asking.
 - **Money.** A run against a paid API costs money. Say which model and how many attempts
-  (tasks x `--repeat`) before you start one the user didn't ask for in those terms.
+  (tasks x `--repeat`) before you start one the user didn't ask for in those terms. The same goes for a judge
+  (`--judge-model`, `stick judge`): say which model, and the number of calls the command prints.
 - **First-time setup** (Docker, containerlab, `stick image build frr`): README, "Install, step by step".
   `stick doctor` reports what is missing.
 
@@ -28,6 +29,7 @@ stick run --section cfg-mgmt --model anthropic/claude-haiku-5-5        # one mod
 stick run netconf-filtered-bgp --model anthropic/claude-haiku-5-5      # one task: its id, no --section
 stick run --all --model anthropic/claude-haiku-5-5 --repeat 3          # every task, three attempts each
 stick vs anthropic/claude-haiku-5-5 ollama/gemma4:12b --section cfg-mgmt   # two models, side by side
+stick judge runs/<name> --judge-model anthropic/claude-haiku-5-5       # why attempts failed (needs no lab)
 stick env down                                             # stop everything when the user is done
 ```
 
@@ -35,6 +37,9 @@ stick env down                                             # stop everything whe
   leave them running. Don't start them yourself first. Stop them with `stick env down` only when the user has
   finished: they may want to look at the lab.
 - Pass `--runs-dir runs/<name>` with a new name for each batch, so its attempts stay apart from older ones.
+- `--judge-model <provider/model>` on `stick run` or `stick vs` has a second model explain failed attempts
+  and score how the tested model worked. It is refused when it is one of the tested models; don't work around
+  that. It never changes pass, fail or score.
 - Claude models run with thinking off unless you pass `--thinking`. The line `sampling: thinking ...` printed
   before the run says what was applied; some models can't turn it off.
 
@@ -58,9 +63,12 @@ Don't parse the terminal table. Each run ends by printing two paths:
 - The `.json` file with the same name: the same numbers, for you.
     - `contenders[]`: one per model and setting, with `attempts`, `passed`, `mean_score`, `tokens_in`,
       `tokens_out`, `cost_usd`, `mean_wall_s`, `total_wall_s` (seconds, all attempts), `mean_turns`, and
-      `sampling` (what was really sent).
+      `sampling` (what was really sent). With a judge: `judge_score` (0..1, mean over `judge_attempts`),
+      kept apart from `mean_score`.
     - `attempts{}`: one per attempt, with `task_id`, `outcome` (`pass`, `partial`, `fail`, `error`), `score`,
-      `hints` (what probably went wrong), `checks` and `run_dir`.
+      `hints` (what probably went wrong), `checks` and `run_dir`. With a judge: `judge.summary` (why it
+      didn't pass) and `judge.checks[]` (`score`, `scale`, `scores` per repeat, `agreement`, `reason`).
+    - `judges`: the judge models used, if any.
     - `versus`: set only when there are two or three contenders: `wins` (task ids per contender, and `tie`),
       `top` (task ids where the contender was best or joint best), `only_passed_by` and `headline`.
 
@@ -73,7 +81,8 @@ attempt passed. `1`: at least one attempt could not run. `2`: nothing started (w
 unreachable, missing credentials). Take pass and fail from the `.json` file.
 
 When you report to the user, give passed/attempts per model, name the tasks that failed with their hints, and
-say which settings applied (`sampling`). Don't call a model better on the strength of one attempt per task.
+say which settings applied (`sampling`). Report judge scores apart from pass rates and as one model's opinion:
+they have not been checked against human grading. Don't call a model better on the strength of one attempt per task.
 
 ## Working on the code
 
