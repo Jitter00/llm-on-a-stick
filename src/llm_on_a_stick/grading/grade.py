@@ -10,8 +10,10 @@ from llm_on_a_stick.grading import run as run_mod
 from llm_on_a_stick.grading.checks import run_check
 from llm_on_a_stick.grading.context import GradeContext, Services
 from llm_on_a_stick.grading.labstate import DockerLabState, LabState
-from llm_on_a_stick.grading.results import Result, summarise
-from llm_on_a_stick.tasks import load_task
+from llm_on_a_stick.grading.results import JudgeCheck, Judgement, Result, summarise
+from llm_on_a_stick.tasks import JUDGE_CHECK, JUDGE_SCALE, load_task
+
+NO_JUDGE = "no judge model was given (--judge-model)"
 
 
 def grade(run_dir: Path, lab: LabState | None = None, services: Services | None = None) -> Result:
@@ -21,7 +23,19 @@ def grade(run_dir: Path, lab: LabState | None = None, services: Services | None 
     ctx = GradeContext(run=info, lab=lab, services=services or Services())
     variables = run_mod.template_vars(info.canaries, info.workspace, lab)
 
-    results = [run_check(spec, ctx, variables) for spec in task.checks]
+    # Code decides the outcome and the score. The task's llm_judge checks are listed as not graded; a judge
+    # model fills them in later (grading/judge.py), in their own part of the result.
+    results = [run_check(spec, ctx, variables) for spec in task.checks if spec.type != JUDGE_CHECK]
+    waiting = [
+        JudgeCheck(
+            name=spec.label,
+            artifact=str(spec.params.get("artifact", "transcript")),
+            scale=int(spec.params.get("scale", JUDGE_SCALE)),
+            reason=NO_JUDGE,
+        )
+        for spec in task.checks
+        if spec.type == JUDGE_CHECK
+    ]
     outcome, score, hints = summarise(results)
     result = Result(
         task_id=info.task_id,
@@ -34,6 +48,7 @@ def grade(run_dir: Path, lab: LabState | None = None, services: Services | None 
         checks=results,
         failure_hints=hints,
         canaries=info.canaries,
+        judge=Judgement(checks=waiting) if waiting else None,
     )
     (run_dir / "result.json").write_text(result.model_dump_json(indent=2), encoding="utf-8")
     return result

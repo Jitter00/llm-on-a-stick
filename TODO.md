@@ -10,12 +10,12 @@ completes it (what was done is in CHANGELOG.md and the git history).
 
 ## Next up
 
-- [ ] **LLM judge** (only for what code can't grade; policy in [docs/grading.md](docs/grading.md#grading-policy-code-first)):
-      new check type `llm_judge` (`artifact`, `rubric`, `reference`, `scale`); `stick grade --judge-model`, refused if it's
-      the tested model; judge scores in their own `result.json` section with model/version/agreement, never mixed into
-      `score`; per-check `graded_by: code | judge`; `not-graded` when no judge is configured; a small human-graded
-      calibration set. Done first: transcript hints in code (`wrong-dialect`, `attempted-change`,
-      `no-verification`, `ignored-error`; hints only, see docs/grading.md "Failure hints", `stick hints`).
+- [ ] **Judge calibration** (the judge itself exists: [docs/grading.md](docs/grading.md#the-judge-model)): a small
+      set of human-graded examples per kind of judged check (real transcripts with a person's score), and a
+      command that reports how often a judge model agrees with them. Until then judge scores are unverified.
+- [ ] **Judge checks beyond NetBox**: a "how it worked" rubric for the tasks of the other sections.
+- [ ] **Written explanations**: tasks that ask for a short explanation file (a diagnosis, a change plan) for
+      the judge to score with a reference answer. This changes those tasks' prompts.
 
 ## Phase 0: environment (one service per PR)
 
@@ -52,7 +52,7 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
       MCP tools as a variant of any task (`--tools mcp`; today only the `mcp` section's own tasks use MCP
       servers), an MCP server for the routers themselves, context-window variants (`--num-ctx`), streaming for
       long Anthropic turns, macOS support for the toolbox.
-- [ ] **Judge model** (`--judge-model`): see "Next up" and the grading policy in docs/grading.md.
+- [ ] **Judge model**: built (`--judge-model`, `stick judge`); what is left is under "Next up".
 - [ ] **Report.** `stick report` (table/md/json per model and attempt), the HTML page (`--html`, also written by
       `stick run`) and `stick vs` exist; next: breakdowns by section, tag and failure class.
 

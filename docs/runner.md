@@ -302,13 +302,31 @@ It is one self-contained file (no network needed, so you can mail it or attach i
   hints by how many attempts had them, and the checks that failed most, with the grader's message. This comes
   from the recorded results by fixed rules; no model writes it.
 - **Attempts**: each attempt's checks (expected and observed for the failed ones), metrics, prompt and the whole
-  conversation: what the model said, every command, its exit code and output.
+  conversation: what the model said, every command, its exit code and output. When a
+  [judge model](#a-judge-model-judge-model-and-stick-judge) was used: why the attempt didn't pass, and its
+  scores with their reasons.
 
 With two or three models in the data the page puts them side by side and says which did better on each task
 (pass rate first, then mean score). When two of three share the lead the page names both, and the line at the top
 counts for each model the tasks where it was best or joint best. More than three are still listed side by side,
 without that comparison. `report.json` next to it has the same numbers without the transcripts. The transcripts
 contain the lab's logins and API tokens; they only work inside the lab.
+
+## A judge model: `--judge-model` and `stick judge`
+
+```bash
+uv run stick run --section netbox --model ollama/gemma4:12b --judge-model anthropic/claude-haiku-5-5
+uv run stick judge runs/gemma --judge-model anthropic/claude-haiku-5-5     # attempts you already have
+```
+
+A second model reads each graded attempt, scores the task's `llm_judge` checks (how the model worked) and says
+in a few sentences why a failed attempt went wrong. Pass, fail and score still come from code checks alone: the
+judge's answers are stored under `judge` in `result.json` and shown apart in the reports (a `judge` column, a
+"Judge score" tile, and a "Judge" part in each attempt with the summary, the scores and the reasons). The judge
+is never one of the tested models, is not told which model it is reading, and is asked each question
+`--judge-repeats` times (default 3). `--judge-base-url` gives its server when that isn't the provider's default.
+`stick vs` and `stick grade` take the same options. A judge on a paid API costs money: the command says how
+many times it will ask before it starts. Details and limits: [Grading](grading.md#the-judge-model).
 
 ## Head to head: `stick vs`
 

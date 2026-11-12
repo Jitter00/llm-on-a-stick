@@ -79,6 +79,172 @@
       ],
       "title": "CheckResult",
       "type": "object"
+    },
+    "JudgeCheck": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "status": {
+          "default": "not-graded",
+          "enum": [
+            "graded",
+            "not-graded",
+            "error"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "artifact": {
+          "default": "transcript",
+          "title": "Artifact",
+          "type": "string"
+        },
+        "scale": {
+          "default": 5,
+          "title": "Scale",
+          "type": "integer"
+        },
+        "score": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The median of `scores`.",
+          "title": "Score"
+        },
+        "scores": {
+          "description": "One per repeat of the judgement.",
+          "items": {
+            "type": "integer"
+          },
+          "title": "Scores",
+          "type": "array"
+        },
+        "agreement": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Share of the repeats that gave the most common score (1.0: all agreed).",
+          "title": "Agreement"
+        },
+        "reason": {
+          "default": "",
+          "description": "The judge's reason, or why the check was not graded.",
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "JudgeCheck",
+      "type": "object"
+    },
+    "Judgement": {
+      "properties": {
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The judge, provider/model. None: no judge has run.",
+          "title": "Model"
+        },
+        "sampling": {
+          "additionalProperties": true,
+          "description": "Sampling settings sent to the judge.",
+          "title": "Sampling",
+          "type": "object"
+        },
+        "repeats": {
+          "default": 0,
+          "title": "Repeats",
+          "type": "integer"
+        },
+        "checks": {
+          "items": {
+            "$ref": "#/$defs/JudgeCheck"
+          },
+          "title": "Checks",
+          "type": "array"
+        },
+        "score": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Mean of the graded checks, each put on 0..1. Not part of `score`.",
+          "title": "Score"
+        },
+        "summary": {
+          "default": "",
+          "description": "Why the attempt did not pass, in plain language. Not scored; empty on a pass.",
+          "title": "Summary",
+          "type": "string"
+        },
+        "tokens_in": {
+          "default": 0,
+          "title": "Tokens In",
+          "type": "integer"
+        },
+        "tokens_out": {
+          "default": 0,
+          "title": "Tokens Out",
+          "type": "integer"
+        },
+        "cost_usd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cost Usd"
+        },
+        "judged_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Judged At"
+        }
+      },
+      "title": "Judgement",
+      "type": "object"
     }
   },
   "properties": {
@@ -180,6 +346,18 @@
       "description": "Filled in by the runner: tokens, cost, wall time, turns, tool calls.",
       "title": "Metrics",
       "type": "object"
+    },
+    "judge": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Judgement"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "The task's `llm_judge` checks and the failure summary. None: the task has no judge check and no judge has run. Never changes `outcome` or `score`."
     }
   },
   "required": [

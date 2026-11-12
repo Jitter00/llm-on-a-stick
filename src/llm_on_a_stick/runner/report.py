@@ -32,6 +32,9 @@ class Row:
     wall_s: float
     stop_reason: str
     sampling: str = ""  # e.g. "temperature 1.0, top_p 0.95"
+    judge_score: float | None = (
+        None  # the judge model's score (0..1), when one judged it; not part of `score`
+    )
 
 
 def sampling_label(sampling: dict[str, Any]) -> str:
@@ -49,6 +52,7 @@ class ModelSummary:
     cost_usd: float | None
     mean_wall_s: float
     common_hints: list[str] = field(default_factory=list)
+    judge_score: float | None = None  # mean over the attempts a judge scored; never mixed into mean_score
 
 
 def _result_files(paths: list[Path]) -> list[Path]:
@@ -87,6 +91,7 @@ def collect(paths: list[Path]) -> list[Row]:
                 wall_s=float(mt.get("wall_s", 0.0)),
                 stop_reason=str(mt.get("stop_reason", "")),
                 sampling=sampling_label(mt.get("sampling") or {}),
+                judge_score=r.judge.score if r.judge else None,
             )
         )
     return sorted(rows, key=lambda r: (r.task_id, r.model, r.run_dir))
@@ -114,9 +119,19 @@ def summarise(rows: list[Row]) -> list[ModelSummary]:
                 cost_usd=None if any(c is None for c in costs) else round(sum(c or 0 for c in costs), 4),
                 mean_wall_s=round(mean(r.wall_s for r in mine), 1),
                 common_hints=[f"{h} ({hint_counts[h]})" for h in top],
+                judge_score=_mean_or_none([r.judge_score for r in mine]),
             )
         )
     return out
+
+
+def _mean_or_none(values: list[float | None]) -> float | None:
+    known = [v for v in values if v is not None]
+    return round(mean(known), 3) if known else None
+
+
+def _judge(score: float | None) -> str:
+    return "-" if score is None else f"{score:.2f}"
 
 
 def to_json(rows: list[Row]) -> str:
@@ -131,24 +146,25 @@ def _cost(c: float | None) -> str:
 
 def to_markdown(rows: list[Row]) -> str:
     lines = [
-        "| model | sampling | runs | passed | mean score | tokens | cost | mean time "
+        "| model | sampling | runs | passed | mean score | judge | tokens | cost | mean time "
         "| most common problems |",
-        "|---|---|---|---|---|---|---|---|---|",
+        "|---|---|---|---|---|---|---|---|---|---|",
     ]
     for s in summarise(rows):
         lines.append(
-            f"| {s.model} | {s.sampling or '-'} | {s.runs} | {s.passed} | {s.mean_score:.2f} | {s.tokens} "
+            f"| {s.model} | {s.sampling or '-'} | {s.runs} | {s.passed} | {s.mean_score:.2f} "
+            f"| {_judge(s.judge_score)} | {s.tokens} "
             f"| {_cost(s.cost_usd)} "
             f"| {s.mean_wall_s}s | {', '.join(s.common_hints) or '-'} |"
         )
     lines += [
         "",
-        "| task | model | outcome | score | turns | tokens in/out | cost | time | problems |",
-        "|---|---|---|---|---|---|---|---|---|",
+        "| task | model | outcome | score | judge | turns | tokens in/out | cost | time | problems |",
+        "|---|---|---|---|---|---|---|---|---|---|",
     ]
     for r in rows:
         lines.append(
-            f"| {r.task_id} | {r.model} | {r.outcome} | {r.score:.2f} | {r.turns} "
+            f"| {r.task_id} | {r.model} | {r.outcome} | {r.score:.2f} | {_judge(r.judge_score)} | {r.turns} "
             f"| {r.tokens_in}/{r.tokens_out} "
             f"| {_cost(r.cost_usd)} | {r.wall_s:.0f}s | {', '.join(r.hints) or '-'} |"
         )
@@ -201,6 +217,7 @@ class AttemptDetail:
     metrics: dict[str, Any]
     prompt: str
     events: list[dict[str, Any]]
+    judge: dict[str, Any] | None = None  # result.json's `judge`: the judge model's checks and summary
     repeat: int = 1  # 1-based, by start time within (model, sampling, task)
     contender: str = ""  # set by build_report
 
@@ -273,6 +290,7 @@ def collect_attempts(paths: list[Path]) -> list[AttemptDetail]:
                 metrics=r.metrics,
                 prompt=str(run.get("prompt") or ""),
                 events=_events(path.parent / "transcript.jsonl"),
+                judge=r.judge.model_dump(mode="json") if r.judge else None,
             )
         )
     out.sort(key=lambda a: (a.task_id, a.model, a.sampling, a.started_at))
@@ -368,6 +386,7 @@ def _struggles(mine: list[AttemptDetail]) -> dict[str, Any]:
 
 def _stats(mine: list[AttemptDetail]) -> dict[str, Any]:
     costs: list[float | None] = [a.metrics.get("cost_usd") for a in mine]
+    scores: list[float | None] = [(a.judge or {}).get("score") for a in mine]
     return {
         "attempts": len(mine),
         "passed": sum(a.outcome == "pass" for a in mine),
@@ -378,6 +397,10 @@ def _stats(mine: list[AttemptDetail]) -> dict[str, Any]:
         "mean_wall_s": round(mean(float(a.metrics.get("wall_s") or 0) for a in mine), 1),
         "total_wall_s": round(sum(float(a.metrics.get("wall_s") or 0) for a in mine), 1),
         "mean_turns": round(mean(int(a.metrics.get("turns") or 0) for a in mine), 1),
+        # The judge model's view, apart from the code score: mean over the attempts it scored.
+        "judge_score": _mean_or_none(scores),
+        "judge_attempts": sum(s is not None for s in scores),
+        "judge_cost_usd": round(sum(float((a.judge or {}).get("cost_usd") or 0) for a in mine), 4),
     }
 
 
@@ -498,6 +521,8 @@ def build_report(attempts: list[AttemptDetail], title: str = "") -> dict[str, An
             {int(n) for a in attempts if (n := (a.metrics.get("limits") or {}).get("turns"))}
         ),
         "contenders": contenders,
+        # The judge models that scored these attempts (normally one). Their scores are never in `mean_score`.
+        "judges": sorted({str(a.judge["model"]) for a in attempts if a.judge and a.judge.get("model")}),
         "tasks": tasks,
         "versus": _versus(contenders, tasks) if 2 <= len(contenders) <= MAX_VERSUS else None,
         "attempts": {a.id: asdict(a) for a in attempts},

@@ -65,6 +65,10 @@ Requirements: the lab and NetBox (`uv run stick env up`, `uv run stick svc up ne
 restoring NetBox's seeded snapshot (`reset_services: [netbox]`, about 20 s), and `netbox_unchanged` fails
 attempts that change anything the task didn't ask for. Run them with `uv run stick run --section netbox ...`.
 
+Each of these tasks also has one check for a [judge model](grading.md#the-judge-model) (`--judge-model`): how
+the model went about the task (read before writing, looked ids up, confirmed its result). It is scored apart
+and never changes pass or fail; without a judge it shows as "not graded". The other sections have none yet.
+
 ## nautobot: the other source of truth
 
 The same jobs as the NetBox section, against Nautobot 3.x. Nautobot forked from NetBox but its data model has
@@ -222,7 +226,8 @@ solution). The fields are described in [Grading](grading.md); copying one of the
 A task gives the model a shell unless it says `tools: {mcp: [<service>, ...]}`: then the model gets only
 those services' MCP servers and `submit_answer` (the services must be under `requires.services`; a check that
 reads the answer uses `path: answer.json`), and a `script.yaml` next to the task holds its solution as tool
-calls. Scripts get these environment variables:
+calls. A check of type `llm_judge` is scored by a judge model against a rubric you write, apart from the
+score ([Grading](grading.md#judge-checks-in-a-task)). Scripts get these environment variables:
 
 | Variable | Meaning |
 |---|---|

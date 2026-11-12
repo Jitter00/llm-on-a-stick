@@ -17,18 +17,18 @@ Results must not depend on which AI model does the grading, so **code decides pa
 3. **An AI judge only where code can't grade**: the quality of a written explanation, a change plan or a ticket
    summary; parts of *how* the agent worked that a log can't show (a safe approach, asking before doing something
    ambiguous or risky); and plain-language failure summaries for the report (these aren't scored).
-4. **Rules for the judge** (it arrives after the model runner):
-    - it is **never the model being tested** (refused unless explicitly overridden);
+4. **Rules for the judge** (see [The judge model](#the-judge-model) for what exists):
+    - it is **never the model being tested**: refused, and there is no option to allow it;
     - it **never overrides code**: if the code says the BGP session is down, no judge turns that into a pass;
     - its score is reported **separately** from the code score, never mixed in;
-    - it grades against a written rubric and a reference answer, **without knowing which model** produced the answer;
-    - it runs at temperature 0 and repeats each judgement, so disagreement shows up;
-    - the judge model and version are recorded in `result.json`;
+    - it grades against a written rubric (and a reference answer, when the task gives one), **without knowing
+      which model** produced the answer;
+    - it repeats each judgement, so disagreement shows up, at temperature 0 where the server takes one;
+    - the judge model and the settings sent to it are recorded in `result.json`;
     - it's optional: without a judge, judge-only checks show as "not graded" and the code score stands.
 5. **Calibration**: a small set of human-graded examples per kind of judged check, to measure how often a judge
-   agrees with people before its scores are trusted.
-
-All checks available today are code checks.
+   agrees with people before its scores are trusted. **Not built yet**: until it is, read judge scores as one
+   model's opinion.
 
 ## The flow
 
@@ -142,6 +142,69 @@ a passed attempt can carry one too ("passed, but never checked its output").
 More (giving up, hallucinated APIs...) can come from the same transcripts; the classes still to do are in TODO.md
 ("Failure classifier").
 
+## The judge model
+
+A second model that reads a finished attempt and does two things code can't:
+
+- **Scores the task's `llm_judge` checks** against their rubrics. Today the five NetBox tasks have one each,
+  about *how* the model worked: did it read before writing, look ids up or guess them, confirm its result.
+- **Says why an attempt didn't pass**, in a few sentences, for every attempt whose outcome isn't `pass`. This
+  summary is not scored.
+
+```bash
+uv run stick run --section netbox --model ollama/gemma4:12b --judge-model anthropic/claude-haiku-5-5
+uv run stick judge runs/compare --judge-model anthropic/claude-haiku-5-5   # attempts you already have
+uv run stick grade --judge-model anthropic/claude-haiku-5-5                # after an attempt made by hand
+```
+
+`stick run` and `stick vs` call the judge after each attempt is graded. `stick judge` does the same for run
+folders made earlier: it needs no lab, because it only reads the folder (the prompt, `transcript.jsonl`, the
+workspace, `result.json`). It skips attempts this judge has judged already; `--force` judges them again. A
+judge on a paid API costs money: the commands print how many times the judge will be asked before they start
+(each `llm_judge` check `--judge-repeats` times, 3 by default, plus one summary per attempt).
+
+What the code guarantees:
+
+- **Code decides.** `outcome`, `score`, `checks` and `failure_hints` are never changed by the judge. Its answers
+  go into `result.json` under `judge`, and reports show them under their own heading and in their own column.
+- **Never the tested model.** A judge with the same model name as the model that made the attempt is refused,
+  also through another provider (`ollama/x` and `strata/x`). No option turns this off. An attempt made by hand
+  (`stick task start`) records no model, so there is nothing to compare with.
+- **Blind.** The judge gets the task prompt and what the candidate did and saw; not the model's name, the
+  metrics, the outcome or the score. For the failure summary it also gets the failed checks and the hints.
+- **Repeated.** Each check is asked `--judge-repeats` times. The score is the median; `scores` lists every
+  repeat and `agreement` is the share that gave the most common score (1.0: all agreed).
+- **Recorded.** `judge.model`, `judge.sampling` (what was really sent: temperature 0 for servers that take a
+  temperature; Claude models take none and run with thinking off), tokens and cost.
+- **Optional.** Without `--judge-model` the task's judge checks are listed as `not-graded`.
+
+Limits to keep in mind: there is no calibration set yet, so nobody has measured how often a judge agrees with
+people. A transcript longer than about 120,000 characters is given to the judge with its middle turns left out
+(each command output is cut to 2,000 characters first), so the judge can miss what happened there.
+
+### Judge checks in a task
+
+```yaml
+checks:
+  - type: llm_judge
+    name: how it went about the lookup
+    params:
+      artifact: transcript        # or `reply` (the final reply), or a file in the workspace, e.g. notes.md
+      rubric: |
+        Judge how the candidate went about the task, not whether the end result is right (code checks that).
+        5: found the device with targeted API queries and checked the file it wrote.
+        3: got to an answer by reading long unfiltered lists, or never checked what it wrote.
+        1: guessed or invented values instead of reading them.
+        Use 2 and 4 for attempts in between.
+      reference: "..."            # optional: what a good answer looks like
+      scale: 5                    # optional: scores run from 1 to this (2 to 10)
+```
+
+`rubric` and `reference` can use `{{ canaries.<name> }}` and `{{ workspace }}`. A task needs at least one code
+check next to its judge checks, `weight` has no effect on a judge check, and `stick task validate` ignores
+them (the reference solution has no transcript). When the artifact doesn't exist (the file wasn't written, the
+run has no transcript), the check stays `not-graded` and says why.
+
 ## Built-in checks
 
 Use these in a task's `checks:` list. Parameters can use `{{ canaries.<name> }}`, `{{ workspace }}` and
@@ -209,6 +272,18 @@ A check is a Python function registered with `@check("name")` that returns a `Ve
 entry point in the `llm_on_a_stick.checks` group pointing at the module that defines them.
 
 ## result.json
+
+`outcome`, `score`, `checks` and `failure_hints` come from the code checks. `judge` is there when the task has
+judge checks or a judge has run, and is otherwise `null`:
+
+| Field | Meaning |
+|---|---|
+| `judge.model` | The judge, `provider/model`; `null` when no judge has run |
+| `judge.checks[]` | Per `llm_judge` check: `name`, `status` (`graded`, `not-graded`, `error`), `artifact`, `scale`, `score` (the median), `scores` (every repeat), `agreement`, `reason` |
+| `judge.score` | Mean of the graded checks, each put on 0..1 (1 on the scale is 0, the top is 1). Not part of `score` |
+| `judge.summary` | Why the attempt didn't pass; empty on a pass |
+| `judge.sampling`, `judge.repeats` | What was sent to the judge, and how often each check was asked |
+| `judge.tokens_in`, `judge.tokens_out`, `judge.cost_usd`, `judge.judged_at` | What judging this attempt took |
 
 The format is described by a JSON schema shipped with the package:
 `src/llm_on_a_stick/data/result.schema.json`. After changing `grading/results.py`, regenerate it with:
