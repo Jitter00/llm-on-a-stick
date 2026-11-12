@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.16.0...v0.17.0) (2026-11-12)
+
+
+### Features
+
+* **mcp:** add the mcp section, five tasks through upstream MCP servers ([#43](https://github.com/Jitter00/llm-on-a-stick/issues/43)) ([b9a741f](https://github.com/Jitter00/llm-on-a-stick/commit/b9a741fcf03e068819adb5233ea8fc31c434946e))
+
 ## [0.16.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.15.1...v0.16.0) (2026-11-11)
 
 
