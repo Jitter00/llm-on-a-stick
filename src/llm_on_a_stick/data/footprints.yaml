@@ -34,5 +34,5 @@ services:
   suzieq: {ram_mb: 512, measured: false}
   gitea: {ram_mb: 256, measured: false}
   telemetry: {ram_mb: 512, measured: false}  # gNMIc + Prometheus
-  syslog: {ram_mb: 384, measured: false}     # Loki
+  loki: {ram_mb: 448, measured: true}  # 358 MiB with 4 routers logging: grafana 267 + loki 47 + alloy 44
   ddi: {ram_mb: 384, measured: false}        # PowerDNS + Kea

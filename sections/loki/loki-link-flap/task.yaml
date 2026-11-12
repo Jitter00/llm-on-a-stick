@@ -1,0 +1,61 @@
+id: loki-link-flap
+section: loki
+title: Find the flapping link and the BGP session it takes down, from the routers' syslog in Loki
+tier: intermediate
+tags: [tool:loki, iface:mcp, skill:log-correlation]
+prompt: |
+  The lab's four routers (srl1, srl2, frr1, frr2) send their syslog to Loki. You reach it through Grafana's
+  MCP server. srl1 and srl2 run Nokia SR Linux; frr1 and frr2 run FRR.
+
+  In the last few minutes one link between two routers has been flapping: its port went down and came back
+  several times, and each time the BGP session over that link dropped. Other things happened in the lab over
+  the same minutes. Find the flapping link in the logs and submit with submit_answer:
+    {"router": "<the router that logged its port going down>", "interface": "<that port, as the router names it>",
+     "neighbor": "<the router at the other end of the link>", "times_down": <how many times the port went down>,
+     "bgp_peers": ["<the two addresses of the BGP session over that link>", "..."]}
+requires:
+  devices: [srl1, srl2, frr1, frr2, h1, h2]
+  services: [loki]
+tools:
+  mcp: [loki]
+reset_services: [loki]
+canaries:
+  flaps: count
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: json_file_matches
+    name: the answer names the port, the neighbour and how often it went down
+    params:
+      path: answer.json
+      expected:
+        router: srl2
+        interface: ethernet-1/1
+        neighbor: frr1
+        times_down: "{{ canaries.flaps }}"
+    weight: 2
+  - type: json_file_matches
+    name: the answer names both ends of the BGP session over that link
+    params:
+      path: answer.json
+      expected:
+        bgp_peers: [10.0.2.0, 10.0.2.1]
+  - type: no_change_outside
+    name: no configuration was changed
+    params: {allowed: []}
+  - type: llm_judge
+    name: how it searched the logs
+    params:
+      artifact: transcript
+      rubric: |
+        Judge how the candidate went about the task, not whether the end result is right (code checks that).
+        5: found the datasource and the labels first, filtered for port and BGP events instead of reading
+           everything, compared the routers before settling on one port, counted the port-down events from
+           the lines themselves, and took the two BGP addresses from the logs of both routers on the link.
+        3: got to an answer, but by reading long unfiltered results, with several failed calls on the way, by
+           settling on the first port or session it saw, or by taking a value from one router and assuming
+           the other.
+        1: guessed or invented a router, a port, a count, an address, a datasource id or a label instead of
+           reading them; or kept repeating calls that had already failed without changing approach.
+        Use 2 and 4 for attempts in between.
+limits: {turns: 25}

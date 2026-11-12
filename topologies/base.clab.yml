@@ -40,6 +40,7 @@ topology:
       labels: {stick-os: frr}
       kind: linux
       mgmt-ipv4: 172.30.30.21
+      env: {STICK_SYSLOG_TARGET: "172.30.30.108:1514"}
       binds:
         - ../configs/frr/frr1/frr.conf:/etc/stick/frr.conf:ro
         - ../configs/frr/daemons:/etc/stick/daemons:ro
@@ -47,6 +48,7 @@ topology:
       labels: {stick-os: frr}
       kind: linux
       mgmt-ipv4: 172.30.30.22
+      env: {STICK_SYSLOG_TARGET: "172.30.30.108:1514"}
       binds:
         - ../configs/frr/frr2/frr.conf:/etc/stick/frr.conf:ro
         - ../configs/frr/daemons:/etc/stick/daemons:ro

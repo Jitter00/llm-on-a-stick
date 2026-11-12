@@ -1,0 +1,203 @@
+[
+ {
+  "name": "loki__list_datasources",
+  "description": "List all configured datasources in Grafana. Use this to discover available datasources and their UIDs. Supports filtering by type and/or name (case-insensitive substring match) and pagination.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "limit": {
+     "type": "integer",
+     "description": "Maximum number of datasources to return (max 100)"
+    },
+    "name": {
+     "type": "string",
+     "description": "Case-insensitive substring match on the datasource name. For example, 'prod' matches datasources named 'prometheus-prod-eu' and 'loki-prod-us'. Useful on instances with many datasources where filtering by type alone returns too many results."
+    },
+    "offset": {
+     "type": "integer",
+     "description": "Number of datasources to skip for pagination"
+    },
+    "type": {
+     "type": "string",
+     "description": "The type of datasources to search for. For example, 'prometheus', 'loki', 'tempo', etc..."
+    }
+   }
+  }
+ },
+ {
+  "name": "loki__list_loki_label_names",
+  "description": "Lists all available label/field names (keys) found in logs within a specified Loki or VictoriaLogs datasource and time range. Returns a list of unique label strings (e.g., `[\"app\", \"env\", \"pod\"]`). If the time range is not provided, it defaults to the last hour. Optionally narrow the search to a subset of streams with `matcher` (e.g. `{namespace=\"prod\"}`).",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "datasourceUid": {
+     "type": "string",
+     "description": "The UID of the datasource to query"
+    },
+    "endRfc3339": {
+     "type": "string",
+     "description": "Optionally, the end time of the query in RFC3339 format or relative time (e.g. 'now') (defaults to now)"
+    },
+    "matcher": {
+     "type": "string",
+     "description": "Optionally, a stream selector to narrow the search to matching streams (Loki: LogQL, e.g. '{namespace=\"prod\"}'; VictoriaLogs: LogsQL). Defaults to searching across all streams."
+    },
+    "startRfc3339": {
+     "type": "string",
+     "description": "Optionally, the start time of the query in RFC3339 format or relative time (e.g. 'now-1h') (defaults to 1 hour ago)"
+    }
+   },
+   "required": [
+    "datasourceUid"
+   ]
+  }
+ },
+ {
+  "name": "loki__list_loki_label_values",
+  "description": "Retrieves all unique values associated with a specific `labelName` within a Loki or VictoriaLogs datasource and time range. Returns a list of string values (e.g., for `labelName=\"env\"`, might return `[\"prod\", \"staging\", \"dev\"]`). Useful for discovering filter options. Defaults to the last hour if the time range is omitted. Optionally narrow the search to a subset of streams with `matcher` (e.g. `{namespace=\"prod\"}`) \u2014 for example, to list `service` values seen only within a specific namespace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "datasourceUid": {
+     "type": "string",
+     "description": "The UID of the datasource to query"
+    },
+    "endRfc3339": {
+     "type": "string",
+     "description": "Optionally, the end time of the query in RFC3339 format or relative time (e.g. 'now') (defaults to now)"
+    },
+    "labelName": {
+     "type": "string",
+     "description": "The name of the label to retrieve values for (e.g. 'app', 'env', 'pod')"
+    },
+    "matcher": {
+     "type": "string",
+     "description": "Optionally, a stream selector to narrow the search to matching streams (Loki: LogQL, e.g. '{namespace=\"prod\"}'; VictoriaLogs: LogsQL). Defaults to searching across all streams."
+    },
+    "startRfc3339": {
+     "type": "string",
+     "description": "Optionally, the start time of the query in RFC3339 format or relative time (e.g. 'now-1h') (defaults to 1 hour ago)"
+    }
+   },
+   "required": [
+    "datasourceUid",
+    "labelName"
+   ]
+  }
+ },
+ {
+  "name": "loki__query_loki_logs",
+  "description": "Executes a log query against a Loki or VictoriaLogs datasource and returns matching log entries (or metric samples on Loki). Defaults to the last hour, a limit of 10 entries, and 'backward' direction (newest first). The `logql` parameter takes LogQL on Loki and LogsQL on VictoriaLogs (e.g., Loki: `{app=\"foo\"} |= \"error\"`; VictoriaLogs: `{app=\"foo\"} \"error\"`). To count matching log lines precisely, use a `count_over_time()` metric query with queryType='instant'. For broad queries that match many lines, set `format` to 'compact' to group results by stream and avoid repeating label metadata on every line. Query cost is the bytes scanned, which the index statistics for the stream selector over the same time range estimate before a broad selector or long time range is run. If this server enables the Loki cost guardrail, expensive queries are rejected before execution: query cost is bytes SCANNED, determined only by the stream selector and time range \u2014 line filters (|=) and parsers (| json) reduce what is returned, not what is scanned. Use a stream selector with at least one selective positive label matcher (never `{}`, `=~\".*\"`/`=~\".+\"`, or negative-only matchers), keep time ranges narrow; rejected queries return rewrite guidance.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "datasourceUid": {
+     "type": "string",
+     "description": "The UID of the datasource to query"
+    },
+    "direction": {
+     "type": "string",
+     "description": "Optionally, the direction of the query: 'forward' (oldest first) or 'backward' (newest first, default)"
+    },
+    "endRfc3339": {
+     "type": "string",
+     "description": "Optionally, the end time of the query in RFC3339 format or relative time (e.g. 'now')"
+    },
+    "format": {
+     "type": "string",
+     "enum": [
+      "full",
+      "compact"
+     ],
+     "description": "Output format for log (streams) queries: 'full' (default) returns every entry with its own label metadata; 'compact' groups lines by stream so each label set is emitted only once, substantially reducing response size for broad queries. Structured metadata keys that are constant within a stream appear once on the stream header; keys that vary across lines appear per-line. Ignored for metric queries."
+    },
+    "limit": {
+     "type": "integer",
+     "description": "Optionally, the maximum number of log lines to return (default max: 100, configurable by MCP server)."
+    },
+    "logql": {
+     "type": "string",
+     "description": "The LogQL query to execute against Loki. This can be a simple label matcher or a complex query with filters, parsers, and expressions. Supports full LogQL syntax including label matchers, filter operators, pattern expressions, and pipeline operations."
+    },
+    "queryType": {
+     "type": "string",
+     "description": "Query type: 'range' (default) or 'instant'. Instant queries return a single value at one point in time. Range queries return values over a time window. Use 'instant' for metric queries when you want the current value."
+    },
+    "startRfc3339": {
+     "type": "string",
+     "description": "Optionally, the start time of the query in RFC3339 format or relative time (e.g. 'now-1h')"
+    },
+    "stepSeconds": {
+     "type": "integer",
+     "description": "Resolution step in seconds for range metric queries. When running metric queries with queryType='range', this controls the time resolution of the returned data points."
+    }
+   },
+   "required": [
+    "datasourceUid",
+    "logql"
+   ]
+  }
+ },
+ {
+  "name": "loki__query_loki_patterns",
+  "description": "Retrieves detected log patterns from a Loki datasource for a given stream selector and time range. Returns a list of patterns, each containing a pattern string, a total count of occurrences, and a detected `level` when available. Patterns help identify common log structures and anomalies. The `logql` parameter must be a stream selector (e.g., `{job=\"nginx\"}`) and does not support line filters or aggregations. Defaults to the last hour if the time range is omitted. **Not supported on VictoriaLogs** datasources - use a `| stats` pipeline instead.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "datasourceUid": {
+     "type": "string",
+     "description": "The UID of the datasource to query"
+    },
+    "endRfc3339": {
+     "type": "string",
+     "description": "Optionally, the end time of the query in RFC3339 format or relative time (e.g. 'now') (defaults to now)"
+    },
+    "logql": {
+     "type": "string",
+     "description": "A LogQL stream selector to identify the logs to analyze for patterns (e.g. {job=\"foo\", namespace=\"bar\"})"
+    },
+    "startRfc3339": {
+     "type": "string",
+     "description": "Optionally, the start time of the query in RFC3339 format or relative time (e.g. 'now-1h') (defaults to 1 hour ago)"
+    },
+    "step": {
+     "type": "string",
+     "description": "Optionally, the query resolution step (e.g. '5m')"
+    }
+   },
+   "required": [
+    "datasourceUid",
+    "logql"
+   ]
+  }
+ },
+ {
+  "name": "loki__query_loki_stats",
+  "description": "Retrieves index-level statistics about log streams matching a given selector within a Loki or VictoriaLogs datasource and time range. Returns an object containing the count of streams, chunks, entries, and total bytes (e.g., `{\"streams\": 5, \"chunks\": 50, \"entries\": 10000, \"bytes\": 512000}`). **Important**: the `entries` count reflects storage-level index entries (chunk metadata), NOT the number of individual log lines matching the selector. Counting actual matching log lines requires a `count_over_time()` LogQL metric query. On VictoriaLogs only `entries` is populated; the other fields remain zero. The `logql` parameter **must** be a simple label selector (e.g., `{app=\"nginx\", env=\"prod\"}`) and does not support line filters, parsers, or aggregations. The `bytes` field estimates how much data a log query over the same selector and time range would scan, which is useful to know before running a broad selector or long time range. Defaults to the last hour if the time range is omitted.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "datasourceUid": {
+     "type": "string",
+     "description": "The UID of the datasource to query"
+    },
+    "endRfc3339": {
+     "type": "string",
+     "description": "Optionally, the end time of the query in RFC3339 format or relative time (e.g. 'now')"
+    },
+    "logql": {
+     "type": "string",
+     "description": "The LogQL matcher expression to execute. This parameter only accepts label matcher expressions and does not support full LogQL queries. Line filters, pattern operations, and metric aggregations are not supported by the stats API endpoint. Only simple label selectors can be used here."
+    },
+    "startRfc3339": {
+     "type": "string",
+     "description": "Optionally, the start time of the query in RFC3339 format or relative time (e.g. 'now-1h')"
+    }
+   },
+   "required": [
+    "datasourceUid",
+    "logql"
+   ]
+  }
+ }
+]

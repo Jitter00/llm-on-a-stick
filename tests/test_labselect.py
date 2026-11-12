@@ -83,6 +83,14 @@ def test_the_zabbix_section_and_its_service() -> None:
     assert sel("tests/integration/test_zabbix.py").services == {"zabbix"}
 
 
+def test_the_loki_section_and_its_service() -> None:
+    # Its tasks work through an MCP server, like the mcp section's, but it has one service: that selects it.
+    s = sel("services/loki/config.alloy")
+    assert s == Selection(sections={"loki"}, services={"loki"}, core=False)
+    assert sel("sections/loki/loki-link-flap/setup.sh") == Selection(sections={"loki"}, services={"loki"})
+    assert sel("tests/integration/test_loki.py").services == {"loki"}
+
+
 def test_the_mcp_section_needs_five_services_but_none_of_them_selects_it() -> None:
     s = sel("sections/mcp/mcp-netbox-lookup/task.yaml")
     assert s == Selection(sections={"mcp"}, services={"netbox", "nautobot", "moto", "librenms", "zabbix"})

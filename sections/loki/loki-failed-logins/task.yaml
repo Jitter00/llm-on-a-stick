@@ -1,0 +1,57 @@
+id: loki-failed-logins
+section: loki
+title: Find who tried to log in with an unknown account, from the routers' syslog in Loki
+tier: basic
+floor: true  # the section's cheap floor task: CI validates it on every shared-code change
+tags: [tool:loki, iface:mcp, skill:log-query]
+prompt: |
+  The lab's four routers (srl1, srl2, frr1, frr2) send their syslog to Loki. You reach it through Grafana's
+  MCP server.
+
+  In the last few minutes somebody tried to log in over SSH to one of the routers as {{ canaries.user }},
+  an account that does not exist. Find those attempts in the logs and submit with submit_answer:
+    {"router": "<the router that was tried>", "source": "<the IPv4 address the attempts came from>",
+     "failed_attempts": <how many login attempts for that account failed>}
+
+  Count login attempts, not log lines.
+requires:
+  devices: [srl1, srl2, frr1, frr2, h1, h2]
+  services: [loki]
+tools:
+  mcp: [loki]
+reset_services: [loki]
+canaries:
+  user: hostname
+  other: hostname
+  tries: count
+  noise: count
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: json_file_matches
+    name: the answer names the router, the source address and the number of attempts
+    params:
+      path: answer.json
+      expected:
+        router: frr2
+        source: 172.30.30.31
+        failed_attempts: "{{ canaries.tries }}"
+    weight: 2
+  - type: no_change_outside
+    name: no configuration was changed
+    params: {allowed: []}
+  - type: llm_judge
+    name: how it searched the logs
+    params:
+      artifact: transcript
+      rubric: |
+        Judge how the candidate went about the task, not whether the end result is right (code checks that).
+        5: found the datasource and the labels first, then queried with a filter on the account name (and
+           narrowed by router or program once it knew them), and worked out the number of attempts from the
+           lines it read (several lines are logged per attempt).
+        3: got to an answer, but by reading long unfiltered results, with several failed calls on the way, or
+           by counting lines without looking at what one attempt logs.
+        1: guessed or invented the router, the address, the count, a datasource id or a label instead of
+           reading them; or kept repeating calls that had already failed without changing approach.
+        Use 2 and 4 for attempts in between.
+limits: {turns: 15}

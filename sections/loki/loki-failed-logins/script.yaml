@@ -1,0 +1,21 @@
+# The task's reference steps as MCP calls: stick run loki-failed-logins --model script/<this file>
+# (A script can't count lines in a result: it knows the number of attempts; a model has to count them.)
+steps:
+  - tool: loki__list_datasources
+    args: {type: loki}
+    capture:
+      uid: '"uid":\s*"([^"]+)"'
+  - tool: loki__query_loki_logs
+    args:
+      datasourceUid: "{{ captured.uid }}"
+      logql: '{job="syslog"} |= "Failed password for invalid user {{ canaries.user }} from"'
+      limit: 1
+    capture:
+      source: 'from (\d+\.\d+\.\d+\.\d+) port'
+      host: '"host":\s*"([^"]+)"'
+  - tool: submit_answer
+    args:
+      answer:
+        router: "{{ captured.host }}"
+        source: "{{ captured.source }}"
+        failed_attempts: "{{ canaries.tries }}"
