@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.17.0...v0.18.0) (2026-11-12)
+
+
+### Features
+
+* **grading:** add the judge model (--judge-model, stick judge) ([#45](https://github.com/Jitter00/llm-on-a-stick/issues/45)) ([6ed3ae8](https://github.com/Jitter00/llm-on-a-stick/commit/6ed3ae8422ba83380dad76108c0084ae61a7f831))
+
 ## [0.17.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.16.0...v0.17.0) (2026-11-12)
 
 
