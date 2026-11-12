@@ -41,8 +41,9 @@ fi
 echo "${SHELL_USER}:${SHELL_PASSWORD}" | chpasswd
 
 ssh-keygen -A >/dev/null
-# Lab-only settings: password login for the CLI and shell users, no root login.
-/usr/sbin/sshd -o PasswordAuthentication=yes -o PermitRootLogin=no
+# Lab-only settings: password login for the CLI and shell users, no root login. No penalties for failed
+# logins either: a task's setup makes several in a row, and each must be answered and logged.
+/usr/sbin/sshd -o PasswordAuthentication=yes -o PermitRootLogin=no -o PerSourcePenalties=no
 
 sed -i "s/^rocommunity .*/rocommunity ${SNMP_COMMUNITY} default/" /etc/snmp/snmpd.conf
 # -C: don't also read the default config path, or snmpd.conf is loaded twice and udp:161 binds twice.
@@ -50,7 +51,10 @@ snmpd -Lsd -C -c /etc/snmp/snmpd.conf
 
 mkdir -p /etc/rsyslog.d
 if [[ -n "${STICK_SYSLOG_TARGET:-}" ]]; then
-    echo "*.* @@${STICK_SYSLOG_TARGET}" > /etc/rsyslog.d/stick-forward.conf
+    # RFC 5424 over UDP: the collector gets the host name and the program as fields, and a collector that
+    # isn't running costs nothing (the lines are lost).
+    echo "*.* action(type=\"omfwd\" target=\"${STICK_SYSLOG_TARGET%:*}\" port=\"${STICK_SYSLOG_TARGET##*:}\"" \
+        "protocol=\"udp\" template=\"RSYSLOG_SyslogProtocol23Format\")" > /etc/rsyslog.d/stick-forward.conf
 fi
 rsyslogd
 

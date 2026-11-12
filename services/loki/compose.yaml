@@ -1,0 +1,62 @@
+# Loki for llm-on-a-stick: the routers' syslog, kept in Loki and read through Grafana.
+#   - alloy receives syslog from the routers at a fixed address on the lab's management network and pushes
+#     it to Loki
+#   - grafana has Loki as its only datasource (uid `loki`): the MCP server works through it
+#   - lab-only credentials, overridable from the shell
+name: stick-loki
+
+services:
+  loki:
+    image: docker.io/grafana/loki:3.7.9
+    hostname: loki
+    command: [-config.file=/etc/loki/stick.yaml]
+    stop_grace_period: 2s
+    ports:
+      - "127.0.0.1:${STICK_LOKI_PORT:-8087}:3100"
+    volumes:
+      - ./loki.yaml:/etc/loki/stick.yaml:ro
+      - loki-data:/loki
+
+  alloy:
+    image: docker.io/grafana/alloy:v1.21.3
+    hostname: alloy
+    command: [run, --storage.path=/tmp/alloy, /etc/alloy/config.alloy]
+    stop_grace_period: 2s
+    depends_on:
+      loki: {condition: service_started}
+    networks:
+      default: {}
+      stick-mgmt:
+        ipv4_address: 172.30.30.108
+    volumes:
+      - ./config.alloy:/etc/alloy/config.alloy:ro
+
+  grafana:
+    image: docker.io/grafana/grafana:13.3.1
+    hostname: grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${STICK_GRAFANA_PASSWORD:-Stick-lab-9x!Qz}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
+    healthcheck:
+      test: wget -q -O /dev/null http://localhost:3000/api/health || exit 1
+      start_period: 60s
+      timeout: 5s
+      interval: 2s
+    ports:
+      - "127.0.0.1:${STICK_GRAFANA_PORT:-8086}:3000"
+    volumes:
+      - ./grafana/datasources.yaml:/etc/grafana/provisioning/datasources/stick.yaml:ro
+      - grafana-data:/var/lib/grafana
+
+networks:
+  stick-mgmt:
+    external: true
+
+volumes:
+  loki-data:
+  grafana-data:

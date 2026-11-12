@@ -12,6 +12,7 @@ SERVICE_IPS = {
     "moto": "172.30.30.103",
     "librenms": "172.30.30.104",
     "zabbix": "172.30.30.106",
+    "loki": "172.30.30.108",  # Alloy, the syslog receiver; Loki and Grafana are reached from the host
 }
 # Further containers of a service that need the management network (LibreNMS's dispatcher polls from it;
 # Zabbix's server polls from the first address, its web frontend has the API).

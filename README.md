@@ -9,8 +9,9 @@ against a small virtual network, and compare a local model (for
 example one running in Ollama) with a paid one. It tells you **why** a model fails (wrong CLI syntax, made-up API
 fields, changing things it shouldn't), not just a score.
 
-> **What works today:** the virtual lab; the `stick` command; six tools around it (NetBox, Nautobot, LibreNMS,
-> Zabbix, Oxidized, and an emulated AWS account for the AWS CLI and Terraform); **40 tasks** in eight sections,
+> **What works today:** the virtual lab; the `stick` command; seven tools around it (NetBox, Nautobot, LibreNMS,
+> Zabbix, Oxidized, Loki with the routers' syslog, and an emulated AWS account for the AWS CLI and Terraform);
+> **43 tasks** in nine sections,
 > from getting router configs right over CLI and NETCONF to keeping NetBox in sync and fixing monitoring, and
 > the same tools through their MCP servers instead of a shell; the
 > **grader**, which checks every attempt and explains what went wrong; and the **runner**, which lets AI models
@@ -72,7 +73,7 @@ tools such as NetBox and Oxidized, connected to the lab's management network lik
 | | |
 |---|---|
 | **Operating system** | Linux (Ubuntu, Debian, Fedora...) or Windows 11 with WSL2. On a Mac you can bring up the lab but not run models against it yet; the way round is a Linux virtual machine on the Mac (see [docs/platforms.md](docs/platforms.md)). |
-| **Memory (RAM)** | About 6 GB free for one section, about 11 GB to run every section at once (`--all`). The lab uses ~4 GB; each tool adds its own: NetBox ~1.5 GB, Nautobot ~1.3 GB, Zabbix ~1.3 GB, LibreNMS ~0.8 GB, the emulated AWS account ~0.2 GB, Oxidized ~50 MB. A model running on the same machine needs its own memory on top. `stick doctor` shows what fits. |
+| **Memory (RAM)** | About 6 GB free for one section, about 11 GB to run every section at once (`--all`). The lab uses ~4 GB; each tool adds its own: NetBox ~1.5 GB, Nautobot ~1.3 GB, Zabbix ~1.3 GB, LibreNMS ~0.8 GB, Loki with Grafana ~0.4 GB, the emulated AWS account ~0.2 GB, Oxidized ~50 MB. A model running on the same machine needs its own memory on top. `stick doctor` shows what fits. |
 | **Disk** | About 10 GB free for the container images. |
 | **Internet** | For the first download of images and tools. |
 
@@ -253,7 +254,7 @@ stick run running-config-cli-frr --model ollama/qwen3:14b
 The model gets the task's instructions and one tool: running shell commands in a small "toolbox" container that can
 reach the lab. When it says it's done (or runs out of turns or time), the grader scores the attempt. The first run
 builds the toolbox image, which takes a few minutes (about 1.5 GB: it includes the AWS CLI and Terraform).
-In the `mcp` section the model has no shell: its tools are those of the tools' MCP servers
+In the `mcp` and `loki` sections the model has no shell: its tools are those of the tools' MCP servers
 ([docs/tasks.md](docs/tasks.md#mcp-the-same-tools-through-mcp-servers)).
 
 **3. Compare two models on the five `cfg-mgmt` tasks**, three attempts each (models don't always do the same thing twice).
@@ -389,6 +390,7 @@ stick env down
 | Emulated AWS (moto 5.2) | <http://127.0.0.1:8083/moto-api/> | `http://172.30.30.103:5000` | none |
 | LibreNMS 26.10 | <http://127.0.0.1:8084> | `http://172.30.30.104:8000` | `admin` / `Stick-lab-9x!Qz` |
 | Zabbix 8.0 | <http://127.0.0.1:8085> | `http://172.30.30.107:8080` | `Admin` / `zabbix` |
+| Loki 3.7 (in Grafana 13.3) | <http://127.0.0.1:8086> | syslog to `172.30.30.108:1514` | `admin` / `Stick-lab-9x!Qz` |
 
 | Command | What it does |
 |---|---|
@@ -444,6 +446,7 @@ uv run pytest -m lab -v tests/integration/test_oxidized.py   # Oxidized
 uv run pytest -m lab -v tests/integration/test_nautobot.py   # Nautobot
 uv run pytest -m lab -v tests/integration/test_librenms.py   # LibreNMS
 uv run pytest -m lab -v tests/integration/test_zabbix.py     # Zabbix
+uv run pytest -m lab -v tests/integration/test_loki.py       # Loki (the routers' syslog)
 uv run pytest -m lab -v tests/integration/test_moto.py       # the emulated AWS account
 uv run pytest -m lab -v tests/integration/test_grading_lab.py # the grader
 uv run pytest -m lab -v tests/integration/test_tasks_lab.py   # every task can be solved, and can't be faked (and the mcp tasks through their MCP servers)
@@ -499,7 +502,7 @@ model on my own machine and compare it to a frontier model".
 
 What is still to do:
 
-- **More tools**, each with its own tasks: Gitea, syslog, telemetry (gNMI), DNS and DHCP, SuzieQ, Batfish.
+- **More tools**, each with its own tasks: Gitea, telemetry (gNMI), DNS and DHCP, SuzieQ, Batfish.
 - **More task sections**: lab management and troubleshooting (faults put into the lab for the model to find).
 - **The judge model**: a set of human-graded examples to check it against, judge checks for the sections
   beyond NetBox, and tasks that ask for a written explanation.

@@ -1,0 +1,43 @@
+# The task's reference steps as MCP calls: stick run loki-root-cause --model script/<this file>
+# (A script can't collect a list or weigh evidence: it knows the two sessions; a model has to find them.)
+steps:
+  - tool: loki__list_datasources
+    args: {type: loki}
+    capture:
+      uid: '"uid":\s*"([^"]+)"'
+  - tool: loki__query_loki_logs
+    args:
+      datasourceUid: "{{ captured.uid }}"
+      logql: '{job="syslog"} |= "bgpNeighborBackwardTransition" |= "due to event CONFIG_CHG"'
+      limit: 1
+    capture:
+      router: '"host":\s*"([^"]+)"'
+  - tool: loki__query_loki_logs
+    args:
+      datasourceUid: "{{ captured.uid }}"
+      logql: '{host="{{ captured.router }}"} |= "commitSucceeded" |= "by user {{ canaries.user }} "'
+      limit: 1
+    capture:
+      session: 'session (\d+)\.'
+  - tool: loki__query_loki_logs
+    args:
+      datasourceUid: "{{ captured.uid }}"
+      logql: '{host="{{ captured.router }}"} |= "Opened session {{ captured.session }} for user {{ canaries.user }} "'
+      limit: 1
+    capture:
+      source: 'from host (\d+\.\d+\.\d+\.\d+) in'
+  - tool: loki__query_loki_logs
+    args:
+      datasourceUid: "{{ captured.uid }}"
+      logql: '{host="{{ captured.router }}", app="sr_cli"} |= "|{{ canaries.user }}|{{ captured.session }}|" |= "router-id"'
+      limit: 1
+    capture:
+      value: 'router-id (\d+\.\d+\.\d+\.\d+)'
+  - tool: submit_answer
+    args:
+      answer:
+        router: "{{ captured.router }}"
+        user: "{{ canaries.user }}"
+        source: "{{ captured.source }}"
+        new_value: "{{ captured.value }}"
+        sessions_down: [10.0.2.1, 10.0.2.3]

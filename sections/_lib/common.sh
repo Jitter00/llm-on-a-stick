@@ -310,3 +310,50 @@ snmp_wait() {
     echo "$1 does not show '$3' over SNMP (community $2)" >&2
     return 1
 }
+
+# --- Loki (the routers' syslog) -------------------------------------------
+# Apply several SR Linux commands in one commit: srl_commit <container> "set / ..." "set / ..."
+# (`sr_cli -ec`, which srl_set uses, takes one command.)
+srl_commit() {
+    local c=$1 out; shift
+    if ! out=$(printf '%s\n' "enter candidate" "$@" "commit now" | docker exec -i "$c" sr_cli 2>&1) ||
+        ! grep -q "All changes have been committed" <<<"$out"; then
+        echo "srl_commit $c: $out" >&2; return 1
+    fi
+}
+# An SSH login from a lab node (so the routers log that node's address), with a password and no terminal:
+# ssh_login <from container> <target address> <user> <password>. Commands for the far end come on stdin.
+# The exit status is ssh's: a refused password is not an error for a setup that wants failed logins.
+ssh_login() {
+    docker exec -i "$1" sh -c '
+        printf "#!/bin/sh\necho %s\n" "$3" > /tmp/stick-askpass && chmod 700 /tmp/stick-askpass
+        SSH_ASKPASS=/tmp/stick-askpass SSH_ASKPASS_REQUIRE=force DISPLAY=none setsid ssh -T \
+            -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR \
+            -o PreferredAuthentications=password -o NumberOfPasswordPrompts=1 -o ConnectTimeout=5 \
+            "$2@$1" 2>/dev/null' sh "$2" "$3" "$4"
+}
+# How many log lines match a LogQL query in the last 15 minutes: loki_count '{host="frr1"} |= "x"'
+loki_count() {
+    curl -fsS -G "${STICK_LOKI_URL%/}/loki/api/v1/query" \
+        --data-urlencode "query=sum(count_over_time($1 [15m]))" | jq -r '.data.result[0].value[1] // "0"'
+}
+# The matching lines, oldest first (at most 1000): loki_lines '{host="frr1"} |= "x"'
+loki_lines() {
+    curl -fsS -G "${STICK_LOKI_URL%/}/loki/api/v1/query_range" --data-urlencode "query=$1" \
+        --data-urlencode "start=$(($(date +%s) - 900))" --data-urlencode limit=1000 \
+        --data-urlencode direction=forward | jq -r '[.data.result[].values[]] | sort_by(.[0]) | .[][1]'
+}
+# Wait until Loki has exactly <count> lines for a query (syslog arrives a moment after the event):
+# loki_wait '{host="frr1"} |= "x"' 3. More lines than that is an error: the setup would not be what the
+# task's answer says.
+loki_wait() {
+    local query=$1 want=${2:-1} got=0
+    for _ in $(seq 1 60); do
+        got=$(loki_count "$query" 2>/dev/null || echo 0)
+        [[ "$got" -eq "$want" ]] && return 0
+        [[ "$got" -gt "$want" ]] && break
+        sleep 1
+    done
+    echo "loki_wait: $got lines for $query, wanted $want" >&2
+    return 1
+}

@@ -45,8 +45,8 @@ errors in the body, so its health check posts a request (`health.post`) and look
 
 ## MCP servers
 
-Five services also have an **MCP server**: what a model works through in the
-[`mcp` section](tasks.md#mcp-the-same-tools-through-mcp-servers), instead of a shell. They are the published
+Six services also have an **MCP server**: what a model works through in the
+[`mcp`](tasks.md#mcp-the-same-tools-through-mcp-servers) and [`loki`](tasks.md#loki-the-routers-syslog) sections, instead of a shell. They are the published
 servers, pinned, all in one image (`images/mcp`, built as `stick-mcp:dev`; one virtualenv each, from
 hash-pinned requirement files). `stick run` starts one container per server and attempt and talks to it over
 stdio.
@@ -58,6 +58,7 @@ stdio.
 | nautobot | [nautobot-mcp](https://github.com/bsmeding/nautobot-mcp-server) | 0.2.5 | 28 of 77 | yes (`NAUTOBOT_MCP_ALLOW_WRITES`) | A young community server. Typed list and get tools, free prefixes and addresses, generic REST and GraphQL tools |
 | librenms | [librenms-mcp](https://github.com/mhajder/librenms-mcp) | 1.13.0 | 33 of 113 | yes | Hides SNMP communities in what it returns |
 | zabbix | [zabbix-mcp](https://github.com/mhajder/zabbix-mcp) | 0.8.0 | 16 of 53 | yes | Supports Zabbix up to 7.4: it only talks to 8.0 with `ZABBIX_SKIP_VERSION_CHECK`, and the calls the tasks use work |
+| loki | [mcp-grafana](https://github.com/grafana/mcp-grafana) | 2.2.0 | 6 of 63 | no (started with `--disable-write`) | Grafana's own server; it reads Loki through Grafana's datasource, so a query names the datasource (`loki`). 10 lines per query unless asked for more, 100 at most; timestamps in nanoseconds. Not shown: dashboards, alerting, incidents, Prometheus, and `grafana_api_request` |
 
 A server is declared in the service's `service.yaml`:
 
@@ -245,6 +246,36 @@ and its description, e.g. `Interface ethernet-1/1(to frr1): Operational status`,
       needs a time period as well as `active_since`/`active_till`;
     - a host deleted and added again has a new id and no history: the `zabbix_unchanged` check counts that
       as deleting it.
+
+## Loki
+
+The routers' syslog. Three containers: **Loki** keeps the lines, **Alloy** receives syslog from the routers
+and pushes it to Loki, and **Grafana** has Loki as its only datasource. Models reach it through Grafana's MCP
+server only.
+
+| | |
+|---|---|
+| Version | Loki 3.7.9, Alloy 1.21.3, Grafana 13.3.1 |
+| Grafana (host) | <http://127.0.0.1:8086> (`STICK_GRAFANA_PORT`), user `admin` / `Stick-lab-9x!Qz` (`STICK_GRAFANA_PASSWORD`); datasource uid `loki` |
+| Loki API (host) | `http://127.0.0.1:8087/loki/api/v1/` (`STICK_LOKI_PORT`), no authentication; task scripts use it |
+| Syslog (from the lab) | `172.30.30.108:1514`, UDP and TCP, RFC 5424 |
+| Labels | `host` (the router's name), `app` (the program), `severity`, `facility`, `job="syslog"` |
+| Start | about 10 s |
+| Reset | about 5 s: Loki and Alloy are removed with Loki's volume and started again, so the store is empty |
+| Memory | about 0.4 GB (Grafana most of it) |
+
+- **The routers always send**, whether the service runs or not (`topologies/base.clab.yml` sets
+  `STICK_SYSLOG_TARGET` on the FRR nodes, `configs/srl/*.cli` configures `system logging remote-server`). What
+  they log while Loki is down is lost. A lab deployed before this was added does not send: rebuild the FRR
+  image and deploy again (`stick image build frr`, `stick env down`, `stick env up`).
+- **What is logged.** SR Linux: every commit with the user's name, every CLI command, logins, port and BGP
+  events. FRR: BGP neighbour changes and SSH logins; not who changed its configuration.
+- **Noise is part of it.** SR Linux's gRPC server logs a warning every second, about 7,000 lines an hour from
+  the two of them: a query without a filter returns little else.
+- **Routers are restored before services are reset**, so what the restore itself logs (a commit, sessions
+  that drop) is gone when a task's setup starts.
+- **Failed logins.** FRR's `sshd` runs with `PerSourcePenalties=no`, so that each of several failed logins
+  in a row is answered and logged. SR Linux's turns a source away after a few.
 
 ## Oxidized
 

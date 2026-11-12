@@ -34,7 +34,7 @@ from llm_on_a_stick.services.spec import McpServer
 
 IMAGE = os.environ.get("STICK_MCP_IMAGE", "stick-mcp:dev")
 # The `stick.mcp.version` label of images/mcp/Dockerfile.
-MCP_IMAGE_VERSION = "1"
+MCP_IMAGE_VERSION = "2"
 
 # "<server>__<tool>": what the model calls. Both model APIs limit tool names to these characters and 64 long.
 SEPARATOR = "__"
@@ -90,7 +90,7 @@ def ensure_image(log: object = print) -> None:
         raise McpError(f"MCP image {IMAGE} not found")
     if callable(log):
         why = "its servers changed" if found else "once"
-        log(f"building the MCP server image ({why}; a few minutes: it installs five servers) ...")
+        log(f"building the MCP server image ({why}; a few minutes: it installs six servers) ...")
     containerlab.build_image("mcp")
 
 

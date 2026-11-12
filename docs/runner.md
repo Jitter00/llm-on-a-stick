@@ -93,7 +93,7 @@ client settings (moto: `AWS_ENDPOINT_URL`, credentials, region), the toolbox get
 
 ### MCP servers instead of a shell
 
-A task with `tools: {mcp: [<service>, ...]}` (the [`mcp` section](tasks.md#mcp-the-same-tools-through-mcp-servers))
+A task with `tools: {mcp: [<service>, ...]}` (the [`mcp`](tasks.md#mcp-the-same-tools-through-mcp-servers) and [`loki`](tasks.md#loki-the-routers-syslog) sections)
 replaces all of the above:
 
 - **No toolbox and no `run_command`.** The model's tools are those of the listed services' MCP servers, named

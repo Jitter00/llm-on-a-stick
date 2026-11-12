@@ -193,12 +193,14 @@ def start(
     # workdir is a path inside the (Linux) toolbox container: keep it POSIX, also on Windows hosts.
     shown: PurePath = PurePosixPath(workdir) if workdir else workspace
     prompt = render(task.prompt, template_vars(values, shown, lab))  # fail early on unknown names
+    # Routers first: a service that watches them (Loki holds their syslog, Oxidized fetches their
+    # configuration when it starts) then begins from the restored lab, not from the last attempt's leftovers.
+    restore_routers(lab, run_dir / "restore.log")
     for name in task.reset_services:  # back to the seeded snapshot, so every attempt starts the same
         try:
             lifecycle.restore_snapshot(services.load(name))
         except (ServiceError, OSError) as exc:
             raise RunError(f"cannot reset {name}: is it up? (`stick svc up {name}`) [{exc}]") from exc
-    restore_routers(lab, run_dir / "restore.log")
     if task.setup:
         run_script(task, task.setup, "setup", run_dir, script_env(task, run_dir, workspace, values, lab))
 

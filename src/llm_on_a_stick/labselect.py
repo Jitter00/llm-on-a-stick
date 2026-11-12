@@ -5,8 +5,8 @@ Validating every task of every section takes minutes per task on a CI runner, so
 - every task of a **section** whose folder it changes (`sections/<section>/...`), or that requires a
   **service** it changes (`services/<name>/...`, `tests/integration/test_<name>.py`), plus that service's own
   lab tests;
-  (tasks that work through MCP servers don't count here: the mcp section spans five services, and a change
-  to one of them would start all five; each service's own lab tests check its MCP server instead);
+  (the mcp section doesn't count here: it spans five services, and a change to one of them would start all
+  five; each service's own lab tests check its MCP server instead);
 - for a change to **shared code** (`src/`, `sections/_lib/`, topologies, router configs, images, the lab
   tests' helpers, dependencies...): the generic lab tests and each section's **floor** task (`floor: true`),
   enough to catch broken plumbing without validating everything;
@@ -68,11 +68,12 @@ class Selection:
 
 
 def section_services(task_list: Iterable[tasks.Task], mcp: bool = True) -> dict[str, set[str]]:
-    """Section -> the services its tasks require (`mcp=False`: leaving out tasks that work through MCP
-    servers)."""
+    """Section -> the services its tasks require (`mcp=False`: leaving out the mcp section, which spans
+    several services; a section whose tasks reach its one service through an MCP server, as loki's do,
+    counts)."""
     out: dict[str, set[str]] = {}
     for task in task_list:
-        if mcp or not task.tools.get("mcp"):
+        if mcp or task.section != "mcp":
             out.setdefault(task.section, set()).update(task.requires.get("services") or [])
     return out
 

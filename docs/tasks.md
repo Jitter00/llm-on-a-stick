@@ -18,18 +18,19 @@ uv run stick grade                           # grades the attempt
 Every attempt starts from the same state. The lab stays up between attempts, tasks, sections and models (only
 `stick env up` / `env down` deploy or remove it), so `stick task start` resets it first:
 
-1. the services the task lists under `reset_services` go back to their baseline (NetBox's seeded snapshot:
-   ~20 s, Nautobot's: ~25 s, LibreNMS's empty database: ~1 s, Zabbix's: ~10 s, moto's empty account: ~0.2 s);
-2. **every router goes back to the config it booted with**, without a restart, so BGP stays up:
+1. **every router goes back to the config it booted with**, without a restart, so BGP stays up:
    - SR Linux reverts to `clab-initial`, the checkpoint containerlab takes once the startup config is applied;
    - FRR runs `frr-reload.py` against its startup config, `configs/frr/<node>/frr.conf`;
    - it takes about 2 s for the four routers, and the times are in the run's `restore.log`;
+2. the services the task lists under `reset_services` go back to their baseline (NetBox's seeded snapshot:
+   ~20 s, Nautobot's: ~25 s, LibreNMS's empty database: ~1 s, Zabbix's: ~10 s, Loki's empty store: ~5 s, moto's
+   empty account: ~0.2 s), after the routers, so that Loki doesn't keep what the restore itself logged;
 3. the task's `setup.sh` plants this run's canaries (or a fault);
 4. the baseline is taken, for `no_change_outside`, `netbox_unchanged`, `nautobot_unchanged`, `librenms_unchanged`,
    `zabbix_unchanged` and `aws_unchanged`.
 
 A task with `topology: none` (the `aws` and `terraform` sections, and three of the `mcp` tasks) uses no lab
-device: step 2 is skipped, and the lab doesn't need to be running at all.
+device: step 1 is skipped, and the lab doesn't need to be running at all.
 
 ## cfg-mgmt: getting configuration right
 
@@ -166,6 +167,25 @@ from a Zabbix with no hosts (`reset_services: [zabbix]`, about 10 s), and `zabbi
 that add, change or delete anything the task didn't ask for. Run them with
 `uv run stick run --section zabbix ...`.
 
+## loki: the routers' syslog
+
+The four routers send their syslog to Loki ([Services](services.md#loki)). The model has **no shell**: it
+reads the logs through Grafana's MCP server (6 of its tools: finding the datasource, labels, log queries,
+statistics, patterns). This is the first section built on an MCP server from the start, and it has three
+tasks, one per tier, not five: every task is a question about logs, so more of them would repeat the same
+skill. Each setup makes real events on the routers (logins, a port going down, a commit), with other events
+around them, and waits until Loki has the lines.
+
+| Task | Tier | What the agent must do | What can go wrong (and is detected) |
+|---|---|---|---|
+| `loki-failed-logins` | basic | Somebody tried an account that doesn't exist: which router, from which address, how many attempts | Counting log lines (`sshd` writes several per attempt); another unknown account tried against the same router and another one; a good login from the same address; a query with no filter (SR Linux's once-a-second warning fills the result) |
+| `loki-link-flap` | intermediate | One link flapped: the port, the router at the other end, how often it went down, both addresses of the BGP session over it | Another port that went down once; a BGP session reset with no link down; the two routers on the link are SR Linux and FRR, with different log formats, and each names only the other's address |
+| `loki-root-cause` | advanced | BGP sessions dropped after a commit: on which router, by which account, from where, what value it set, and which sessions it took down | Another account's harmless commit just before; the same account logging in to another router and only looking; a session that dropped for another reason; the value is only in the logged command of that login session |
+
+Requirements: the lab and the `loki` service (Loki, Alloy, Grafana: about 0.4 GB). Answers go through
+`submit_answer`; each task has a `script.yaml` with its reference solution as MCP calls. A fourth task, one
+that needs an aggregate query, is an open item in `TODO.md`.
+
 ## mcp: the same tools through MCP servers
 
 In the other sections the model has a shell and writes its own `curl`, `aws` or Python. Here it has **no shell
@@ -236,7 +256,7 @@ score ([Grading](grading.md#judge-checks-in-a-task)). Scripts get these environm
 | `STICK_NODE_<NODE>` / `STICK_NODE_<NODE>_IP` | Container name / management IP of each lab node, e.g. `STICK_NODE_SRL1` |
 | `STICK_<SERVICE>_URL` / `STICK_<SERVICE>_AUTH` | A service's host URL and, if it has an API token, its `Authorization` header value, e.g. `STICK_NETBOX_URL` |
 | `AWS_ENDPOINT_URL`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION` | Only for tasks that require `moto`: what the AWS tools need to reach the emulator |
-| `STICK_LIB` | Folder with shared helpers: `source "$STICK_LIB/common.sh"` gives `srl_set`, `srl_cli`, `frr_conf`, `frr_cli`, `netconf_get_config`, `oxidized_backup_now`, `netbox_api`, `netbox_id`, `nautobot_api`, `nautobot_id`, `librenms_api`, `librenms_add_device(s)`, `librenms_poll`, `librenms_wait_snmp`, `srl_snmp_community`, `zabbix_api`, `zabbix_add_host`, `zabbix_group_id`, `zabbix_poll`, `zabbix_wait_available`, `zabbix_wait_items`, `snmp_wait` |
+| `STICK_LIB` | Folder with shared helpers: `source "$STICK_LIB/common.sh"` gives `srl_set`, `srl_cli`, `frr_conf`, `frr_cli`, `netconf_get_config`, `oxidized_backup_now`, `netbox_api`, `netbox_id`, `nautobot_api`, `nautobot_id`, `librenms_api`, `librenms_add_device(s)`, `librenms_poll`, `librenms_wait_snmp`, `srl_snmp_community`, `zabbix_api`, `zabbix_add_host`, `zabbix_group_id`, `zabbix_poll`, `zabbix_wait_available`, `zabbix_wait_items`, `snmp_wait`, `srl_commit` (several SR Linux commands in one commit), `ssh_login` (a password login from a lab node), `loki_count`, `loki_lines`, `loki_wait` |
 
 Prompts can use `{{ services.<name>.url }}` and, for services with an API token, `{{ services.<name>.token }}`
 (the value after `Bearer`/`Token`, or the whole `X-Auth-Token` for LibreNMS).
@@ -264,6 +284,10 @@ Things learned while writing these tasks:
 - SR Linux publishes a configuration change (a description, a community) over SNMP a few seconds later;
   `librenms_wait_snmp` waits for it before LibreNMS reads the device (`snmp_wait` does the same from the toolbox
   image, with numeric OIDs: the image has no MIB files).
+- `sr_cli -ec` takes one command: several in one commit go through `srl_commit`. A new SR Linux user can log
+  in only when its role has `services [ cli ]`, and a few seconds after the commit.
+- OpenSSH 9.8 and later turns a source away after a few failed logins (`PerSourcePenalties`): a setup that
+  needs each failure logged has to switch that off on the target, or stay under the threshold.
 - Zabbix's `discoveryrule.get` ignores a `host` parameter (it lists every template's rules): pass `hostids`.
 - A full NETCONF reply from SR Linux is ~300 KB: pass it through files, not environment variables.
 - SR Linux has `<interface>` elements in several places (network-instances, LLDP...) reusing interface names; take

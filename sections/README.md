@@ -16,7 +16,7 @@ server.
 | `terraform` | 5 | Terraform against the same account: reading a plan, repairing a broken configuration, importing, reconciling manual changes, refactoring into a module |
 | `librenms` | 5 | LibreNMS 26.10 REST API over SNMP-polled routers: a port query, adding a device, fixing a device that went down, an alert rule that must fire for the right port, adding what NetBox lists as active |
 | `zabbix` | 5 | Zabbix 8.0 JSON-RPC API over SNMP-polled routers: a host query, adding a host, fixing a host Zabbix can't reach, a trigger that must raise a problem on the right router, a maintenance for exactly one host group |
-
+| `loki` | 3 | The routers' syslog in Loki, through Grafana's MCP server, with no shell: failed logins for an account, a flapping link and the BGP session it takes down, the configuration change behind dropped sessions |
 | `mcp` | 5 | The same tools through their MCP servers, with no shell: one task per server (NetBox, AWS, Nautobot, LibreNMS, Zabbix with NetBox), from a lookup to a change that joins two servers |
 
 ## Groupings
@@ -28,10 +28,10 @@ The wider areas the sections belong to, for orientation only (nothing in `task.y
 | Lab management | *lab-mgmt* (containerlab, later CML) |
 | Configuration management | `cfg-mgmt`, *gitea* (GitOps) |
 | Source of truth and DDI | `netbox`, `nautobot`, *powerdns*, *kea* |
-| Validation and observability | `librenms`, `zabbix`, *batfish*, *suzieq*, *gnmic-prometheus*, *syslog*, *pyats* (Cisco/CML only) |
+| Validation and observability | `librenms`, `zabbix`, `loki`, *batfish*, *suzieq*, *gnmic-prometheus*, *pyats* (Cisco/CML only) |
 | Cloud | `aws`, `terraform` (no lab devices: `topology: none`) |
 | Troubleshooting | *troubleshooting*: injected faults, correlating events across tools |
-| Ways of working | `mcp`: MCP servers as the only tools (the other sections give the model a shell) |
+| Ways of working | `mcp`: MCP servers as the only tools (the other sections give the model a shell, except `loki`, built on its MCP server from the start) |
 
 The schema is `src/llm_on_a_stick/data/task.schema.json`. Check tasks with `stick task lint`.
 Your own tasks can live anywhere: `stick task lint ./my-tests`.

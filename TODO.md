@@ -26,15 +26,15 @@ seed data, a snapshot/reset, a measured footprint in `src/llm_on_a_stick/data/fo
 Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some containers), and time the cold boot and the reset.
 
 - [ ] **Gitea.** Seed an org, a `lab-configs` repo and an API token; snapshot = its DB and repo volume. Needed for the GitOps tasks.
-- [ ] **Syslog (Loki + Promtail, or rsyslog → Loki).** `stick-frr` already forwards when `STICK_SYSLOG_TARGET=host:port` is set;
-      wire that in the topology. Configure SR Linux remote syslog in `configs/srl/*.cli`. Verify logs from all four nodes.
+- [x] **Syslog (Loki, received by Alloy, read through Grafana).** All four routers log to it; the `loki` section has three
+      tasks, MCP only. Open: a fourth task that needs an aggregate query (which router logged the most errors).
 - [ ] **Telemetry (gNMIc + Prometheus).** gNMI subscriptions to SR Linux (interface counters, BGP state); FRR has no gNMI
       (document SNMP as its path). Verify counters appear in Prometheus.
 - [ ] **DDI (PowerDNS + Kea).** Authoritative zone for the lab (`stick.lab`) with API enabled; Kea DHCP on the host subnets.
       This means h1/h2 switch from static IPs to DHCP (a topology change, so update the integration tests).
 - [ ] **SuzieQ.** Poller against SR Linux and FRR; check which of the two it supports.
 - [ ] **Batfish.** Expected: no SR Linux support, partial FRR. Record the actual result. It becomes fully useful once cEOS or Junos are added.
-- [ ] **Compatibility spike leftovers.** SR Linux SSH CLI, NETCONF and gNMI, LLDP on both OSes, remote syslog
+- [ ] **Compatibility spike leftovers.** SR Linux SSH CLI, NETCONF and gNMI, LLDP on both OSes
       (cells still ❓ in `docs/compatibility.md`).
 - [ ] **`stick env reset`.** Redeploy the lab and reset every running service, so a whole attempt starts from a known state.
 - [ ] **`stick up <profile>`.** Lab plus a named set of services (e.g. `cfg-mgmt` = lab + Oxidized + Gitea), checked against

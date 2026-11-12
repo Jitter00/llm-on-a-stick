@@ -1,0 +1,52 @@
+# How `stick svc` drives Loki. ${VAR:-default} is expanded from the environment, using the same variables
+# and defaults as compose.yaml. The routers send their syslog to 172.30.30.108:1514 whether this service
+# runs or not (topologies/base.clab.yml, configs/srl/*.cli): what they log while it is down is lost.
+name: loki
+description: Loki 3.7 with the routers' syslog (received by Alloy), read through Grafana 13.3
+compose: compose.yaml
+project: stick-loki
+wait_timeout_s: 180
+
+# Healthy = Loki takes queries. Grafana has its own health check in compose.yaml (`up --wait`).
+health:
+  url: http://127.0.0.1:${STICK_LOKI_PORT:-8087}/ready
+
+endpoints:
+  grafana (host): http://127.0.0.1:${STICK_GRAFANA_PORT:-8086}
+  loki api (host): http://127.0.0.1:${STICK_LOKI_PORT:-8087}/loki/api/v1/
+  syslog (lab mgmt network): 172.30.30.108:1514 (UDP and TCP, RFC 5424)
+
+credentials:
+  grafana username: admin
+  grafana password: ${STICK_GRAFANA_PASSWORD:-Stick-lab-9x!Qz}
+  loki: none
+
+# Loki's own HTTP API, for the task scripts (the model only gets the MCP server).
+api:
+  base_url: http://127.0.0.1:${STICK_LOKI_PORT:-8087}/
+
+# The baseline is an empty log store: reset removes Loki and its volume and starts it again (a few seconds).
+# Alloy goes with it: it would send what it still holds from before the reset to the new Loki. Grafana
+# keeps running.
+snapshot:
+  kind: volumes
+  services: [alloy, loki]
+  volumes: [loki-data]
+
+# Grafana's own MCP server, started read-only (images/mcp: --disable-write). 6 of its 63 tools are offered:
+# finding the datasource and the Loki tools. Not shown: dashboards, alerting, incidents, on-call, Prometheus,
+# Tempo, Pyroscope, and grafana_api_request (any call to Grafana's API).
+mcp:
+  server: grafana
+  version: 2.2.0
+  env:
+    GRAFANA_URL: http://127.0.0.1:${STICK_GRAFANA_PORT:-8086}
+    GRAFANA_USERNAME: admin
+    GRAFANA_PASSWORD: ${STICK_GRAFANA_PASSWORD:-Stick-lab-9x!Qz}
+  allow:
+    - list_datasources
+    - list_loki_label_names
+    - list_loki_label_values
+    - query_loki_logs
+    - query_loki_stats
+    - query_loki_patterns

@@ -85,6 +85,7 @@ config from memory or inventing a plausible one.
 | `hostname` | `stick-qkzpta` | device names (NetBox, LLDP system names) |
 | `net24` | `198.19.117` | the first three octets of a /24 pool: `{{ canaries.pool }}.0/24` (198.19.0.0/16, never overlaps `ipv4`) |
 | `net16` | `10.93` | the first two octets of a /16 for a VPC: `{{ canaries.vpc }}.0.0/16` (10.64 to 10.127) |
+| `count` | `5` | how many times a setup repeats something the answer has to count (3 to 7: failed logins, link flaps) |
 
 ## Outcomes and scores
 

@@ -1,0 +1,71 @@
+id: loki-root-cause
+section: loki
+title: Find the configuration change behind dropped BGP sessions, from the routers' syslog in Loki
+tier: advanced
+tags: [tool:loki, iface:mcp, skill:log-correlation, skill:root-cause]
+prompt: |
+  The lab's four routers (srl1, srl2, frr1, frr2) send their syslog to Loki. You reach it through Grafana's
+  MCP server. srl1 and srl2 run Nokia SR Linux; frr1 and frr2 run FRR.
+
+  In the last few minutes BGP sessions in the lab dropped. One cause was a configuration change that somebody
+  committed on a router; not every session that dropped did so because of that change, and not everybody who
+  logged in changed something. Find the change in the logs and submit with submit_answer:
+    {"router": "<the router the change was committed on>", "user": "<the account that committed it>",
+     "source": "<the IPv4 address that account logged in from>",
+     "new_value": "<the value the change set, as typed in the command>",
+     "sessions_down": ["<the neighbour address, as that router names it, of each BGP session that dropped because of the change>", "..."]}
+requires:
+  devices: [srl1, srl2, frr1, frr2, h1, h2]
+  services: [loki]
+tools:
+  mcp: [loki]
+reset_services: [loki]
+canaries:
+  user: hostname
+  other: hostname
+  rid: ipv4
+  desc: description
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: json_file_matches
+    name: the answer names the router, the account and where it logged in from
+    params:
+      path: answer.json
+      expected:
+        router: srl2
+        user: "{{ canaries.user }}"
+        source: 172.30.30.31
+    weight: 2
+  - type: json_file_matches
+    name: the answer gives the value the change set
+    params:
+      path: answer.json
+      expected:
+        new_value: "{{ canaries.rid }}"
+  - type: json_file_matches
+    name: the answer lists exactly the sessions the change took down
+    params:
+      path: answer.json
+      expected:
+        sessions_down: [10.0.2.1, 10.0.2.3]
+    weight: 2
+  - type: no_change_outside
+    name: no configuration was changed
+    params: {allowed: []}
+  - type: llm_judge
+    name: how it searched the logs
+    params:
+      artifact: transcript
+      rubric: |
+        Judge how the candidate went about the task, not whether the end result is right (code checks that).
+        5: found the datasource and the labels first, looked for BGP session drops and for commits on all
+           four routers, put them in time order, read the commands of the session that committed the change,
+           and ruled out the other login, the other commit and the session that dropped for another reason
+           from what the logs say.
+        3: got to an answer, but by reading long unfiltered results, with several failed calls on the way, or
+           by settling on the first commit or the first account it found without checking the others.
+        1: guessed or invented a router, an account, an address, a value, a datasource id or a label instead
+           of reading them; or kept repeating calls that had already failed without changing approach.
+        Use 2 and 4 for attempts in between.
+limits: {turns: 30}

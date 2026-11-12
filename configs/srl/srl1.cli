@@ -31,3 +31,10 @@ set / network-instance default protocols bgp neighbor 10.0.1.3 peer-as 65102
 
 set / system snmp access-group SNMPv2-RO-Community community-entry RO-Community community stick-ro
 set / system name host-name srl1
+
+set / system logging network-instance mgmt
+set / system logging remote-server 172.30.30.108 transport udp
+set / system logging remote-server 172.30.30.108 remote-port 1514
+set / system logging remote-server 172.30.30.108 facility local6 priority match-above informational
+set / system logging remote-server 172.30.30.108 facility auth priority match-above informational
+set / system logging remote-server 172.30.30.108 facility authpriv priority match-above informational

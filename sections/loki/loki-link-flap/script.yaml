@@ -1,0 +1,36 @@
+# The task's reference steps as MCP calls: stick run loki-link-flap --model script/<this file>
+# (A script can't count or compare: it knows which port flapped and how often; a model has to find that.)
+steps:
+  - tool: loki__list_datasources
+    args: {type: loki}
+    capture:
+      uid: '"uid":\s*"([^"]+)"'
+  - tool: loki__query_loki_logs
+    args:
+      datasourceUid: "{{ captured.uid }}"
+      logql: '{host="srl2"} |= "remotePeerRemoved" |= "interface ethernet-1/1:"'
+      limit: 1
+    capture:
+      neighbor: 'System (\S+) with chassis'
+  - tool: loki__query_loki_logs
+    args:
+      datasourceUid: "{{ captured.uid }}"
+      logql: '{host="srl2"} |= "bgpNeighborBackwardTransition" |= "ESTABLISHED"'
+      limit: 1
+    capture:
+      far: 'Peer (\d+\.\d+\.\d+\.\d+) moved'
+  - tool: loki__query_loki_logs
+    args:
+      datasourceUid: "{{ captured.uid }}"
+      logql: '{host="{{ captured.neighbor }}"} |= "ADJCHANGE" |= "Down Interface down" |= "10.0.2."'
+      limit: 1
+    capture:
+      near: 'neighbor (\d+\.\d+\.\d+\.\d+)\('
+  - tool: submit_answer
+    args:
+      answer:
+        router: srl2
+        interface: ethernet-1/1
+        neighbor: "{{ captured.neighbor }}"
+        times_down: "{{ canaries.flaps }}"
+        bgp_peers: ["{{ captured.near }}", "{{ captured.far }}"]
