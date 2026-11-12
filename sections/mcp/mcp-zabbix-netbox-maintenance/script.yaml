@@ -1,0 +1,22 @@
+# The task's reference steps as MCP calls: stick run mcp-zabbix-netbox-maintenance --model script/<this file>
+# (A script knows which hosts are the tenant's; a model has to match them on their addresses.)
+steps:
+  - tool: netbox__netbox_get_objects
+    args:
+      object_type: dcim.device
+      filters: {tenant: "{{ canaries.tenant }}"}
+      fields: [name, primary_ip4]
+  - tool: zabbix__host_get
+    args: {filter_params: {host: "{{ canaries.h1 }}"}, output: [hostid, host]}
+    capture:
+      h1: '"hostid":\s*"(\d+)"'
+  - tool: zabbix__host_get
+    args: {filter_params: {host: "{{ canaries.h2 }}"}, output: [hostid, host]}
+    capture:
+      h2: '"hostid":\s*"(\d+)"'
+  - tool: zabbix__maintenance_create
+    args:
+      name: "{{ canaries.window }}"
+      active_since: "{{ time.now }}"
+      active_till: "{{ time.in_2h }}"
+      hostids: ["{{ captured.h1 }}", "{{ captured.h2 }}"]

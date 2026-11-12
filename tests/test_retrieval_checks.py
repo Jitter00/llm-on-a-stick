@@ -176,7 +176,12 @@ def test_builtin_tasks_are_complete() -> None:
         assert task.canaries, f"{task.id} plants no canary"
         if task.topology != NO_LAB:  # a task without lab devices has no router to leave alone
             assert any(c.type == "no_change_outside" for c in task.checks), f"{task.id}: no change check"
-        if any("path" in c.params for c in task.checks):  # the agent writes a file: say where
+        if task.tools.get("mcp"):  # no shell, no files: an answer goes through submit_answer
+            assert set(task.tools["mcp"]) <= set(task.requires.get("services") or []), task.id
+            for c in task.checks:
+                if "path" in c.params:
+                    assert c.params["path"] == "answer.json" and "submit_answer" in task.prompt, task.id
+        elif any("path" in c.params for c in task.checks):  # the agent writes a file: say where
             assert "{{ workspace }}" in task.prompt or "{{workspace}}" in task.prompt, task.id
         services = task.requires.get("services") or []
         # Source-of-truth tasks start from the seed and check that nothing else changed there.

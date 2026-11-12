@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 import urllib.error
 import urllib.request
@@ -28,7 +29,7 @@ from typing import Any, Protocol
 
 import yaml
 
-from llm_on_a_stick.grading.template import render
+from llm_on_a_stick.grading.template import render, render_value
 
 
 class ModelError(RuntimeError):
@@ -619,6 +620,11 @@ class ScriptClient:
 
     The YAML has `commands:` (strings, may use {{ workspace }}, {{ nodes.frr1.mgmt_ip }}, {{ canaries.x }})
     and an optional `final:` message.
+
+    For tasks whose tools are MCP servers it has `steps:` instead: each one a call, `{tool: <name>, args:
+    {...}}`. A step may take values out of its result for later steps: `capture: {vpc: '"VpcId": "([^"]+)"'}`
+    (the first group of a regular expression, searched in the result's text) is then `{{ captured.vpc }}`.
+    `{{ time.now }}`, `{{ time.in_1h }}` and `{{ time.in_2h }}` are Unix times (a script has no clock either).
     """
 
     def __init__(self, spec: ModelSpec) -> None:
@@ -632,33 +638,54 @@ class ScriptClient:
         if not self.path.is_file():
             raise ModelError(f"script {self.path} not found")
         data = yaml.safe_load(self.path.read_text(encoding="utf-8"))
-        if not isinstance(data, dict) or not isinstance(data.get("commands"), list):
-            raise ModelError(f"script {self.path} needs a `commands:` list")
+        if not isinstance(data, dict) or not isinstance(data.get("commands", data.get("steps")), list):
+            raise ModelError(f"script {self.path} needs a `commands:` or a `steps:` list")
 
     def new_session(
         self, system: str, prompt: str, tools: list[ToolDef], variables: dict[str, Any]
     ) -> ScriptSession:
         data = yaml.safe_load(self.path.read_text(encoding="utf-8"))
-        commands = [render(str(c), variables) for c in data["commands"]]
-        return ScriptSession(commands, str(data.get("final", "done")))
+        steps: list[dict[str, Any]] = [
+            {"tool": "run_command", "args": {"command": str(c)}} for c in data.get("commands") or []
+        ]
+        for step in data.get("steps") or []:
+            if not isinstance(step, dict) or not isinstance(step.get("tool"), str):
+                raise ModelError(f"script {self.path}: a step needs `tool:` (and `args:`), got {step!r}")
+            steps.append(step)
+        return ScriptSession(steps, str(data.get("final", "done")), variables)
 
 
 @dataclass
 class ScriptSession:
-    commands: list[str]
+    steps: list[dict[str, Any]]
     final: str
+    variables: dict[str, Any] = field(default_factory=dict)
     outputs: list[ToolResult] = field(default_factory=list)
+    captured: dict[str, str] = field(default_factory=dict)
     _i: int = 0
 
     def step(self) -> Turn:
-        if self._i >= len(self.commands):
+        if self._i >= len(self.steps):
             return Turn(self.final, [], Usage(), "end_turn")
+        step = self.steps[self._i]
         self._i += 1
-        call = ToolCall(f"script_{self._i}", "run_command", {"command": self.commands[self._i - 1]})
-        return Turn("", [call], Usage(), "tool_use")
+        now = int(time.time())
+        clock = {"now": now, "in_1h": now + 3600, "in_2h": now + 7200}
+        variables = {**self.variables, "captured": self.captured, "time": clock}
+        try:
+            arguments = render_value(step.get("args") or {}, variables)
+        except Exception as exc:  # e.g. a {{ captured.x }} that an earlier step did not find
+            raise ModelError(f"script step {self._i} ({step['tool']}): {exc}") from exc
+        return Turn("", [ToolCall(f"script_{self._i}", step["tool"], arguments)], Usage(), "tool_use")
 
     def add_results(self, results: list[ToolResult]) -> None:
         self.outputs.extend(results)
+        captures = self.steps[self._i - 1].get("capture") or {}
+        text = "\n".join(r.output for r in results)
+        for name, pattern in captures.items():
+            found = re.search(render(str(pattern), self.variables), text, re.S)
+            if found:
+                self.captured[name] = found.group(1) if found.groups() else found.group(0)
 
     def add_message(self, text: str) -> None:
         pass

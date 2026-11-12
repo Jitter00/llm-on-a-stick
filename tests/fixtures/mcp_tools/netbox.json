@@ -1,0 +1,127 @@
+[
+ {
+  "name": "netbox__netbox_get_objects",
+  "description": "Get objects from NetBox based on their type and filters\n\n    Args:\n        object_type: String representing the NetBox object type (e.g. \"dcim.device\", \"ipam.ipaddress\")\n        filters: dict of filters to apply to the API call based on the NetBox API filtering options\n\n                FILTER RULES:\n                Valid: Direct fields like {'site_id': 1, 'name': 'router', 'status': 'active'}\n                Valid: Field-supported lookups like {'name__ic': 'switch', 'vid__gte': 100}\n                Invalid: Multi-hop like {'device__site_id': 1} - NOT supported\n\n                Lookup suffixes: n, ic, nic, isw, nisw, iew, niew, ie, nie,\n                                 empty, regex, iregex, lt, lte, gt, gte\n                Lookup support is field-specific. NetBox may silently ignore unsupported\n                lookups and return overly broad results. The '__in' suffix is not supported\n                and is rejected by this tool. For multiple values, pass a list as the field\n                value directly: {'vminterface_id': [621493, 631527]} or {'id': [1, 2, 3]}.\n\n                Two-step pattern for cross-relationship queries:\n                  sites = netbox_get_objects('dcim.site', {'name': 'NYC'})\n                  netbox_get_objects('dcim.device', {'site_id': sites[0]['id']})\n\n        fields: Optional list of specific fields to return\n                **IMPORTANT: ALWAYS USE THIS PARAMETER TO MINIMIZE TOKEN USAGE**\n                Field filtering significantly reduces response payload and is critical for performance.\n\n                - None or [] = returns all fields (NOT RECOMMENDED - use only when you need complete objects)\n                - ['id', 'name'] = returns only specified fields (RECOMMENDED)\n\n                Examples:\n                - For counting: ['id'] (minimal payload)\n                - For listings: ['id', 'name', 'status']\n                - For IP addresses: ['address', 'dns_name', 'description']\n\n                Uses NetBox's native field filtering via ?fields= parameter.\n                **Always specify only the fields you actually need.**\n\n        brief: returns only a minimal representation of each object in the response.\n               This is useful when you need only a list of available objects without any related data.\n\n        limit: Maximum results to return (default 5, max 100)\n               Start with default, increase only if needed\n\n        offset: Skip this many results for pagination (default 0)\n                Example: offset=0 (page 1), offset=5 (page 2), offset=10 (page 3)\n\n        ordering: Fields used to determine sort order of results.\n                  Field names may be prefixed with '-' to invert the sort order.\n                  Multiple fields may be specified with a list of strings.\n\n                  Examples:\n                  - 'name' (alphabetical by name)\n                  - '-id' (ordered by ID descending)\n                  - ['facility', '-name'] (by facility, then by name descending)\n                  - None, '' or [] (default NetBox ordering)\n\n\n    Returns:\n        Paginated response dict with the following structure:\n            - count: Total number of objects matching the query\n                     ALWAYS REFER TO THIS FIELD FOR THE TOTAL NUMBER OF OBJECTS MATCHING THE QUERY\n            - next: URL to next page (or null if no more pages)\n                    ALWAYS REFER TO THIS FIELD FOR THE NEXT PAGE OF RESULTS\n            - previous: URL to previous page (or null if on first page)\n                        ALWAYS REFER TO THIS FIELD FOR THE PREVIOUS PAGE OF RESULTS\n            - results: Array of objects for this page\n                       ALWAYS REFER TO THIS FIELD FOR THE OBJECTS ON THIS PAGE\n\n    ENSURE YOU ARE AWARE THE RESULTS ARE PAGINATED BEFORE PROVIDING RESPONSE TO THE USER.\n\n    Valid object_type values:\n\n    - circuits.circuit\n- circuits.circuitgroup\n- circuits.circuitgroupassignment\n- circuits.circuittermination\n- circuits.circuittype\n- circuits.provider\n- circuits.provideraccount\n- circuits.providernetwork\n- circuits.virtualcircuit\n- circuits.virtualcircuittermination\n- circuits.virtualcircuittype\n- core.datafile\n- core.datasource\n- core.job\n- core.objectchange\n- core.objecttype\n- dcim.cable\n- dcim.cabletermination\n- dcim.consoleport\n- dcim.consoleporttemplate\n- dcim.consoleserverport\n- dcim.consoleserverporttemplate\n- dcim.device\n- dcim.devicebay\n- dcim.devicebaytemplate\n- dcim.devicerole\n- dcim.devicetype\n- dcim.frontport\n- dcim.frontporttemplate\n- dcim.interface\n- dcim.interfacetemplate\n- dcim.inventoryitem\n- dcim.inventoryitemrole\n- dcim.inventoryitemtemplate\n- dcim.location\n- dcim.macaddress\n- dcim.manufacturer\n- dcim.module\n- dcim.modulebay\n- dcim.modulebaytemplate\n- dcim.moduletype\n- dcim.moduletypeprofile\n- dcim.platform\n- dcim.powerfeed\n- dcim.poweroutlet\n- dcim.poweroutlettemplate\n- dcim.powerpanel\n- dcim.powerport\n- dcim.powerporttemplate\n- dcim.rack\n- dcim.rackreservation\n- dcim.rackrole\n- dcim.racktype\n- dcim.rearport\n- dcim.rearporttemplate\n- dcim.region\n- dcim.site\n- dcim.sitegroup\n- dcim.virtualchassis\n- dcim.virtualdevicecontext\n- extras.bookmark\n- extras.configcontext\n- extras.configcontextprofile\n- extras.configtemplate\n- extras.customfield\n- extras.customfieldchoiceset\n- extras.customlink\n- extras.eventrule\n- extras.exporttemplate\n- extras.imageattachment\n- extras.journalentry\n- extras.notification\n- extras.notificationgroup\n- extras.savedfilter\n- extras.script\n- extras.subscription\n- extras.tableconfig\n- extras.tag\n- extras.taggeditem\n- extras.webhook\n- ipam.aggregate\n- ipam.asn\n- ipam.asnrange\n- ipam.fhrpgroup\n- ipam.fhrpgroupassignment\n- ipam.ipaddress\n- ipam.iprange\n- ipam.prefix\n- ipam.rir\n- ipam.role\n- ipam.routetarget\n- ipam.service\n- ipam.servicetemplate\n- ipam.vlan\n- ipam.vlangroup\n- ipam.vlantranslationpolicy\n- ipam.vlantranslationrule\n- ipam.vrf\n- tenancy.contact\n- tenancy.contactassignment\n- tenancy.contactgroup\n- tenancy.contactrole\n- tenancy.tenant\n- tenancy.tenantgroup\n- users.group\n- users.objectpermission\n- users.owner\n- users.ownergroup\n- users.token\n- users.user\n- virtualization.cluster\n- virtualization.clustergroup\n- virtualization.clustertype\n- virtualization.virtualdisk\n- virtualization.virtualmachine\n- virtualization.vminterface\n- vpn.ikepolicy\n- vpn.ikeproposal\n- vpn.ipsecpolicy\n- vpn.ipsecprofile\n- vpn.ipsecproposal\n- vpn.l2vpn\n- vpn.l2vpntermination\n- vpn.tunnel\n- vpn.tunnelgroup\n- vpn.tunneltermination\n- wireless.wirelesslan\n- wireless.wirelesslangroup\n- wireless.wirelesslink\n\n    See NetBox API documentation for filtering options for each object type.",
+  "parameters": {
+   "properties": {
+    "object_type": {
+     "type": "string"
+    },
+    "filters": {
+     "type": "object"
+    },
+    "fields": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "brief": {
+     "type": "boolean"
+    },
+    "limit": {
+     "type": "integer"
+    },
+    "offset": {
+     "type": "integer"
+    },
+    "ordering": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      }
+     ]
+    }
+   },
+   "required": [
+    "object_type",
+    "filters"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "netbox__netbox_get_object_by_id",
+  "description": "Get detailed information about a specific NetBox object by its ID.",
+  "parameters": {
+   "properties": {
+    "object_type": {
+     "type": "string",
+     "description": "String representing the NetBox object type (e.g. \"dcim.device\", \"ipam.ipaddress\")"
+    },
+    "object_id": {
+     "type": "integer",
+     "description": "The numeric ID of the object"
+    },
+    "fields": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array",
+     "description": "Optional list of specific fields to return\n    **IMPORTANT: ALWAYS USE THIS PARAMETER TO MINIMIZE TOKEN USAGE**\n    Field filtering reduces response payload by 80-90% and is critical for performance.\n\n    - None or [] = returns all fields (NOT RECOMMENDED - use only when you need complete objects)\n    - ['id', 'name'] = returns only specified fields (RECOMMENDED)\n\n    Examples:\n    - For basic info: ['id', 'name', 'status']\n    - For devices: ['id', 'name', 'status', 'site']\n    - For IP addresses: ['address', 'dns_name', 'vrf', 'status']\n\n    Uses NetBox's native field filtering via ?fields= parameter.\n    **Always specify only the fields you actually need.**"
+    },
+    "brief": {
+     "type": "boolean",
+     "description": "returns only a minimal representation of the object in the response.\n   This is useful when you need only a summary of the object without any related data."
+    }
+   },
+   "required": [
+    "object_type",
+    "object_id"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "netbox__netbox_get_changelogs",
+  "description": "Get object change records (changelogs) from NetBox based on filters.",
+  "parameters": {
+   "properties": {
+    "filters": {
+     "type": "object",
+     "description": "dict of filters to apply to the API call based on the NetBox API filtering options"
+    }
+   },
+   "required": [
+    "filters"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "netbox__netbox_search_objects",
+  "description": "Perform global search across NetBox infrastructure.\n\n    Searches names, descriptions, IP addresses, serial numbers, asset tags,\n    and other key fields across multiple object types.\n\n    Args:\n        query: Search term (device names, IPs, serial numbers, hostnames, site names)\n               Examples: 'switch01', '192.168.1.1', 'NYC-DC1', 'SN123456'\n        object_types: Limit search to specific types (optional)\n                     Default: [dcim.device', 'dcim.site', 'ipam.ipaddress', 'dcim.interface', 'dcim.rack', 'ipam.vlan', 'circuits.circuit', 'virtualization.virtualmachine]\n                     Examples: ['dcim.device', 'ipam.ipaddress', 'dcim.site']\n        fields: Optional list of specific fields to return (reduces response size) IT IS STRONGLY RECOMMENDED TO USE THIS PARAMETER TO MINIMIZE TOKEN USAGE.\n                - None or [] = returns all fields (no filtering)\n                - ['id', 'name'] = returns only specified fields\n                Examples: ['id', 'name', 'status'], ['address', 'dns_name']\n                Uses NetBox's native field filtering via ?fields= parameter\n        limit: Max results per object type (default 5, max 100)\n\n    Returns:\n        Dictionary with object_type keys and list of matching objects.\n        All searched types present in result (empty list if no matches).\n\n    Example:\n        # Search for anything matching \"switch\"\n        results = netbox_search_objects('switch')\n        # Returns: {\n        #   'dcim.device': [{'id': 1, 'name': 'switch-01', ...}],\n        #   'dcim.site': [],\n        #   ...\n        # }\n\n        # Search for IP address\n        results = netbox_search_objects('192.168.1.100')\n        # Returns: {\n        #   'ipam.ipaddress': [{'id': 42, 'address': '192.168.1.100/24', ...}],\n        #   ...\n        # }\n\n        # Limit search to specific types with field projection\n        results = netbox_search_objects(\n            'NYC',\n            object_types=['dcim.site', 'dcim.location'],\n            fields=['id', 'name', 'status']\n        )",
+  "parameters": {
+   "properties": {
+    "query": {
+     "type": "string"
+    },
+    "object_types": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "fields": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "limit": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "query"
+   ],
+   "type": "object"
+  }
+ }
+]

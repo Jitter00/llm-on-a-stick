@@ -81,3 +81,11 @@ def test_the_zabbix_section_and_its_service() -> None:
         sections={"zabbix"}, services={"zabbix"}
     )
     assert sel("tests/integration/test_zabbix.py").services == {"zabbix"}
+
+
+def test_the_mcp_section_needs_five_services_but_none_of_them_selects_it() -> None:
+    s = sel("sections/mcp/mcp-netbox-lookup/task.yaml")
+    assert s == Selection(sections={"mcp"}, services={"netbox", "nautobot", "moto", "librenms", "zabbix"})
+    for name in ("netbox", "nautobot", "moto", "librenms", "zabbix"):
+        assert "mcp" not in sel(f"services/{name}/service.yaml").sections, name
+    assert sel("images/mcp/Dockerfile").core and sel("src/llm_on_a_stick/runner/mcp.py").core

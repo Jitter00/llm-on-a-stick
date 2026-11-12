@@ -9,7 +9,7 @@
   "properties": {
     "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
     "section": {
-      "enum": ["lab-mgmt", "cfg-mgmt", "netbox", "nautobot", "aws", "terraform", "librenms", "zabbix", "validation-observability", "troubleshooting"],
+      "enum": ["lab-mgmt", "cfg-mgmt", "netbox", "nautobot", "aws", "terraform", "librenms", "zabbix", "mcp", "validation-observability", "troubleshooting"],
       "description": "The group of tasks it is run with (`stick run --section`): a tool such as netbox, or cfg-mgmt. Wider groupings (SoT/DDI...) are listed in sections/README.md."
     },
     "title": {"type": "string", "minLength": 3},
@@ -27,6 +27,15 @@
         "backend": {"enum": ["containerlab", "cml"]},
         "kvm": {"type": "boolean"},
         "arch": {"type": "array", "items": {"enum": ["amd64", "arm64"]}}
+      }
+    },
+    "tools": {
+      "type": "object",
+      "description": "What the model works with. Absent: a shell in the toolbox (run_command). With `mcp`: only the tools of those services' MCP servers (each must be in requires.services and have an `mcp:` block in its service.yaml), plus submit_answer, which writes the answer to answer.json in the workspace.",
+      "additionalProperties": false,
+      "required": ["mcp"],
+      "properties": {
+        "mcp": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}}
       }
     },
     "canaries": {

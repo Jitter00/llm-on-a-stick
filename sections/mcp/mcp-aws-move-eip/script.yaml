@@ -1,0 +1,21 @@
+# The task's reference steps as MCP calls: stick run mcp-aws-move-eip --model script/<this file>
+steps:
+  - tool: moto__call_aws
+    args:
+      cli_command: >-
+        aws ec2 describe-addresses --filters Name=tag:Name,Values={{ canaries.eip }}
+        --query Addresses[0].AllocationId
+    capture:
+      alloc: '(eipalloc-[0-9a-f]+)'
+  - tool: moto__call_aws
+    args:
+      cli_command: >-
+        aws ec2 describe-instances --filters Name=tag:Name,Values={{ canaries.new }}
+        --query Reservations[0].Instances[0].InstanceId
+    capture:
+      instance: '(i-[0-9a-f]+)'
+  - tool: moto__call_aws
+    args:
+      cli_command: >-
+        aws ec2 associate-address --allocation-id {{ captured.alloc }} --instance-id {{ captured.instance }}
+        --allow-reassociation

@@ -110,6 +110,18 @@ Snapshot = Annotated[
 ]
 
 
+class McpServer(BaseModel):
+    """The MCP server a model reaches this service through in the mcp section: one of the upstream servers
+    in the stick-mcp image (images/mcp), started for each attempt with this environment."""
+
+    server: str  # its name in the image: `docker run stick-mcp:dev <server>`
+    version: str  # the upstream version in the image, for the record (the image pins it)
+    env: dict[str, str] = Field(default_factory=dict)
+    # The tools the model is shown, by the server's names. Empty: all of them. Large servers are cut down to
+    # what an engineer would use, so that the tool list fits small context windows.
+    allow: list[str] = Field(default_factory=list)
+
+
 class ServiceSpec(BaseModel):
     name: str
     description: str
@@ -126,6 +138,7 @@ class ServiceSpec(BaseModel):
     api: Api | None = None
     init: Init | None = None
     snapshot: Snapshot | None = None
+    mcp: McpServer | None = None
     directory: Path = Path()
 
     @property

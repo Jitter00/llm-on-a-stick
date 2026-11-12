@@ -1,0 +1,932 @@
+[
+ {
+  "name": "zabbix__api_version",
+  "description": "Get Zabbix API version information.\n\nThis tool retrieves the current version of the Zabbix API you are connecting to.\nThis is useful for understanding API capabilities and ensuring compatibility\nwith specific features that may be version-dependent.",
+  "parameters": {
+   "properties": {},
+   "type": "object"
+  }
+ },
+ {
+  "name": "zabbix__host_get",
+  "description": "Get hosts from Zabbix with optional filtering.\n\nRetrieves a list of monitored hosts from Zabbix. You can filter by host IDs,\ngroups, templates, proxies, or use search criteria. This is useful for discovering\nwhich hosts are available in your monitoring system.",
+  "parameters": {
+   "properties": {
+    "hostids": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array",
+     "description": "List of host IDs to retrieve. An empty list matches none."
+    },
+    "groupids": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array",
+     "description": "List of host group IDs to filter by. An empty list matches none."
+    },
+    "templateids": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array",
+     "description": "List of template IDs to filter by. An empty list matches none."
+    },
+    "proxyids": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array",
+     "description": "List of proxy IDs to filter by. An empty list matches none."
+    },
+    "search": {
+     "type": "object",
+     "description": "Search criteria (e.g., {'host': 'web'} to perform a 'LIKE' search)."
+    },
+    "filter_params": {
+     "type": "object",
+     "description": "Filter criteria (e.g., {'status': 0})."
+    },
+    "hostname_contains": {
+     "type": "string",
+     "description": "Shortcut to search for hosts by name (constructs search={'host': hostname_contains})."
+    },
+    "status": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "string"
+      }
+     ],
+     "description": "Shortcut to filter by status (0=enabled, 1=disabled) (constructs filter={'status': status})."
+    },
+    "output": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      }
+     ],
+     "description": "Output format: 'extend' or specific fields."
+    },
+    "limit": {
+     "description": "Page size - maximum number of results to return. Default is 100.",
+     "type": "integer"
+    },
+    "offset": {
+     "description": "Number of matching hosts to skip. Use with 'limit' to page through results; check 'has_more' and 'total' in the response.",
+     "type": "integer"
+    },
+    "select_groups": {
+     "description": "If true, include the host groups each host belongs to in the response (selectHostGroups=extend).",
+     "type": "boolean"
+    },
+    "select_templates": {
+     "description": "If true, include the templates linked to each host in the response (selectTemplates=extend).",
+     "type": "boolean"
+    },
+    "select_interfaces": {
+     "description": "If true, include the interfaces for each host in the response (selectInterfaces=extend).",
+     "type": "boolean"
+    },
+    "select_tags": {
+     "description": "If true, include the tags for each host in the response (selectTags=extend).",
+     "type": "boolean"
+    },
+    "sortfield": {
+     "description": "Field to sort by - 'hostid', 'host', 'name' or 'status'. A deterministic sort is required for paging to be consistent.",
+     "type": "string"
+    },
+    "sortorder": {
+     "description": "Sort direction - 'ASC' or 'DESC'.",
+     "type": "string"
+    },
+    "count_output": {
+     "description": "If true, returns only the count of matched objects as an integer.",
+     "type": "boolean"
+    }
+   },
+   "type": "object"
+  }
+ },
+ {
+  "name": "zabbix__host_create",
+  "description": "Create a new host in Zabbix.\n\nAdds a new monitored host to Zabbix. This is essential for starting to monitor\na new server or device. You must specify at least a host name and groups.\nYou can optionally configure interfaces (for agent/SNMP communication) and link templates.",
+  "parameters": {
+   "properties": {
+    "params": {
+     "type": "object",
+     "description": "Raw host.create params, for fields the arguments below do not cover. Describes a single host, not a batch. If provided, individual parameters are ignored."
+    },
+    "host": {
+     "type": "string",
+     "description": "Technical name of the host."
+    },
+    "groups": {
+     "items": {
+      "type": "object"
+     },
+     "type": "array",
+     "description": "Host groups (e.g., [{'groupid': '1'}])."
+    },
+    "interfaces": {
+     "items": {
+      "type": "object"
+     },
+     "type": "array",
+     "description": "Host interfaces."
+    },
+    "templates": {
+     "items": {
+      "type": "object"
+     },
+     "type": "array",
+     "description": "Templates to link."
+    },
+    "name": {
+     "type": "string",
+     "description": "Visible name."
+    },
+    "status": {
+     "description": "0=enabled, 1=disabled.",
+     "type": "integer"
+    },
+    "description": {
+     "type": "string",
+     "description": "Description."
+    }
+   },
+   "type": "object"
+  }
+ },
+ {
+  "name": "zabbix__host_update",
+  "description": "Update an existing host in Zabbix.\n\nModifies properties of an existing host. You can change the technical name,\nvisible name, status (enable/disable monitoring), description, linked templates,\nor the proxy that monitors it. Only specify the fields you want to change.",
+  "parameters": {
+   "properties": {
+    "hostid": {
+     "description": "ID of the host to update.",
+     "type": "string"
+    },
+    "host": {
+     "type": "string",
+     "description": "New technical name."
+    },
+    "name": {
+     "type": "string",
+     "description": "New visible name."
+    },
+    "status": {
+     "type": "integer",
+     "description": "0=enabled, 1=disabled."
+    },
+    "description": {
+     "type": "string",
+     "description": "New description."
+    },
+    "templates": {
+     "items": {
+      "type": "object"
+     },
+     "type": "array",
+     "description": "Replaces ALL linked templates (e.g., [{'templateid': '10001'}]). Templates left out are unlinked; their items and triggers stay on the host."
+    },
+    "templates_clear": {
+     "items": {
+      "type": "object"
+     },
+     "type": "array",
+     "description": "Templates to unlink AND clear - their items, triggers and collected data are deleted from the host."
+    },
+    "proxyid": {
+     "type": "string",
+     "description": "Proxy to monitor the host through. '0' moves monitoring back to the Zabbix server; blank leaves it unchanged."
+    }
+   },
+   "required": [
+    "hostid"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "zabbix__host_delete",
+  "description": "Delete hosts from Zabbix.\n\nPermanently removes one or more hosts from Zabbix. This will delete all associated\ndata including history and alerts. Use with caution as this is a destructive operation.",
+  "parameters": {
+   "properties": {
+    "hostids": {
+     "description": "List of host IDs to delete.",
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    }
+   },
+   "required": [
+    "hostids"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "zabbix__hostgroup_get",
+  "description": "Get host groups from Zabbix.\n\nRetrieves host groups with optional filtering. Host groups are used to organize\nand manage hosts collectively, applying templates, permissions, and maintenance\nwindows to multiple hosts at once.",
+  "parameters": {
+   "properties": {
+    "groupids": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array",
+     "description": "Group IDs. An empty list matches none."
+    },
+    "hostids": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array",
+     "description": "Host IDs. An empty list matches none."
+    },
+    "search": {
+     "type": "object",
+     "description": "Search."
+    },
+    "group_name_contains": {
+     "type": "string",
+     "description": "Shortcut to search for groups by name (constructs search={'name': group_name_contains})."
+    },
+    "output": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      }
+     ],
+     "description": "Output format."
+    },
+    "limit": {
+     "description": "Maximum number of results to return. Default is 100.",
+     "type": "integer"
+    },
+    "offset": {
+     "description": "Number of matching records to skip. Use with 'limit' to page through results; check 'has_more' and 'total' in the response.",
+     "type": "integer"
+    },
+    "select_hosts": {
+     "description": "If true, include the hosts in each group in the response (selectHosts=extend).",
+     "type": "boolean"
+    },
+    "sortfield": {
+     "description": "Field to sort by. A deterministic sort is required for paging to be consistent.",
+     "type": "string"
+    },
+    "sortorder": {
+     "description": "Sort direction - 'ASC' or 'DESC'.",
+     "type": "string"
+    },
+    "count_output": {
+     "description": "If true, returns only the count of matched objects as an integer.",
+     "type": "boolean"
+    }
+   },
+   "type": "object"
+  }
+ },
+ {
+  "name": "zabbix__hostgroup_create",
+  "description": "Create a new host group in Zabbix.\n\nHost groups serve as containers for organizing hosts. They're essential for\napplying permissions, templates, and maintenance windows to multiple hosts at once.",
+  "parameters": {
+   "properties": {
+    "name": {
+     "description": "Name of the host group.",
+     "type": "string"
+    }
+   },
+   "required": [
+    "name"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "zabbix__template_get",
+  "description": "Get templates from Zabbix.\n\nTemplates are reusable collections of items, triggers, and graphs that can be applied to hosts.\nThey standardize monitoring across multiple servers with the same role.",
+  "parameters": {
+   "properties": {
+    "templateids": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array",
+     "description": "List of template IDs to get. Omit to return all templates; an empty list matches none.\n         Find template IDs with a search or from host associations."
+    },
+    "groupids": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array",
+     "description": "Return only templates in these template groups. An empty list matches none."
+    },
+    "hostids": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array",
+     "description": "Return only templates linked to these hosts. An empty list matches none."
+    },
+    "search": {
+     "type": "object",
+     "description": "Substring search in template name. Matches partial names like 'Linux' finds 'Linux Server Template'."
+    },
+    "template_name_contains": {
+     "type": "string",
+     "description": "Shortcut to search for templates by name (constructs search={'host': template_name_contains})."
+    },
+    "output": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      }
+     ]
+    },
+    "limit": {
+     "description": "Maximum number of results to return. Default is 100.",
+     "type": "integer"
+    },
+    "offset": {
+     "description": "Number of matching records to skip. Use with 'limit' to page through results; check 'has_more' and 'total' in the response.",
+     "type": "integer"
+    },
+    "select_groups": {
+     "description": "If true, include the template groups the templates belong to (selectTemplateGroups=extend).",
+     "type": "boolean"
+    },
+    "select_hosts": {
+     "description": "If true, include the hosts that are linked to the templates (selectHosts=extend).",
+     "type": "boolean"
+    },
+    "select_templates": {
+     "description": "If true, include the templates that are linked to these templates directly (selectTemplates=extend).",
+     "type": "boolean"
+    },
+    "select_macros": {
+     "description": "If true, include the macros for the templates (selectMacros=extend).",
+     "type": "boolean"
+    },
+    "select_tags": {
+     "description": "If true, include the tags for the templates (selectTags=extend).",
+     "type": "boolean"
+    },
+    "sortfield": {
+     "description": "Field to sort by. A deterministic sort is required for paging to be consistent.",
+     "type": "string"
+    },
+    "sortorder": {
+     "description": "Sort direction - 'ASC' or 'DESC'.",
+     "type": "string"
+    },
+    "count_output": {
+     "description": "If true, returns only the count of matched objects as an integer.",
+     "type": "boolean"
+    }
+   },
+   "type": "object"
+  }
+ },
+ {
+  "name": "zabbix__item_get",
+  "description": "Get items (metrics) from Zabbix.\n\nItems are the data sources in Zabbix - they define what metrics are collected and how\n(protocol, interval, etc.). Each item produces a stream of values over time.",
+  "parameters": {
+   "properties": {
+    "itemids": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array",
+     "description": "List of item IDs to get. Omit to return all items; an empty list matches none."
+    },
+    "hostids": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array",
+     "description": "List of host IDs to get items from. Filters items by host. An empty list matches none."
+    },
+    "groupids": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array",
+     "description": "List of group IDs to get items from hosts in those groups. An empty list matches none."
+    },
+    "templateids": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array",
+     "description": "List of template IDs to get items from those templates. An empty list matches none."
+    },
+    "search": {
+     "type": "object",
+     "description": "Dictionary with search criteria like {'name': 'CPU'} for substring matching."
+    },
+    "filter_params": {
+     "type": "object",
+     "description": "Additional filter parameters for advanced filtering."
+    },
+    "item_name_contains": {
+     "type": "string",
+     "description": "Shortcut to search for items by name (constructs search={'name': item_name_contains})."
+    },
+    "item_key_contains": {
+     "type": "string",
+     "description": "Shortcut to search for items by key (constructs search={'key_': item_key_contains})."
+    },
+    "webitems": {
+     "description": "If true, also return web scenario items (webitems=true), which Zabbix leaves out by default.",
+     "type": "boolean"
+    },
+    "output": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      }
+     ]
+    },
+    "limit": {
+     "description": "Maximum number of results to return. Default is 100.",
+     "type": "integer"
+    },
+    "offset": {
+     "description": "Number of matching records to skip. Use with 'limit' to page through results; check 'has_more' and 'total' in the response.",
+     "type": "integer"
+    },
+    "select_hosts": {
+     "description": "If true, include the hosts each item belongs to in the response (selectHosts=extend).",
+     "type": "boolean"
+    },
+    "select_tags": {
+     "description": "If true, include the tags for each item in the response (selectTags=extend).",
+     "type": "boolean"
+    },
+    "select_triggers": {
+     "description": "If true, include the triggers for each item in the response (selectTriggers=extend).",
+     "type": "boolean"
+    },
+    "sortfield": {
+     "description": "Field to sort by. A deterministic sort is required for paging to be consistent.",
+     "type": "string"
+    },
+    "sortorder": {
+     "description": "Sort direction - 'ASC' or 'DESC'.",
+     "type": "string"
+    },
+    "count_output": {
+     "description": "If true, returns only the count of matched objects as an integer.",
+     "type": "boolean"
+    }
+   },
+   "type": "object"
+  }
+ },
+ {
+  "name": "zabbix__trigger_get",
+  "description": "Get triggers from Zabbix.\n\nTriggers are rules that define when a problem occurs based on item values. They evaluate\nexpressions against collected metrics and transition between problem and normal states.",
+  "parameters": {
+   "properties": {
+    "triggerids": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array",
+     "description": "List of trigger IDs to get. Omit to return all triggers; an empty list matches none."
+    },
+    "hostids": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array",
+     "description": "List of host IDs to get triggers from. An empty list matches none."
+    },
+    "groupids": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array",
+     "description": "List of group IDs to get triggers from hosts in those groups. An empty list matches none."
+    },
+    "templateids": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array",
+     "description": "List of template IDs to get triggers from those templates. An empty list matches none."
+    },
+    "search": {
+     "type": "object",
+     "description": "Dictionary with search criteria like {'description': 'CPU'}."
+    },
+    "filter_params": {
+     "type": "object",
+     "description": "Additional filter parameters for advanced filtering."
+    },
+    "description_contains": {
+     "type": "string",
+     "description": "Shortcut to search for triggers by description (name) (constructs search={'description': description_contains})."
+    },
+    "output": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      }
+     ]
+    },
+    "limit": {
+     "description": "Maximum number of results to return. Default is 100.",
+     "type": "integer"
+    },
+    "offset": {
+     "description": "Number of matching records to skip. Use with 'limit' to page through results; check 'has_more' and 'total' in the response.",
+     "type": "integer"
+    },
+    "only_true": {
+     "description": "Only return triggers in problem state.",
+     "type": "boolean"
+    },
+    "min_severity": {
+     "type": "integer",
+     "description": "Minimum severity (0-5)."
+    },
+    "select_hosts": {
+     "description": "If true, include the hosts each trigger belongs to in the response (selectHosts=extend).",
+     "type": "boolean"
+    },
+    "sortfield": {
+     "description": "Field to sort by. A deterministic sort is required for paging to be consistent.",
+     "type": "string"
+    },
+    "sortorder": {
+     "description": "Sort direction - 'ASC' or 'DESC'.",
+     "type": "string"
+    },
+    "count_output": {
+     "description": "If true, returns only the count of matched objects as an integer.",
+     "type": "boolean"
+    }
+   },
+   "type": "object"
+  }
+ },
+ {
+  "name": "zabbix__trigger_create",
+  "description": "Create a new trigger in Zabbix.\n\nTriggers define the conditions under which problems are detected. They use expressions\nto evaluate item values and determine when to transition from normal to problem state.",
+  "parameters": {
+   "properties": {
+    "description": {
+     "description": "Trigger description/name.",
+     "type": "string"
+    },
+    "expression": {
+     "description": "Trigger expression.",
+     "type": "string"
+    },
+    "priority": {
+     "description": "Severity 0-5.",
+     "type": "integer"
+    },
+    "status": {
+     "description": "0=enabled, 1=disabled.",
+     "type": "integer"
+    },
+    "comments": {
+     "type": "string",
+     "description": "Optional comment/notes about the trigger explaining its purpose and context."
+    }
+   },
+   "required": [
+    "description",
+    "expression"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "zabbix__problem_get",
+  "description": "Get problems from Zabbix.\n\nProblems are active trigger states that indicate issues with monitored infrastructure.\nEach problem is associated with a trigger and can be acknowledged by operators.",
+  "parameters": {
+   "properties": {
+    "eventids": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array",
+     "description": "List of event IDs to get problems for. Omit to return all problems; an empty list matches none."
+    },
+    "groupids": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array",
+     "description": "List of host group IDs to get problems from. An empty list matches none."
+    },
+    "hostids": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array",
+     "description": "List of host IDs to get problems from. An empty list matches none."
+    },
+    "objectids": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array",
+     "description": "List of trigger IDs to get problems from. An empty list matches none."
+    },
+    "time_from": {
+     "type": "integer",
+     "description": "Unix timestamp."
+    },
+    "time_till": {
+     "type": "integer",
+     "description": "Unix timestamp."
+    },
+    "recent": {
+     "type": "boolean",
+     "description": "If true, only return recently recovered problems."
+    },
+    "severities": {
+     "items": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "string"
+       }
+      ]
+     },
+     "type": "array",
+     "description": "Severity levels 0-5."
+    },
+    "search": {
+     "type": "object",
+     "description": "Dictionary with search criteria like {'name': 'CPU'}."
+    },
+    "name_contains": {
+     "type": "string",
+     "description": "Shortcut to search for problems by name (constructs search={'name': name_contains})."
+    },
+    "output": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      }
+     ]
+    },
+    "limit": {
+     "description": "Maximum number of results to return. Default is 100.",
+     "type": "integer"
+    },
+    "offset": {
+     "description": "Number of matching records to skip. Use with 'limit' to page through results; check 'has_more' and 'total' in the response.",
+     "type": "integer"
+    },
+    "acknowledged": {
+     "type": "boolean",
+     "description": "If false, return only unacknowledged problems. If true, return only acknowledged problems."
+    },
+    "suppressed": {
+     "type": "boolean",
+     "description": "If false, return only unsuppressed problems. If true, return only suppressed problems."
+    },
+    "sortfield": {
+     "description": "Field to sort by. A deterministic sort is required for paging to be consistent.",
+     "type": "string"
+    },
+    "sortorder": {
+     "description": "Sort direction - 'ASC' or 'DESC'.",
+     "type": "string"
+    },
+    "select_hosts": {
+     "description": "If true, each problem includes a 'hosts' list (hostid, host, name) of the hosts it occurred on.",
+     "type": "boolean"
+    },
+    "count_output": {
+     "description": "If true, returns only the count of matched objects as an integer.",
+     "type": "boolean"
+    }
+   },
+   "type": "object"
+  }
+ },
+ {
+  "name": "zabbix__maintenance_get",
+  "description": "Get maintenance periods from Zabbix.\n\nMaintenance windows define periods when monitoring is paused for planned upgrades,\nmaintenance, or testing. Alerts are suppressed during maintenance periods.",
+  "parameters": {
+   "properties": {
+    "maintenanceids": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array",
+     "description": "List of maintenance IDs to get. Omit to return all maintenance periods; an empty list matches none."
+    },
+    "groupids": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array",
+     "description": "List of host group IDs to get maintenance for. An empty list matches none."
+    },
+    "hostids": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array",
+     "description": "List of host IDs to get maintenance for. An empty list matches none."
+    },
+    "output": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      }
+     ]
+    },
+    "limit": {
+     "description": "Maximum number of results to return. Default is 100.",
+     "type": "integer"
+    },
+    "offset": {
+     "description": "Number of matching records to skip. Use with 'limit' to page through results; check 'has_more' and 'total' in the response.",
+     "type": "integer"
+    },
+    "sortfield": {
+     "description": "Field to sort by. A deterministic sort is required for paging to be consistent.",
+     "type": "string"
+    },
+    "sortorder": {
+     "description": "Sort direction - 'ASC' or 'DESC'.",
+     "type": "string"
+    },
+    "count_output": {
+     "description": "If true, returns only the count of matched objects as an integer.",
+     "type": "boolean"
+    }
+   },
+   "type": "object"
+  }
+ },
+ {
+  "name": "zabbix__maintenance_create",
+  "description": "Create a new maintenance period in Zabbix.\n\nSchedules a maintenance window when monitoring alerts are suppressed. Useful for planned\nupgrades, patching, or system maintenance without triggering false alarms.",
+  "parameters": {
+   "properties": {
+    "name": {
+     "description": "Maintenance name.",
+     "type": "string"
+    },
+    "active_since": {
+     "description": "Start time (Unix timestamp).",
+     "type": "integer"
+    },
+    "active_till": {
+     "description": "End time (Unix timestamp).",
+     "type": "integer"
+    },
+    "groupids": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array",
+     "description": "List of host group IDs to apply maintenance to. At least one of groupids\n     or hostids is required."
+    },
+    "hostids": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array",
+     "description": "List of specific host IDs to apply maintenance to."
+    },
+    "timeperiods": {
+     "items": {
+      "type": "object"
+     },
+     "type": "array",
+     "description": "When maintenance actually runs, e.g. [{'timeperiod_type': 0, 'start_date': 1735689600, 'period': 3600}]. Required by Zabbix; if omitted, a single one-off period covering active_since to active_till is sent."
+    },
+    "description": {
+     "type": "string",
+     "description": "Optional description explaining the maintenance purpose."
+    }
+   },
+   "required": [
+    "name",
+    "active_since",
+    "active_till"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "zabbix__maintenance_update",
+  "description": "Update an existing maintenance period in Zabbix.\n\nModifies properties of an existing maintenance window. You can change the name,\nstart time, end time, time periods, or description. Only specify the fields you\nwant to change.",
+  "parameters": {
+   "properties": {
+    "maintenanceid": {
+     "description": "ID of the maintenance to update.",
+     "type": "string"
+    },
+    "name": {
+     "type": "string",
+     "description": "New maintenance name."
+    },
+    "active_since": {
+     "type": "integer",
+     "description": "New start time (Unix timestamp)."
+    },
+    "active_till": {
+     "type": "integer",
+     "description": "New end time (Unix timestamp)."
+    },
+    "timeperiods": {
+     "items": {
+      "type": "object"
+     },
+     "type": "array",
+     "description": "Replaces all of the maintenance's time periods, e.g. [{'timeperiod_type': 0, 'start_date': 1735689600, 'period': 3600}]. Omit to keep them; a one-off period created for the old window is moved along with it."
+    },
+    "description": {
+     "type": "string",
+     "description": "New description."
+    }
+   },
+   "required": [
+    "maintenanceid"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "zabbix__maintenance_delete",
+  "description": "Delete maintenance periods from Zabbix.\n\nCancels maintenance windows immediately, resuming alert generation. If the maintenance\nperiod has already passed, historical event suppression is retained.",
+  "parameters": {
+   "properties": {
+    "maintenanceids": {
+     "description": "Maintenance IDs to delete.",
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    }
+   },
+   "required": [
+    "maintenanceids"
+   ],
+   "type": "object"
+  }
+ }
+]

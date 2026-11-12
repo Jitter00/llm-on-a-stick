@@ -10,7 +10,7 @@ import subprocess
 from collections.abc import Iterator
 
 import pytest
-from labutil import service_session
+from labutil import check_mcp_server, service_session
 
 from llm_on_a_stick import lab, services
 from llm_on_a_stick.services import lifecycle, seed
@@ -74,3 +74,7 @@ def test_reset_is_repeatable(netbox: seed.RestClient) -> None:
     lifecycle.restore_snapshot(spec)
     after = [count(netbox, p) for p in ("dcim/sites/", "dcim/device-types/", "dcim/platforms/")]
     assert before == after
+
+
+def test_its_mcp_server_starts_and_answers(netbox: seed.RestClient) -> None:
+    check_mcp_server("netbox", "netbox_get_objects", {"object_type": "dcim.site", "filters": {}}, "stick-lab")

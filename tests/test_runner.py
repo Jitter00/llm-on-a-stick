@@ -14,7 +14,7 @@ import pytest
 from llm_on_a_stick.grading import grade as grade_mod
 from llm_on_a_stick.runner import loop, models, report, toolbox
 from llm_on_a_stick.runner.models import ToolCall, ToolResult, Turn, Usage
-from llm_on_a_stick.tasks import load_task
+from llm_on_a_stick.tasks import CheckSpec, load_task
 from test_grading import DEMO, FRR1, FakeLab
 
 # --------------------------------------------------------------------------- model specs
@@ -865,3 +865,153 @@ def test_transcript_hints_are_added_but_never_change_the_outcome(demo: Any, tmp_
     assert "no-verification" in unchecked.failure_hints
     assert "no-verification" not in checked.failure_hints
     assert (unchecked.outcome, unchecked.score) == (checked.outcome, checked.score)
+
+
+# --------------------------------------------------------------------------- MCP servers as the tools
+
+
+class FakeHub:
+    """Stands in for runner.mcp.McpHub: one server, two tools, no process."""
+
+    instances: ClassVar[list[FakeHub]] = []
+
+    def __init__(self, servers: dict[str, Any], run_id: str, log_dir: Path, max_output: int = 4000) -> None:
+        self.servers, self.calls = servers, []
+        self.defs = [
+            models.ToolDef("netbox__find", "Find objects.", {"type": "object", "properties": {}}),
+            models.ToolDef("netbox__slow", "Never answers.", {"type": "object", "properties": {}}),
+        ]
+        self.info = {"netbox": {"server": "netbox", "version": "9", "tools": [d.name for d in self.defs]}}
+        self.canary = ""
+        FakeHub.instances.append(self)
+
+    def __enter__(self) -> FakeHub:
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        pass
+
+    def knows(self, name: str) -> bool:
+        return name in {d.name for d in self.defs}
+
+    def call(self, name: str, arguments: dict[str, Any], timeout_s: int = 60) -> loop.mcp_mod.CallResult:
+        self.calls.append((name, arguments))
+        if name == "netbox__slow":
+            return loop.mcp_mod.CallResult("error: timed out after 60s", 26, True, True, 60.0)
+        return loop.mcp_mod.CallResult('{"description": "found"}', 24, False, False, 0.01)
+
+
+@pytest.fixture
+def mcp_demo(demo: Any, monkeypatch: pytest.MonkeyPatch) -> Any:
+    task, lab = demo
+    task.tools = {"mcp": ["netbox"]}
+    task.checks = [
+        CheckSpec(
+            type="json_file_matches",
+            params={"path": "answer.json", "expected": {"description": "{{ canaries.host_desc }}"}},
+        )
+    ]
+    monkeypatch.setattr(loop.mcp_mod, "McpHub", FakeHub)
+    FakeHub.instances = []
+    return task, lab
+
+
+def test_mcp_task_gets_the_servers_tools_and_no_shell(mcp_demo: Any, tmp_path: Path) -> None:
+    task, lab = mcp_demo
+    seen: dict[str, Any] = {}
+
+    class Client(ListClient):
+        def new_session(self, system: str, prompt: str, tools: Any, variables: dict[str, Any]) -> Any:
+            seen.update(
+                system=system, tools=[t.name for t in tools], canary=variables["canaries"]["host_desc"]
+            )
+            self.turns = [
+                Turn("", [ToolCall("c1", "netbox__find", {"q": "x"})], Usage(10, 5), "tool_use"),
+                Turn("", [ToolCall("c2", "run_command", {"command": "ls"})], Usage(10, 5), "tool_use"),
+                Turn("", [ToolCall("c3", "netbox__slow", {})], Usage(10, 5), "tool_use"),
+                Turn("", [ToolCall("c4", "submit_answer", {"answer": "a string"})], Usage(10, 5), "tool_use"),
+                Turn(
+                    "", [ToolCall("c5", "submit_answer", {"answer": {"description": "wrong"}})], Usage(), "x"
+                ),
+                Turn(
+                    "",
+                    [ToolCall("c6", "submit_answer", {"answer": {"description": seen["canary"]}})],
+                    Usage(10, 5),
+                    "tool_use",
+                ),
+                Turn("submitted", [], Usage(10, 5), "end_turn"),
+            ]
+            return super().new_session(system, prompt, tools, variables)
+
+    client = Client([])
+    info, result, m = loop.run_task(task, client, lab, tmp_path / "runs", loop.Settings(seed=3))
+
+    assert seen["tools"] == ["netbox__find", "netbox__slow", "submit_answer"]  # no run_command
+    assert "no shell" in seen["system"] and "MCP servers: netbox" in seen["system"]
+    assert "Unix time" in seen["system"]  # no `date` either
+    assert toolbox_instances() == []  # no toolbox container for an MCP task
+    assert FakeHub.instances[0].calls == [("netbox__find", {"q": "x"}), ("netbox__slow", {})]
+
+    assert result.outcome == "pass"  # the last submitted answer counts
+    assert json.loads((info.workspace / "answer.json").read_text()) == {"description": seen["canary"]}
+    assert (m.tools_mode, m.system_prompt_version) == ("mcp", loop.MCP_SYSTEM_PROMPT_VERSION)
+    assert (m.tool_calls, m.tool_errors, m.command_failures, m.command_timeouts) == (6, 2, 1, 1)
+    assert m.tool_schema_chars > 0
+    assert [r.is_error for r in client.results] == [False, True, True, True, False, False]
+    assert "unknown tool 'run_command'" in client.results[1].output
+    assert "netbox__find" in client.results[1].output  # it is told what it does have
+
+    events = [json.loads(line) for line in (info.run_dir / "transcript.jsonl").read_text().splitlines()]
+    assert events[0]["tools_mode"] == "mcp" and events[0]["mcp"]["netbox"]["version"] == "9"
+    assert [t["name"] for t in events[0]["tools"]] == seen["tools"]
+    kinds = [e["kind"] for e in events if e["kind"] != "turn"]
+    assert kinds == ["start", "tool_call", "tool_error", "tool_call", "tool_error", "answer", "answer", "end"]
+    call = next(e for e in events if e["kind"] == "tool_call")
+    assert (call["server"], call["tool"], call["arguments"]) == ("netbox", "find", {"q": "x"})
+
+
+def toolbox_instances() -> list[Any]:
+    return FakeToolbox.instances
+
+
+def test_script_steps_call_tools_and_carry_values_forward(mcp_demo: Any, tmp_path: Path) -> None:
+    task, lab = mcp_demo
+    script = tmp_path / "steps.yaml"
+    script.write_text(
+        """
+steps:
+  - tool: netbox__find
+    args: {filters: {description: "{{ canaries.host_desc }}"}, limit: 1}
+    capture:
+      what: '"description": "([a-z]+)"'
+      missing: 'no such text'
+  - tool: submit_answer
+    args:
+      answer: {description: "{{ canaries.host_desc }}", seen: "{{ captured.what }}", at: "{{ time.now }}"}
+"""
+    )
+    client = models.make_client(f"script/{script}")
+    client.check()
+    info, result, m = loop.run_task(task, client, lab, tmp_path / "runs", loop.Settings(seed=3))
+    assert result.outcome == "pass" and m.tool_calls == 2
+    hub = FakeHub.instances[0]
+    assert hub.calls == [
+        ("netbox__find", {"filters": {"description": info.canaries["host_desc"]}, "limit": 1})
+    ]
+    answer = json.loads((info.workspace / "answer.json").read_text())
+    assert answer["seen"] == "found" and isinstance(answer["at"], int)
+
+    script.write_text("steps:\n  - tool: netbox__find\n    args: {id: '{{ captured.nothing }}'}\n")
+    info, result, m = loop.run_task(task, client, lab, tmp_path / "runs", loop.Settings(seed=3))
+    assert m.stop_reason == "model_error" and "captured.nothing" in m.error  # says which value is missing
+
+    script.write_text("neither: []\n")
+    with pytest.raises(models.ModelError, match="`commands:` or a `steps:` list"):
+        client.check()
+
+
+def test_mcp_task_without_a_server_definition_does_not_start(mcp_demo: Any, tmp_path: Path) -> None:
+    task, lab = mcp_demo
+    task.tools = {"mcp": ["oxidized"]}  # a service with no `mcp:` block
+    with pytest.raises(loop.run_mod.RunError, match="has no `mcp:` block"):
+        loop.run_task(task, ListClient([]), lab, tmp_path / "runs", loop.Settings(seed=3))

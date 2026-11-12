@@ -10,7 +10,7 @@ import subprocess
 from collections.abc import Iterator
 
 import pytest
-from labutil import service_session, wait_for
+from labutil import check_mcp_server, service_session, wait_for
 
 from llm_on_a_stick import lab as lab_consts
 from llm_on_a_stick import services
@@ -104,3 +104,7 @@ def test_reachable_from_the_lab_network(librenms: seed.RestClient) -> None:
         capture_output=True, text=True, check=False,
     )  # fmt: skip
     assert res.stdout.strip() == "200", res.stderr
+
+
+def test_its_mcp_server_starts_and_answers(librenms: seed.RestClient) -> None:
+    check_mcp_server("librenms", "system_info", {}, "local_ver")

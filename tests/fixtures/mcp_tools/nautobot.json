@@ -1,0 +1,503 @@
+[
+ {
+  "name": "nautobot__list_content_types",
+  "description": "List Django content types (``app_label.model``).\n\nUseful when working with custom fields, tags, relationships, or\nany feature scoped by content type.",
+  "parameters": {
+   "properties": {},
+   "type": "object"
+  }
+ },
+ {
+  "name": "nautobot__list_endpoints_in",
+  "description": "List the sub-endpoints inside an API category, e.g. ``dcim``.\n\nEquivalent to GET ``/api/<category>/``.",
+  "parameters": {
+   "properties": {
+    "category": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "category"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "nautobot__rest_list",
+  "description": "List objects from any Nautobot REST endpoint.\n\nArgs:\n    endpoint: REST path under ``/api/``, e.g. ``/api/dcim/devices/``.\n    filters: Optional filter parameters. Nautobot supports rich\n        filtering, e.g. ``{\"status\": \"active\", \"location\": \"ams01\"}``.\n        Use ``{\"q\": \"core\"}`` for free-text search where supported.\n    limit: Page size (default 50, max 200 per Nautobot).\n    offset: Page offset for manual pagination.\n    paginate: If ``True``, walks every page automatically and\n        returns a flat list (capped at ``max_records`` or the\n        configured ``max_pagination_records``).\n    max_records: Optional cap when ``paginate=True``.",
+  "parameters": {
+   "properties": {
+    "endpoint": {
+     "type": "string"
+    },
+    "filters": {
+     "type": "object"
+    },
+    "limit": {
+     "type": "integer"
+    },
+    "offset": {
+     "type": "integer"
+    },
+    "paginate": {
+     "type": "boolean"
+    },
+    "max_records": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "endpoint"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "nautobot__rest_get",
+  "description": "Fetch a single object: ``GET <endpoint>/<object_id>/``.\n\nArgs:\n    endpoint: Collection endpoint, e.g. ``/api/dcim/devices/``.\n    object_id: UUID, slug, or numeric id of the object.",
+  "parameters": {
+   "properties": {
+    "endpoint": {
+     "type": "string"
+    },
+    "object_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "endpoint",
+    "object_id"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "nautobot__rest_create",
+  "description": "Create a new object via POST. Requires writes to be enabled.\n\nArgs:\n    endpoint: Collection endpoint, e.g. ``/api/ipam/prefixes/``.\n    data: Payload matching Nautobot's REST schema for that model.",
+  "parameters": {
+   "properties": {
+    "endpoint": {
+     "type": "string"
+    },
+    "data": {
+     "type": "object"
+    }
+   },
+   "required": [
+    "endpoint",
+    "data"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "nautobot__rest_update",
+  "description": "Update an object via PATCH (or PUT if ``partial=False``).\n\nRequires writes to be enabled.",
+  "parameters": {
+   "properties": {
+    "endpoint": {
+     "type": "string"
+    },
+    "object_id": {
+     "type": "string"
+    },
+    "data": {
+     "type": "object"
+    },
+    "partial": {
+     "type": "boolean"
+    }
+   },
+   "required": [
+    "endpoint",
+    "object_id",
+    "data"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "nautobot__rest_delete",
+  "description": "Delete an object via DELETE. Requires writes to be enabled.",
+  "parameters": {
+   "properties": {
+    "endpoint": {
+     "type": "string"
+    },
+    "object_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "endpoint",
+    "object_id"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "nautobot__list_devices",
+  "description": "List Nautobot devices.\n\nCommon filters: ``status``, ``location``, ``role``, ``device_type``,\n``manufacturer``, ``platform``, ``tenant``, ``tag``, ``q``\n(free-text search).",
+  "parameters": {
+   "properties": {
+    "filters": {
+     "type": "object"
+    },
+    "limit": {
+     "type": "integer"
+    },
+    "paginate": {
+     "type": "boolean"
+    }
+   },
+   "type": "object"
+  }
+ },
+ {
+  "name": "nautobot__get_device",
+  "description": "Fetch a device by UUID or by name.",
+  "parameters": {
+   "properties": {
+    "name_or_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "name_or_id"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "nautobot__get_device_interfaces",
+  "description": "List interfaces on a device, with optional extra filters.",
+  "parameters": {
+   "properties": {
+    "device_name_or_id": {
+     "type": "string"
+    },
+    "filters": {
+     "type": "object"
+    },
+    "paginate": {
+     "type": "boolean"
+    }
+   },
+   "required": [
+    "device_name_or_id"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "nautobot__list_locations",
+  "description": "List Nautobot locations (sites, regions, rooms, etc. in 2.x).",
+  "parameters": {
+   "properties": {
+    "filters": {
+     "type": "object"
+    },
+    "paginate": {
+     "type": "boolean"
+    }
+   },
+   "type": "object"
+  }
+ },
+ {
+  "name": "nautobot__list_prefixes",
+  "description": "List prefixes. Filters: ``status``, ``vrf``, ``tenant``, ``role``,\n``family`` (4 or 6), ``within``, ``within_include``, ``contains``.",
+  "parameters": {
+   "properties": {
+    "filters": {
+     "type": "object"
+    },
+    "paginate": {
+     "type": "boolean"
+    }
+   },
+   "type": "object"
+  }
+ },
+ {
+  "name": "nautobot__get_prefix",
+  "description": "Fetch a prefix by UUID, or by CIDR string (e.g. ``10.0.0.0/24``).",
+  "parameters": {
+   "properties": {
+    "prefix_or_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "prefix_or_id"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "nautobot__get_available_ips",
+  "description": "Return up to ``count`` available IPs inside a prefix.\n\nThis is a read-only preview of the next free addresses; it does\nnot allocate them. To actually allocate, ``rest_create`` an IP\naddress with the desired ``address`` and assign it.",
+  "parameters": {
+   "properties": {
+    "prefix_id": {
+     "type": "string"
+    },
+    "count": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "prefix_id"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "nautobot__get_available_prefixes",
+  "description": "List available child prefixes inside a parent prefix.",
+  "parameters": {
+   "properties": {
+    "prefix_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "prefix_id"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "nautobot__list_ip_addresses",
+  "description": "List IP addresses. Filters include ``address``, ``parent``,\n``status``, ``vrf``, ``tenant``, ``family``, ``role``.",
+  "parameters": {
+   "properties": {
+    "filters": {
+     "type": "object"
+    },
+    "paginate": {
+     "type": "boolean"
+    }
+   },
+   "type": "object"
+  }
+ },
+ {
+  "name": "nautobot__get_ip_address",
+  "description": "Fetch an IP address by UUID or by ``address`` string.",
+  "parameters": {
+   "properties": {
+    "address_or_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "address_or_id"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "nautobot__list_vlans",
+  "description": "List VLANs. Filters: ``vid``, ``name``, ``status``, ``location``,\n``vlan_group``, ``tenant``, ``role``.",
+  "parameters": {
+   "properties": {
+    "filters": {
+     "type": "object"
+    },
+    "paginate": {
+     "type": "boolean"
+    }
+   },
+   "type": "object"
+  }
+ },
+ {
+  "name": "nautobot__list_vrfs",
+  "description": "List VRFs.",
+  "parameters": {
+   "properties": {
+    "filters": {
+     "type": "object"
+    }
+   },
+   "type": "object"
+  }
+ },
+ {
+  "name": "nautobot__list_namespaces",
+  "description": "List IPAM namespaces (Nautobot 2.x).",
+  "parameters": {
+   "properties": {},
+   "type": "object"
+  }
+ },
+ {
+  "name": "nautobot__list_tenants",
+  "description": "List tenants. Filter by ``group``, ``q``.",
+  "parameters": {
+   "properties": {
+    "filters": {
+     "type": "object"
+    },
+    "paginate": {
+     "type": "boolean"
+    }
+   },
+   "type": "object"
+  }
+ },
+ {
+  "name": "nautobot__list_statuses",
+  "description": "List status objects. Optionally filter to a content type\n(e.g. ``dcim.device``).",
+  "parameters": {
+   "properties": {
+    "content_type": {
+     "type": "string"
+    }
+   },
+   "type": "object"
+  }
+ },
+ {
+  "name": "nautobot__list_tags",
+  "description": "List tags. Optionally scope to a content type.",
+  "parameters": {
+   "properties": {
+    "content_type": {
+     "type": "string"
+    }
+   },
+   "type": "object"
+  }
+ },
+ {
+  "name": "nautobot__list_roles",
+  "description": "List roles (Nautobot 2.x unified Role model).",
+  "parameters": {
+   "properties": {
+    "content_type": {
+     "type": "string"
+    }
+   },
+   "type": "object"
+  }
+ },
+ {
+  "name": "nautobot__graphql_query",
+  "description": "Run an arbitrary GraphQL query against ``/api/graphql/``.\n\nUseful for cross-model queries that REST handles awkwardly, e.g.\n\"all interfaces of all devices in site X with their connected\ncables and IPs\".\n\nPair with ``graphql_introspect`` to discover available types.",
+  "parameters": {
+   "properties": {
+    "query": {
+     "type": "string"
+    },
+    "variables": {
+     "type": "object"
+    }
+   },
+   "required": [
+    "query"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "nautobot__search_devices",
+  "description": "Search devices by free-text query and common dimensions.",
+  "parameters": {
+   "properties": {
+    "q": {
+     "type": "string"
+    },
+    "status": {
+     "type": "string"
+    },
+    "location": {
+     "type": "string"
+    },
+    "role": {
+     "type": "string"
+    },
+    "manufacturer": {
+     "type": "string"
+    },
+    "platform": {
+     "type": "string"
+    },
+    "tenant": {
+     "type": "string"
+    },
+    "tag": {
+     "type": "string"
+    },
+    "limit": {
+     "type": "integer"
+    }
+   },
+   "type": "object"
+  }
+ },
+ {
+  "name": "nautobot__search_ip_addresses",
+  "description": "Search IP addresses.",
+  "parameters": {
+   "properties": {
+    "q": {
+     "type": "string"
+    },
+    "address": {
+     "type": "string"
+    },
+    "status": {
+     "type": "string"
+    },
+    "vrf": {
+     "type": "string"
+    },
+    "tenant": {
+     "type": "string"
+    },
+    "family": {
+     "type": "integer"
+    },
+    "limit": {
+     "type": "integer"
+    }
+   },
+   "type": "object"
+  }
+ },
+ {
+  "name": "nautobot__search_prefixes",
+  "description": "Search prefixes. ``within`` accepts a CIDR to scope results.",
+  "parameters": {
+   "properties": {
+    "q": {
+     "type": "string"
+    },
+    "prefix": {
+     "type": "string"
+    },
+    "status": {
+     "type": "string"
+    },
+    "vrf": {
+     "type": "string"
+    },
+    "tenant": {
+     "type": "string"
+    },
+    "family": {
+     "type": "integer"
+    },
+    "within": {
+     "type": "string"
+    },
+    "limit": {
+     "type": "integer"
+    }
+   },
+   "type": "object"
+  }
+ }
+]

@@ -1,0 +1,42 @@
+id: mcp-librenms-ip-owner
+section: mcp
+title: Find which port carries an address through the LibreNMS MCP server
+tier: intermediate
+tags: [tool:librenms, iface:mcp, skill:nms-query]
+prompt: |
+  You reach LibreNMS through its MCP server.
+
+  One port of one of the routers that LibreNMS monitors carries the IPv4 address {{ canaries.addr }}.
+  Find that port in LibreNMS and submit with submit_answer:
+    {"device": "<the device's system name (sysName)>", "port": "<the port's name (ifName)>",
+     "addresses": ["<every IPv4 address LibreNMS knows on that port, without prefix length>", ...]}
+
+  Do not change anything in LibreNMS or on any device.
+requires:
+  devices: [srl1, frr1, frr2]
+  services: [librenms]
+tools:
+  mcp: [librenms]
+reset_services: [librenms]
+canaries:
+  addr: ipv4
+  second: ipv4
+  other: ipv4
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: json_file_matches
+    name: the answer names the device, the port and every address on it
+    params:
+      path: answer.json
+      expected:
+        device: frr2
+        port: eth3
+        addresses: [10.1.2.1, "{{ canaries.addr }}", "{{ canaries.second }}"]
+    weight: 2
+  - type: librenms_unchanged
+    name: nothing was changed in LibreNMS
+  - type: no_change_outside
+    name: no configuration was changed
+    params: {allowed: []}
+limits: {turns: 20}

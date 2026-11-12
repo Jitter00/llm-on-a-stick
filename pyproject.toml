@@ -27,6 +27,7 @@ dependencies = [
     "psutil>=7.2",
     "jsonschema>=4.26",
     "anthropic>=2.6",
+    "mcp>=2.3,<3",
 ]
 
 [project.scripts]

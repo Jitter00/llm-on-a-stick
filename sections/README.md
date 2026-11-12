@@ -3,7 +3,9 @@
 Built-in tasks live here, one directory per task: `sections/<section>/<task-id>/task.yaml`.
 
 A **section** is a set of tasks you run together (`stick run --section netbox ...`), with at most five tasks each.
-New tasks get one section per tool, so you can test only the tools you use; `cfg-mgmt` stays one section.
+New tasks get one section per tool, so you can test only the tools you use; `cfg-mgmt` stays one section, and
+`mcp` spans five tools on purpose: it tests the way of working (MCP servers instead of a shell), one task per
+server.
 
 | Section | Tasks | What it covers |
 |---|---|---|
@@ -14,6 +16,8 @@ New tasks get one section per tool, so you can test only the tools you use; `cfg
 | `terraform` | 5 | Terraform against the same account: reading a plan, repairing a broken configuration, importing, reconciling manual changes, refactoring into a module |
 | `librenms` | 5 | LibreNMS 26.10 REST API over SNMP-polled routers: a port query, adding a device, fixing a device that went down, an alert rule that must fire for the right port, adding what NetBox lists as active |
 | `zabbix` | 5 | Zabbix 8.0 JSON-RPC API over SNMP-polled routers: a host query, adding a host, fixing a host Zabbix can't reach, a trigger that must raise a problem on the right router, a maintenance for exactly one host group |
+
+| `mcp` | 5 | The same tools through their MCP servers, with no shell: one task per server (NetBox, AWS, Nautobot, LibreNMS, Zabbix with NetBox), from a lookup to a change that joins two servers |
 
 ## Groupings
 
@@ -27,6 +31,7 @@ The wider areas the sections belong to, for orientation only (nothing in `task.y
 | Validation and observability | `librenms`, `zabbix`, *batfish*, *suzieq*, *gnmic-prometheus*, *syslog*, *pyats* (Cisco/CML only) |
 | Cloud | `aws`, `terraform` (no lab devices: `topology: none`) |
 | Troubleshooting | *troubleshooting*: injected faults, correlating events across tools |
+| Ways of working | `mcp`: MCP servers as the only tools (the other sections give the model a shell) |
 
 The schema is `src/llm_on_a_stick/data/task.schema.json`. Check tasks with `stick task lint`.
 Your own tasks can live anywhere: `stick task lint ./my-tests`.

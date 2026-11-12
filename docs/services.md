@@ -43,6 +43,39 @@ A service is healthy when its `health.url` answers 2xx. Zabbix's JSON-RPC API an
 errors in the body, so its health check posts a request (`health.post`) and looks for a text in the answer
 (`health.expect`).
 
+## MCP servers
+
+Five services also have an **MCP server**: what a model works through in the
+[`mcp` section](tasks.md#mcp-the-same-tools-through-mcp-servers), instead of a shell. They are the published
+servers, pinned, all in one image (`images/mcp`, built as `stick-mcp:dev`; one virtualenv each, from
+hash-pinned requirement files). `stick run` starts one container per server and attempt and talks to it over
+stdio.
+
+| Service | Server | Version | Tools shown | Can change things | Notes |
+|---|---|---|---|---|---|
+| netbox | [netboxlabs/netbox-mcp-server](https://github.com/netboxlabs/netbox-mcp-server) | 1.2.2 | 4 of 4 | no | Read-only by design; takes object types (`dcim.device`) and API filters; returns 5 objects unless asked for more |
+| moto | [awslabs.aws-api-mcp-server](https://github.com/awslabs/mcp/tree/main/src/aws-api-mcp-server) | 1.6.0 | 1 of 2 | yes | `call_aws` runs one AWS CLI command per call. It accepts another endpoint only on a loopback address, and downloads AWS's service reference at every start (internet access needed). AWS has stopped developing it. `suggest_aws_commands` asks a hosted AWS service: not shown |
+| nautobot | [nautobot-mcp](https://github.com/bsmeding/nautobot-mcp-server) | 0.2.5 | 28 of 77 | yes (`NAUTOBOT_MCP_ALLOW_WRITES`) | A young community server. Typed list and get tools, free prefixes and addresses, generic REST and GraphQL tools |
+| librenms | [librenms-mcp](https://github.com/mhajder/librenms-mcp) | 1.13.0 | 33 of 113 | yes | Hides SNMP communities in what it returns |
+| zabbix | [zabbix-mcp](https://github.com/mhajder/zabbix-mcp) | 0.8.0 | 16 of 53 | yes | Supports Zabbix up to 7.4: it only talks to 8.0 with `ZABBIX_SKIP_VERSION_CHECK`, and the calls the tasks use work |
+
+A server is declared in the service's `service.yaml`:
+
+```yaml
+mcp:
+  server: zabbix            # its name in the stick-mcp image
+  version: 0.8.0            # for the record; the image pins it
+  env: {ZABBIX_URL: ..., ZABBIX_TOKEN: ...}
+  allow: [host_get, maintenance_create, ...]   # the tools the model is shown; leave out to show all
+```
+
+The `allow` list keeps the tool list small enough for local models (every tool's name, description and schema
+is sent on every turn): a unit test holds each server to 40 tools and 24,000 characters. Each service's lab
+tests start its server, compare the tools it offers with `tests/fixtures/mcp_tools/<service>.json` and make one
+call. To move a server to a new version: change `images/mcp/requirements/<server>.in`, compile it again (the
+command is in the Dockerfile), raise the image's version label and `MCP_IMAGE_VERSION`, then refresh the
+snapshot with `STICK_UPDATE_MCP_SNAPSHOTS=1` and read the diff.
+
 ## NetBox
 
 | | |
