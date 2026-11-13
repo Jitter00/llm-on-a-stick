@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from llm_on_a_stick import paths, tasks
+from llm_on_a_stick import services as stick_services
 from llm_on_a_stick.grading import validate
 from llm_on_a_stick.grading.checks.retrieval import config_section, load_netconf_xml
 from llm_on_a_stick.grading.labstate import NO_LAB
@@ -177,7 +178,9 @@ def test_builtin_tasks_are_complete() -> None:
         if task.topology != NO_LAB:  # a task without lab devices has no router to leave alone
             assert any(c.type == "no_change_outside" for c in task.checks), f"{task.id}: no change check"
         if task.tools.get("mcp"):  # no shell, no files: an answer goes through submit_answer
-            assert set(task.tools["mcp"]) <= set(task.requires.get("services") or []), task.id
+            lab_servers = set(stick_services.lab_mcp_servers())  # they need devices, not a service
+            assert set(task.tools["mcp"]) - lab_servers <= set(task.requires.get("services") or []), task.id
+            assert not set(task.tools["mcp"]) & lab_servers or task.requires.get("devices"), task.id
             for c in task.checks:
                 if "path" in c.params:
                     assert c.params["path"] == "answer.json" and "submit_answer" in task.prompt, task.id

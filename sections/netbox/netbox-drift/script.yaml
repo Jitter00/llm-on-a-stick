@@ -1,0 +1,27 @@
+# The task's reference steps as MCP calls: stick run netbox-drift --model script/<this file>
+# (A script knows which interface differs; a model has to compare every interface.)
+steps:
+  - tool: netbox__netbox_get_objects
+    args:
+      object_type: dcim.interface
+      filters: {device: srl2}
+      fields: [name, description]
+  - tool: netbox__netbox_get_objects
+    args:
+      object_type: ipam.ipaddress
+      filters: {device: srl2}
+      fields: [address, assigned_object]
+  - tool: routers__send_show_command
+    args: {device_name: srl2, command: "info flat interface ethernet-1/* description"}
+  - tool: routers__send_show_command
+    args: {device_name: srl2, command: "info flat interface ethernet-1/* subinterface * ipv4 address *"}
+    capture:
+      device: 'interface ethernet-1/2 subinterface 0 ipv4 address (\S+)'
+  - tool: submit_answer
+    args:
+      answer:
+        differences:
+          - interface: ethernet-1/2
+            field: ipv4
+            netbox: "{{ canaries.addr }}/31"
+            device: "{{ captured.device }}"

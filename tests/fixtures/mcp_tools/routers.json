@@ -1,0 +1,64 @@
+[
+ {
+  "name": "routers__list_devices",
+  "description": "List devices from the Netmiko inventory.\nYou can query by 'all' (default), a specific 'group-name', or a 'device-name'.\nReturns a JSON string containing device configurations (excluding credentials).",
+  "parameters": {
+   "properties": {
+    "device_or_group": {
+     "type": "string"
+    }
+   },
+   "type": "object"
+  }
+ },
+ {
+  "name": "routers__send_show_command",
+  "description": "Connect to a network device and execute a show command.\n\nArgs:\n    device_name: The exact name of the device from the inventory.\n    command: The CLI command to execute (e.g. 'show ip int brief').\n    use_textfsm: Set to True to attempt parsing the output into structured JSON data using ntc-templates.\n    save_output: If True, always save output to disk and return the filename instead\n                 of the raw output. Useful when you intend to refer back to the output\n                 multiple times without re-running the command.\n\nIf save_output is False and the output exceeds the configured save_threshold\n(default 1000 lines) it is automatically saved to disk and a short notification\nis returned instead. Use list_device_outputs and read_device_output to retrieve\nthe saved content.",
+  "parameters": {
+   "properties": {
+    "device_name": {
+     "type": "string"
+    },
+    "command": {
+     "type": "string"
+    },
+    "use_textfsm": {
+     "type": "boolean"
+    },
+    "save_output": {
+     "type": "boolean"
+    }
+   },
+   "required": [
+    "device_name",
+    "command"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "routers__read_device_output",
+  "description": "Read a previously saved output file for a specific device, with pagination.\n\nArgs:\n    device_name: The device name whose output directory to read from.\n    filename: The exact filename as returned by list_device_outputs.\n    offset: Line number to start reading from (0-indexed). Defaults to 0.\n    limit: Maximum number of lines to return per call. Defaults to 500.\n\nThe response header shows the line range and total line count. If more lines\nremain, a continuation hint tells you which offset to use on the next call.",
+  "parameters": {
+   "properties": {
+    "device_name": {
+     "type": "string"
+    },
+    "filename": {
+     "type": "string"
+    },
+    "offset": {
+     "type": "integer"
+    },
+    "limit": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "device_name",
+    "filename"
+   ],
+   "type": "object"
+  }
+ }
+]

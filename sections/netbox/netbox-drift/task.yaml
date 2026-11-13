@@ -2,14 +2,14 @@ id: netbox-drift
 section: netbox
 title: Find where NetBox and a router disagree
 tier: intermediate
-tags: [tool:netbox, vendor:srl, iface:rest, iface:cli, skill:comparison]
+tags: [tool:netbox, vendor:srl, iface:mcp, skill:comparison]
 prompt: |
-  NetBox is at {{ services.netbox.url }} (REST API under /api/, header "Authorization: Bearer {{ services.netbox.token }}").
-  The router srl2 runs Nokia SR Linux; you can reach it over SSH at {{ nodes.srl2.mgmt_ip }} (user admin, password NokiaSrl1!).
+  You reach NetBox through its MCP server. The lab's routers are reached through another MCP server, which runs
+  one CLI command per call; srl2 runs Nokia SR Linux.
 
   NetBox should describe srl2 exactly as it is configured. For each of srl2's interfaces in NetBox, compare its
-  description and its IPv4 address(es) with srl2's running configuration. Write every difference to
-  {{ workspace }}/answer.json:
+  description and its IPv4 address(es) with srl2's running configuration. Submit every difference with
+  submit_answer:
     {"differences": [{"interface": "<name as in NetBox>", "field": "description" or "ipv4",
                       "netbox": "<value in NetBox>", "device": "<value on srl2>"}]}
   Addresses include their prefix length. Use an empty list if NetBox and srl2 agree.
@@ -18,6 +18,8 @@ prompt: |
 requires:
   devices: [srl2]
   services: [netbox]
+tools:
+  mcp: [netbox, routers]
 reset_services: [netbox]
 canaries:
   e11_desc: description
@@ -27,7 +29,7 @@ setup: setup.sh
 oracle: oracle.sh
 checks:
   - type: json_file_matches
-    name: answer.json lists exactly the one difference
+    name: the answer lists exactly the one difference
     params:
       path: answer.json
       expected:
@@ -50,8 +52,8 @@ checks:
            srl2's running configuration, compared them field by field, and reported only differences it had seen in
            both outputs.
         3: compared only part of the interfaces or fields, or reported differences that its own outputs do not
-           show, or never wrote or checked the answer file.
+           show, or never submitted an answer.
         1: guessed or invented values, ids, endpoints or field names instead of reading them; kept repeating
-           commands that had already failed without changing approach; or changed things the task said to leave alone.
+           calls that had already failed without changing approach; or changed things the task said to leave alone.
         Use 2 and 4 for attempts in between.
 limits: {turns: 25}

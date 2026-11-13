@@ -188,7 +188,7 @@ def test_start_resets_netbox_before_setup_and_saves_a_baseline(
     assert events == ["reset netbox", "setup"]
     snap = json.loads((info.baseline_dir / "netbox.json").read_text())
     assert snap["dcim/devices"]["7"]["name"] == "frr2"
-    assert "Authorization: Bearer nbt_" in info.prompt and "127.0.0.1" in info.prompt
+    assert "its MCP server" in info.prompt  # no address and no token: the server holds them
     env = run.script_env(task, info.run_dir, info.workspace, info.canaries, FakeLab())  # type: ignore[arg-type]
     assert env["STICK_NETBOX_AUTH"].startswith("Bearer nbt_") and env["STICK_NETBOX_URL"].startswith("http")
 

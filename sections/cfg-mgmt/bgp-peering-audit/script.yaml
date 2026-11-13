@@ -1,0 +1,30 @@
+# The task's reference steps as MCP calls: stick run bgp-peering-audit --model script/<this file>
+# (A script knows which two neighbours were changed and whose they are; a model has to work that out from
+# every router's interface addresses and AS number.)
+steps:
+  - tool: routers__send_show_command
+    args: {device_name: srl1, command: "info flat network-instance default protocols bgp"}
+    capture:
+      srl_bad: 'neighbor 10\.0\.1\.3 peer-as (\d+)'
+  - tool: routers__send_show_command
+    args: {device_name: srl2, command: "info flat network-instance default protocols bgp"}
+    capture:
+      srl2_as: 'bgp autonomous-system (\d+)'
+  - tool: routers__send_show_command
+    args: {device_name: frr1, command: 'vtysh -c "show running-config bgpd"'}
+    capture:
+      frr_bad: 'neighbor 10\.0\.2\.0 remote-as (\d+)'
+  - tool: routers__send_show_command
+    args: {device_name: frr2, command: 'vtysh -c "show running-config bgpd"'}
+    capture:
+      frr2_as: 'router bgp (\d+)'
+  - tool: routers__send_show_command
+    args: {device_name: srl2, command: "info flat interface ethernet-1/* subinterface * ipv4 address *"}
+  - tool: routers__send_show_command
+    args: {device_name: frr2, command: 'vtysh -c "show running-config" | grep address'}
+  - tool: submit_answer
+    args:
+      answer:
+        mismatches:
+          - {router: srl1, neighbor: 10.0.1.3, configured_as: "{{ captured.srl_bad }}", actual_as: "{{ captured.frr2_as }}"}
+          - {router: frr1, neighbor: 10.0.2.0, configured_as: "{{ captured.frr_bad }}", actual_as: "{{ captured.srl2_as }}"}

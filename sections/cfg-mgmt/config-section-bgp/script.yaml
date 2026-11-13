@@ -1,0 +1,32 @@
+# The task's reference steps as MCP calls: stick run config-section-bgp --model script/<this file>
+# (A script knows the neighbours' addresses; a model has to find them in the configuration.)
+steps:
+  - tool: routers__send_show_command
+    args: {device_name: srl2, command: "info flat network-instance default protocols bgp"}
+    capture:
+      srl_asn: 'bgp autonomous-system (\d+)'
+      srl_as_a: 'neighbor 10\.0\.2\.1 peer-as (\d+)'
+      srl_as_b: 'neighbor 10\.0\.2\.3 peer-as (\d+)'
+      srl_desc_a: 'neighbor 10\.0\.2\.1 description "?([^"\n]+?)"?\s*\n'
+      srl_desc_b: 'neighbor 10\.0\.2\.3 description "?([^"\n]+?)"?\s*\n'
+  - tool: routers__send_show_command
+    args: {device_name: frr1, command: 'vtysh -c "show running-config bgpd"'}
+    capture:
+      frr_asn: 'router bgp (\d+)'
+      frr_as_a: 'neighbor 10\.0\.1\.0 remote-as (\d+)'
+      frr_as_b: 'neighbor 10\.0\.2\.0 remote-as (\d+)'
+      frr_desc_a: 'neighbor 10\.0\.1\.0 description ([^\n]+?)\s*\n'
+      frr_desc_b: 'neighbor 10\.0\.2\.0 description ([^\n]+?)\s*\n'
+  - tool: submit_answer
+    args:
+      answer:
+        srl2:
+          asn: "{{ captured.srl_asn }}"
+          neighbors:
+            - {address: 10.0.2.1, peer_as: "{{ captured.srl_as_a }}", description: "{{ captured.srl_desc_a }}"}
+            - {address: 10.0.2.3, peer_as: "{{ captured.srl_as_b }}", description: "{{ captured.srl_desc_b }}"}
+        frr1:
+          asn: "{{ captured.frr_asn }}"
+          neighbors:
+            - {address: 10.0.1.0, peer_as: "{{ captured.frr_as_a }}", description: "{{ captured.frr_desc_a }}"}
+            - {address: 10.0.2.0, peer_as: "{{ captured.frr_as_b }}", description: "{{ captured.frr_desc_b }}"}

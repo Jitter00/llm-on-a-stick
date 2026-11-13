@@ -11,7 +11,7 @@ A task is one job for an AI model (or a person) to do in the lab, plus the code 
 
 ```bash
 uv run stick task list                       # all tasks
-uv run stick task start running-config-cli-frr   # prints the instructions; then the agent (or you) works
+uv run stick task start config-interface-frr     # prints the instructions; then the agent (or you) works
 uv run stick grade                           # grades the attempt
 ```
 
@@ -42,7 +42,7 @@ tested. So a result is about the model **and** the server as it is configured he
 entry lists the tools.
 
 Large servers are cut down: a service's `mcp: allow:` list in its `service.yaml` names the tools the model is
-shown (NetBox's and the AWS one are shown whole, except a tool that calls a hosted AWS service). Zabbix's 53
+shown (the AWS one is shown whole, except a tool that calls a hosted AWS service). Zabbix's 53
 tools alone would cost about 18,000 tokens on every turn.
 
 Each of these tasks has a `script.yaml` next to it: its reference solution as MCP calls
@@ -50,40 +50,51 @@ Each of these tasks has a `script.yaml` next to it: its reference solution as MC
 to prove the task can be solved with the tools the model gets. The first run builds the MCP server image
 (`stick-mcp`, about 0.8 GB, a few minutes).
 
-Still on a shell, because no MCP server here reaches what they need:
+The routers have a server too, `routers` (`topologies/mcp.yaml`): Kirk Byers' `netmiko-mcp`, which logs in
+over SSH and runs one CLI command per call. It is not a service: a task names it under `tools.mcp` and lists
+the routers it needs under `requires.devices`.
 
-- `terraform`, for good: Terraform is a command and files in a directory.
-- The tasks that touch a router (`cfg-mgmt`, `netbox-drift`, `netbox-register-node`, `nautobot-next-ip`),
-  until a server for the routers is added.
+- **FRR is reached as a Linux host**, so its CLI commands are `vtysh -c "<command>"`; SR Linux is reached
+  in its own CLI. The prompts say so.
+- **Only commands that start with `vtysh -c`, `show` or `info` are let through**, with at most one pipe to
+  `grep`, `head`, `tail` or `wc`.
+- **It has no tool that changes configuration.** `vtysh -c "configure terminal" -c "..."` starts with an
+  allowed command, and that is how `nautobot-next-ip` configures frr2. SR Linux can't be changed through it:
+  a change there needs several commands in one session.
+- **No NETCONF or gNMI**: no published server offers them for SR Linux, so no task uses them.
 
-What this gives up: whether a model can write the REST, GraphQL or JSON-RPC call itself.
+Only `terraform` still gives the model a shell, for good: Terraform is a command and files in a directory.
+
+What this gives up: whether a model can write the REST, GraphQL or JSON-RPC call itself, NETCONF, and
+saving a whole configuration to a file (a tool result is cut at 4,000 characters).
 
 ## cfg-mgmt: getting configuration right
 
-These three tasks test whether a model can *retrieve* configuration correctly, across two vendors (Nokia SR Linux and
-FRRouting) and two interfaces (CLI and NETCONF), before it's ever asked to change anything. The model has a shell.
+These three tasks test whether a model can *read* configuration correctly off two vendors' routers (Nokia
+SR Linux and FRRouting), before it's ever asked to change anything. The model works through the `routers` MCP
+server and answers with facts from the configuration, not with the configuration itself.
 
 | Task | Tier | What the agent must do | What can go wrong (and is detected) |
 |---|---|---|---|
-| `running-config-cli-frr` | basic | Save frr2's complete running config | Pager or cut-off output, invented lines, wrong command |
-| `config-section-bgp` | intermediate | Save only the BGP part of srl2's and frr1's configs | Saving everything (`unfiltered-output`), missing the address-family block, invented neighbours |
-| `netconf-filtered-bgp` | advanced | NETCONF `<get-config>` with a filter returning only BGP neighbours | No filter (whole config returned), a wrong filter (no neighbours), wrong namespaces |
+| `config-interface-frr` | basic | Report the description and address configured on frr2's eth3 | A plain `show` sent to FRR's Linux shell, another interface's values, an invented description |
+| `config-section-bgp` | intermediate | Report srl2's and frr1's BGP configuration: own AS, and each neighbour's address, AS and description | One vendor's syntax used on the other, a neighbour missed, descriptions swapped or invented |
+| `bgp-peering-audit` | advanced | Across the four routers, find every BGP neighbour configured with an AS that the router at the other end doesn't have | Trusting neighbour descriptions instead of interface addresses, reporting only one vendor's mismatch, reporting the right AS as wrong |
 
 Requirements: the lab running (`uv run stick env up`). `stick task start` refuses to start a task whose
 requirements aren't met.
 
 ## netbox: the source of truth
 
-These tasks use NetBox 4.x. The lookup goes through NetBox Labs' MCP server (4 read-only tools). The other two
-also read a router, and one writes to NetBox, which that server can't do: they use a shell and the REST API,
-whose changes trip models trained on older versions (`role` instead of `device_role`, `nbt_` tokens sent as
-`Bearer`, required `status` fields, and an IP address that must be assigned to an interface before it can be
-a device's primary IP).
+These tasks use NetBox 4.x through the community server `netbox-mcp` (13 of its 22 tools), which can create,
+update and delete objects; NetBox Labs' own server is read-only by design. Two of the tasks also read a
+router, through the `routers` server. NetBox's data model still trips models trained on older versions
+(`role` instead of `device_role`, required `status` fields, and an IP address that must be assigned to an
+interface before it can be a device's primary IP).
 
 | Task | Tier | What the agent must do | What can go wrong (and is detected) |
 |---|---|---|---|
 | `netbox-register-node` | advanced | Document frr2 in NetBox: device, interfaces with the router's descriptions, mgmt IP as primary IPv4 | Wrong role/type/platform, descriptions not read off the router, primary IP not set (or set before it's assigned), edits to the seed |
-| `netbox-lookup` | basic | Find the device with a given asset tag, the rack it is in and the address on its eth1 | Reading the first page only (the server returns five objects unless asked for more), a device whose tag merely contains the wanted one, eth0's address, an answer in the reply instead of `submit_answer` |
+| `netbox-lookup` | basic | Find the device with a given asset tag, the rack it is in and the address on its eth1 | Reading the first page only (the server returns ten objects unless asked for more), a device whose tag merely contains the wanted one, eth0's address, an answer in the reply instead of `submit_answer` |
 | `netbox-drift` | intermediate | Report every difference between srl2 in NetBox and its running config | Missing the wrong address, inventing differences, "fixing" NetBox instead of reporting |
 
 Requirements: the lab and NetBox (`uv run stick env up`, `uv run stick svc up netbox`). Every attempt starts by
@@ -100,7 +111,7 @@ Nautobot 3.x, through the community server `nautobot-mcp` (28 of its 77 tools), 
 from NetBox but its data model has moved on (see [Services](services.md#nautobot)), so a model that answers from
 NetBox habits fails here: sites instead of locations, choice strings instead of Status objects, IP addresses
 outside a namespace, NetBox's `assigned_object_*` fields (silently ignored). `nautobot-next-ip` also configures
-a router, so it still uses a shell and the REST API.
+a router, through the `routers` server.
 
 | Task | Tier | What the agent must do | What can go wrong (and is detected) |
 |---|---|---|---|
@@ -230,14 +241,18 @@ never in six attempts), and Claude Haiku with thinking off about nineteen in twe
 Cut to three per section, and moved to MCP servers (0.20): 19 tasks went, among them the full-configuration
 SR Linux task and the three-way consistency task (a full configuration doesn't fit in a tool result, and
 Oxidized has no MCP server), the LLDP cabling tasks, `nautobot-graphql` (the server's GraphQL tool leaves little
-to get wrong), and the `mcp` section, whose tasks moved into their tools' sections.
+to get wrong), and the `mcp` section, whose tasks moved into their tools' sections. With the routers on an MCP
+server too (0.21), `running-config-cli-frr` and `netconf-filtered-bgp` went: a whole configuration doesn't fit
+in a tool result and no published server speaks NETCONF to SR Linux. `config-interface-frr` and
+`bgp-peering-audit` took their places, and `config-section-bgp` now asks for the BGP facts, not the lines.
 
 ## Writing a task
 
 A task is a folder with a `task.yaml`, optional `setup.sh` (runs before the attempt) and `oracle.sh` (reference
 solution). The fields are described in [Grading](grading.md); copying one of the tasks above is the quickest start.
 A task gives the model a shell unless it says `tools: {mcp: [<service>, ...]}`: then the model gets only
-those services' MCP servers and `submit_answer` (the services must be under `requires.services`; a check that
+those services' MCP servers and `submit_answer` (the services must be under `requires.services`; `routers`,
+the lab's own server, needs the routers under `requires.devices` instead; a check that
 reads the answer uses `path: answer.json`), and a `script.yaml` next to the task holds its solution as tool
 calls. A check of type `llm_judge` is scored by a judge model against a rubric you write, apart from the
 score ([Grading](grading.md#judge-checks-in-a-task)). Scripts get these environment variables:

@@ -2,11 +2,11 @@ id: nautobot-next-ip
 section: nautobot
 title: Take the next free loopback from Nautobot and configure it on a router
 tier: advanced
-tags: [tool:nautobot, vendor:frr, iface:rest, iface:cli, skill:ipam, skill:sot-driven-change]
+tags: [tool:nautobot, vendor:frr, iface:mcp, skill:ipam, skill:sot-driven-change]
 prompt: |
-  Nautobot is at {{ services.nautobot.url }} (REST API under /api/, header "Authorization: Token {{ services.nautobot.token }}").
-  The router frr2 runs FRRouting; SSH to {{ nodes.frr2.mgmt_ip }} as admin/admin lands in its CLI (vtysh), and
-  as netops/netops in a Linux shell.
+  You reach Nautobot through its MCP server. The lab's routers are reached through another MCP server, which
+  runs one CLI command per call; frr2 runs FRRouting, and its CLI commands are run as: vtysh -c "<command>"
+  (several -c "<command>" in one call run in order, which is how configuration is entered).
 
   In Nautobot, the prefix {{ canaries.pool }}.0/24 in the namespace stick-lab is the lab's loopback pool. Take
   the next free address in it, the way Nautobot hands them out: the lowest usable address (not the prefix's
@@ -18,6 +18,8 @@ prompt: |
 requires:
   devices: [frr2]
   services: [nautobot]
+tools:
+  mcp: [nautobot, routers]
 reset_services: [nautobot]
 canaries:
   pool: net24

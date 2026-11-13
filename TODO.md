@@ -49,9 +49,8 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
 - [ ] Runner follow-ups: scheduler (parallel *lab work* only: **never run several local models at the same time**;
       local models always go one after another, and API models may run in parallel; for `stick vs`, a lab instance per
       model so that a cloud and a local model can run at the same time), publish `stick-toolbox` to GHCR, Inspect-format log export,
-      **an MCP server for the routers themselves** (upstream and pinned; then `cfg-mgmt`, `netbox-drift`,
-      `netbox-register-node` and `nautobot-next-ip` move off the shell, and cfg-mgmt's floor task is replaced)
-      and a NetBox MCP server that can write, context-window variants (`--num-ctx`), streaming for
+      a router MCP server that speaks NETCONF or gNMI and can change SR Linux (none is published; `netmiko-mcp`
+      is CLI only and has no configuration tool yet), context-window variants (`--num-ctx`), streaming for
       long Anthropic turns, macOS support for the toolbox.
 - [ ] **Judge model**: built (`--judge-model`, `stick judge`); what is left is under "Next up".
 - [ ] **Report.** `stick report` (table/md/json per model and attempt), the HTML page (`--html`, also written by

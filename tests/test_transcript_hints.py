@@ -11,7 +11,7 @@ from llm_on_a_stick.grading.transcript import transcript_hints
 
 ROOT = Path(__file__).parents[1]
 # Outputs srl2-bgp.cfg and frr1-bgp.cfg; no_change_outside with allowed: [].
-TASK = ROOT / "sections/cfg-mgmt/config-section-bgp"
+TASK = ROOT / "tests/fixtures/tasks/cfg-mgmt/demo-two-vendor-bgp"
 SRL2 = "sshpass -p 'NokiaSrl1!' ssh -o StrictHostKeyChecking=no admin@172.30.30.12"
 FRR1 = "sshpass -p 'admin' ssh -o StrictHostKeyChecking=no admin@172.30.30.21"
 SRL_REJECT = "Parsing error: Unknown token 'configuration'. Options are ['#', '/', 'info']\n"

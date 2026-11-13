@@ -1,0 +1,63 @@
+# The task's reference steps as MCP calls: stick run netbox-register-node --model script/<this file>
+# (A script knows this run's descriptions; a model has to read them off the router.)
+steps:
+  - tool: routers__send_show_command
+    args: {device_name: frr2, command: 'vtysh -c "show running-config"'}
+  - tool: routers__send_show_command
+    args: {device_name: frr2, command: 'vtysh -c "show interface eth0" | grep inet'}
+    capture:
+      mgmt: 'inet (\d+\.\d+\.\d+\.\d+/\d+)'
+  - tool: netbox__netbox_get_objects
+    args: {object_type: dcim.site, filters: {slug: stick-lab}, fields: [id]}
+    capture: {site: '"id":\s*(\d+)'}
+  - tool: netbox__netbox_get_objects
+    args: {object_type: dcim.devicerole, filters: {slug: leaf}, fields: [id]}
+    capture: {role: '"id":\s*(\d+)'}
+  - tool: netbox__netbox_get_objects
+    args: {object_type: dcim.devicetype, filters: {slug: frr-container}, fields: [id]}
+    capture: {dtype: '"id":\s*(\d+)'}
+  - tool: netbox__netbox_get_objects
+    args: {object_type: dcim.platform, filters: {slug: frr}, fields: [id]}
+    capture: {platform: '"id":\s*(\d+)'}
+  - tool: netbox__netbox_create_object
+    args:
+      object_type: dcim.device
+      data:
+        name: frr2
+        site: "{{ captured.site }}"
+        role: "{{ captured.role }}"
+        device_type: "{{ captured.dtype }}"
+        platform: "{{ captured.platform }}"
+        status: active
+    capture: {device: '"object":\s*\{"id":\s*(\d+)'}
+  - tool: netbox__netbox_create_object
+    args:
+      object_type: dcim.interface
+      data: {device: "{{ captured.device }}", name: eth0, type: 1000base-t}
+    capture: {eth0: '"object":\s*\{"id":\s*(\d+)'}
+  - tool: netbox__netbox_create_object
+    args:
+      object_type: dcim.interface
+      data: {device: "{{ captured.device }}", name: eth1, type: 1000base-t, description: "{{ canaries.eth1_desc }}"}
+  - tool: netbox__netbox_create_object
+    args:
+      object_type: dcim.interface
+      data: {device: "{{ captured.device }}", name: eth2, type: 1000base-t, description: "{{ canaries.eth2_desc }}"}
+  - tool: netbox__netbox_create_object
+    args:
+      object_type: dcim.interface
+      data: {device: "{{ captured.device }}", name: eth3, type: 1000base-t, description: to h2}
+  - tool: netbox__netbox_create_object
+    args:
+      object_type: ipam.ipaddress
+      data:
+        address: "{{ captured.mgmt }}"
+        status: active
+        assigned_object_type: dcim.interface
+        assigned_object_id: "{{ captured.eth0 }}"
+    capture: {ip: '"object":\s*\{"id":\s*(\d+)'}
+  - tool: netbox__netbox_update_object
+    args:
+      object_type: dcim.device
+      object_id: "{{ captured.device }}"
+      data: {primary_ip4: "{{ captured.ip }}"}

@@ -80,6 +80,13 @@ def test_mcp_tools_must_be_required_services(tmp_path: Path) -> None:
     _, errors = tasks.lint([write_task(tmp_path, task).parent])
     assert [e.message for e in errors] == ["tools.mcp names 'zabbix', which is not in requires.services"]
 
+    # `routers` reaches the lab's devices and is no service: it needs devices instead.
+    task = {**task, "id": "three", "tools": {"mcp": ["netbox", "routers"]}}
+    _, errors = tasks.lint([write_task(tmp_path, task).parent])
+    assert [e.message for e in errors] == ["tools.mcp names 'routers', but requires.devices is empty"]
+    task = {**task, "id": "four", "requires": {"services": ["netbox"], "devices": ["frr2"]}}
+    assert tasks.lint([write_task(tmp_path, task).parent])[1] == []
+
     for bad in ({"mcp": []}, {"shell": ["x"]}, {}):
         task = {**task, "id": f"bad{len(bad)}{'mcp' in bad}".lower(), "tools": bad}
         assert tasks.lint([write_task(tmp_path, task).parent])[1], bad

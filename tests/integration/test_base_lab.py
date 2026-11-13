@@ -6,7 +6,7 @@ Run with: uv run pytest -m lab
 from __future__ import annotations
 
 import pytest
-from labutil import dexec, frr_established_peers, wait_for
+from labutil import check_mcp_server, dexec, frr_established_peers, wait_for
 
 from llm_on_a_stick.grading.labstate import DockerLabState
 
@@ -78,3 +78,14 @@ def test_srl_snmp_answers(lab: None) -> None:
 def test_frr_snmp_answers(lab: None) -> None:
     res = dexec("frr1", "snmpget", "-v2c", "-c", "stick-ro", "127.0.0.1", "SNMPv2-MIB::sysName.0")
     assert "frr1" in res.stdout
+
+
+def test_routers_mcp_server_reaches_both_vendors(lab: None) -> None:
+    """The routers' MCP server (topologies/mcp.yaml) logs in to an FRR and an SR Linux router, and refuses a
+    command that is not on its list."""
+    for device, command, expect in (
+        ("frr1", 'vtysh -c "show version"', "FRRouting"),
+        ("srl1", "show version", "7220 IXR"),
+        ("frr1", "cat /etc/passwd", "not permitted"),
+    ):
+        check_mcp_server("routers", "send_show_command", {"device_name": device, "command": command}, expect)

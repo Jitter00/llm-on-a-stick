@@ -21,7 +21,7 @@ def test_docs_and_unit_tests_need_no_lab() -> None:
 def test_a_task_folder_selects_its_section_and_the_services_it_needs() -> None:
     s = sel("sections/nautobot/nautobot-next-ip/setup.sh")
     assert s == Selection(sections={"nautobot"}, services={"nautobot"}, core=False)
-    s = sel("sections/cfg-mgmt/running-config-cli-frr/task.yaml")
+    s = sel("sections/cfg-mgmt/config-interface-frr/task.yaml")
     assert s == Selection(sections={"cfg-mgmt"})  # routers only: no service
 
 

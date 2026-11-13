@@ -1,0 +1,29 @@
+# MCP servers that reach the lab's devices, not a service. A task names one under `tools.mcp` like a
+# service's server; it needs no entry in requires.services, only the devices in requires.devices.
+# The format of each entry is the `mcp:` block of a service.yaml (docs/services.md).
+
+# The routers' CLI: Kirk Byers' netmiko-mcp, one SSH login per command. FRR is reached as a Linux host
+# (user netops; its CLI is `vtysh -c "..."`), SR Linux in its own CLI.
+#
+# The server lets through only commands that start with one of `allowed_commands`. It has no tool that
+# changes configuration, but `vtysh -c "configure terminal" -c "..."` starts with an allowed command too:
+# that is how a task changes an FRR router. SR Linux can't be changed this way (a change needs several
+# commands in one session). One pipe to grep, head, tail or wc is let through, to cut long output down.
+routers:
+  server: netmiko
+  version: 0.3.0
+  env:
+    NETMIKO_MCP_AUDIT_LOG_ENABLED: "false"
+    NETMIKO_MCP_ALLOW_PIPE: "true"
+    NETMIKO_MCP_PIPE_MODIFIERS: '["grep", "head", "tail", "wc"]'
+    # The server's default characters and "*", SR Linux's wildcard (`info flat interface * description`).
+    NETMIKO_MCP_ALLOWED_COMMAND_CHARS: 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ./:_-,"*'
+    STICK_NETMIKO_INVENTORY: |
+      srl1: {device_type: nokia_srl, host: 172.30.30.11, username: admin, password: "NokiaSrl1!"}
+      srl2: {device_type: nokia_srl, host: 172.30.30.12, username: admin, password: "NokiaSrl1!"}
+      frr1: {device_type: linux, host: 172.30.30.21, username: netops, password: netops}
+      frr2: {device_type: linux, host: 172.30.30.22, username: netops, password: netops}
+    STICK_NETMIKO_COMMANDS: |
+      allowed_commands: ["vtysh -c *", "show *", "info *"]
+      denied_commands: []
+  allow: [list_devices, send_show_command, read_device_output]

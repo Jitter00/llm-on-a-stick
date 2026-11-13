@@ -14,6 +14,8 @@ import yaml
 from jsonschema import Draft202012Validator
 from pydantic import BaseModel, Field
 
+from llm_on_a_stick import services
+
 # The one check type that code doesn't grade: a judge model scores it (grading/judge.py), apart from the rest.
 JUDGE_CHECK = "llm_judge"
 JUDGE_ARTIFACTS = ("transcript", "reply")  # or a file in the workspace, by its relative path
@@ -59,8 +61,12 @@ def lint_file(path: Path) -> list[LintError]:
                 LintError(path, f"id {data.get('id')!r} must match its directory {path.parent.name!r}")
             )
         services_ = (data.get("requires") or {}).get("services") or []
+        lab_servers = services.lab_mcp_servers()
         for name in (data.get("tools") or {}).get("mcp") or []:
-            if name not in services_:
+            if name in lab_servers:
+                if not (data.get("requires") or {}).get("devices"):
+                    errors.append(LintError(path, f"tools.mcp names {name!r}, but requires.devices is empty"))
+            elif name not in services_:
                 errors.append(LintError(path, f"tools.mcp names {name!r}, which is not in requires.services"))
         checks = [c for c in data.get("checks") or [] if isinstance(c, dict)]
         judged = [c for c in checks if c.get("type") == JUDGE_CHECK]

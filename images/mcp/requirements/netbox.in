@@ -1,1 +1,1 @@
-netbox-mcp-server @ https://github.com/netboxlabs/netbox-mcp-server/archive/8850301ab542565f37cef39c6c1523c86ec2a02e.tar.gz
+netbox-mcp==0.3.0

@@ -54,8 +54,9 @@ uv run pytest -m lab -v  # lab tests: builds the lab, starts NetBox and Oxidized
 ## Try the grader
 
 ```bash
-uv run stick task start running-config-cli-frr
-ssh admin@clab-stick-base-frr2 "show running-config" > runs/<run folder>/work/frr2.cfg
+uv run stick task start config-interface-frr       # asks for eth3's description and address on frr2
+ssh admin@clab-stick-base-frr2 "show running-config"   # password: admin
+echo '{"description": "<as shown>", "ipv4": "<as shown>"}' > runs/<run folder>/work/answer.json
 uv run stick grade
 ```
 

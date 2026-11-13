@@ -1,38 +1,54 @@
 id: config-section-bgp
 section: cfg-mgmt
-title: Save only the BGP configuration of two routers from different vendors
+title: Report the BGP configuration of two routers from different vendors
 tier: intermediate
-tags: [vendor:srl, vendor:frr, iface:cli, skill:config-retrieval, skill:filtering]
+tags: [vendor:srl, vendor:frr, iface:mcp, skill:config-retrieval, skill:filtering]
 prompt: |
-  Two routers, reachable over SSH:
-    - srl2 (Nokia SR Linux) at {{ nodes.srl2.mgmt_ip }}, user admin, password NokiaSrl1!
-    - frr1 (FRRouting) at {{ nodes.frr1.mgmt_ip }}, user admin, password admin
+  You reach the lab's routers through an MCP server, which runs one CLI command per call. srl2 runs Nokia
+  SR Linux. frr1 runs FRRouting, and its CLI commands are run as: vtysh -c "<command>"
 
-  For each router, save ONLY its BGP configuration (nothing else) from the running configuration:
-    - srl2: to {{ workspace }}/srl2-bgp.cfg, in SR Linux "flat" format: every `set / ...` line of the running
-      configuration that belongs to BGP in the default network-instance
-      (lines starting with "set / network-instance default protocols bgp").
-    - frr1: to {{ workspace }}/frr1-bgp.cfg: the complete "router bgp" block, exactly as it appears in the running
-      configuration, from its "router bgp" line up to and including its closing "exit".
+  From the running configuration of each of the two routers, report its BGP configuration in the default
+  routing instance: its own AS number, and every configured neighbour with the neighbour's address, the AS
+  number configured for it and its description. Submit it with submit_answer:
+    {"srl2": {"asn": <number>, "neighbors": [{"address": "<address>", "peer_as": <number>, "description": "<text>"}]},
+     "frr1": {"asn": <number>, "neighbors": [...]}}
 
   Do not change any configuration on any device.
 requires:
   devices: [srl2, frr1]
+tools:
+  mcp: [routers]
 canaries:
-  srl_peer_desc: description
-  frr_peer_desc: description
+  srl_desc_a: description
+  srl_desc_b: description
+  frr_desc_a: description
+  frr_desc_b: description
 setup: setup.sh
 oracle: oracle.sh
 checks:
-  - type: file_matches_config_section
-    name: srl2-bgp.cfg is srl2's BGP section, nothing else
-    params: {node: srl2, path: srl2-bgp.cfg, section: "set / network-instance default protocols bgp "}
+  - type: json_file_matches
+    name: srl2's AS and both neighbours are right
+    params:
+      path: answer.json
+      expected:
+        srl2:
+          asn: 65002
+          neighbors:
+            - {address: 10.0.2.1, peer_as: 65101, description: "{{ canaries.srl_desc_a }}"}
+            - {address: 10.0.2.3, peer_as: 65102, description: "{{ canaries.srl_desc_b }}"}
     weight: 2
-  - type: file_matches_config_section
-    name: frr1-bgp.cfg is frr1's router bgp block, nothing else
-    params: {node: frr1, path: frr1-bgp.cfg, section: "router bgp"}
+  - type: json_file_matches
+    name: frr1's AS and both neighbours are right
+    params:
+      path: answer.json
+      expected:
+        frr1:
+          asn: 65101
+          neighbors:
+            - {address: 10.0.1.0, peer_as: 65001, description: "{{ canaries.frr_desc_a }}"}
+            - {address: 10.0.2.0, peer_as: 65002, description: "{{ canaries.frr_desc_b }}"}
     weight: 2
   - type: no_change_outside
     name: no configuration was changed
     params: {allowed: []}
-limits: {turns: 30}
+limits: {turns: 20}

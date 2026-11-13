@@ -1,0 +1,37 @@
+# The task's reference steps as MCP calls: stick run nautobot-next-ip --model script/<this file>
+steps:
+  - tool: nautobot__list_prefixes
+    args:
+      filters: {prefix: "{{ canaries.pool }}.0/24", namespace: stick-lab}
+    capture:
+      pool: '"id":\s*"([0-9a-f-]{36})"'
+  - tool: nautobot__get_available_ips
+    args: {prefix_id: "{{ captured.pool }}", count: 1}
+    capture:
+      first: '"address":\s*"([0-9.]+)/\d+"'
+  - tool: nautobot__rest_list
+    args:
+      endpoint: /api/dcim/interfaces/
+      filters: {device: frr2, name: lo}
+    capture:
+      lo: '"id":\s*"([0-9a-f-]{36})"'
+  - tool: nautobot__rest_create
+    args:
+      endpoint: /api/ipam/ip-addresses/
+      data:
+        address: "{{ captured.first }}/32"
+        namespace: {name: stick-lab}
+        status: {name: Active}
+        type: host
+    capture:
+      ip: '"id":\s*"([0-9a-f-]{36})"'
+  - tool: nautobot__rest_create
+    args:
+      endpoint: /api/ipam/ip-address-to-interface/
+      data: {ip_address: "{{ captured.ip }}", interface: "{{ captured.lo }}"}
+  - tool: routers__send_show_command
+    args:
+      device_name: frr2
+      command: 'vtysh -c "configure terminal" -c "interface lo" -c "ip address {{ captured.first }}/32"'
+  - tool: routers__send_show_command
+    args: {device_name: frr2, command: 'vtysh -c "show running-config" | grep address'}
