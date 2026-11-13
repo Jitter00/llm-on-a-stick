@@ -38,12 +38,27 @@ snapshot:
     - service: valkey
       cmd: [sh, -c, 'valkey-cli --pass "$REDIS_PASSWORD" --no-auth-warning FLUSHALL']
 
-# The MCP server: NetBox Labs' server. Read-only by design: four tools, which take NetBox object types
-# ("dcim.device") and API filters.
+# The MCP server: the community server netbox-mcp (NetBox Labs' own server is read-only by design). Generic
+# tools that take NetBox object types ("dcim.device") and API filters, and create, update and delete objects.
+# Not shown: custom scripts, GraphQL, rendering a config, the bulk tools and rack-space search.
 mcp:
   server: netbox
-  version: 1.2.2
+  version: 0.3.0
   env:
     NETBOX_URL: http://127.0.0.1:${STICK_NETBOX_PORT:-8081}
     NETBOX_TOKEN: nbt_${STICK_NETBOX_TOKEN_KEY:-stickadmin01}.${STICK_NETBOX_TOKEN:-0123456789abcdef0123456789abcdef01234567}
     LOG_LEVEL: WARNING
+  allow:
+    - netbox_list_object_types
+    - netbox_describe_object_type
+    - netbox_get_objects
+    - netbox_get_object
+    - netbox_search_objects
+    - netbox_get_changelogs
+    - netbox_get_available
+    - netbox_allocate_available
+    - netbox_trace_cable
+    - netbox_create_object
+    - netbox_update_object
+    - netbox_delete_object
+    - netbox_connect_cable

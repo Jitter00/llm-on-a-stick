@@ -12,8 +12,8 @@ fields, changing things it shouldn't), not just a score.
 > **What works today:** the virtual lab; the `stick` command; seven tools around it (NetBox, Nautobot, LibreNMS,
 > Zabbix, Oxidized, Loki with the routers' syslog, and an emulated AWS account for the AWS CLI and Terraform);
 > **24 tasks** in eight sections (three each: basic, intermediate, advanced),
-> from getting router configs right over CLI and NETCONF to keeping NetBox in sync and fixing monitoring, most
-> of them through the tools' MCP servers instead of a shell; the
+> from reading router configs right across two vendors to keeping NetBox in sync and fixing monitoring, all
+> but the Terraform ones through MCP servers instead of a shell; the
 > **grader**, which checks every attempt and explains what went wrong; and the **runner**, which lets AI models
 > attempt the tasks and compares the results in a report. Start with the [Quick start](#quick-start). What comes
 > next: [Roadmap](#roadmap).
@@ -248,13 +248,13 @@ stick doctor          # lists the model servers it finds and the models they ser
 **2. Run one task with one model:**
 
 ```bash
-stick run running-config-cli-frr --model ollama/qwen3:14b
+stick run tf-plan-report --model ollama/qwen3:14b
 ```
 
 The model gets the task's instructions and one tool: running shell commands in a small "toolbox" container that can
 reach the lab. When it says it's done (or runs out of turns or time), the grader scores the attempt. The first run
 builds the toolbox image, which takes a few minutes (about 1.5 GB: it includes the AWS CLI and Terraform).
-That is `cfg-mgmt` and `terraform`. In most other tasks the model has no shell: its tools are those of the
+That is the `terraform` section. In every other task the model has no shell: its tools are those of the
 tool's MCP server ([docs/tasks.md](docs/tasks.md#how-the-model-reaches-the-tools)).
 
 **3. Compare two models on the three `cfg-mgmt` tasks**, three attempts each (models don't always do the same thing twice).
@@ -331,8 +331,8 @@ stick vs anthropic/claude-haiku-5-5 ollama/gemma4:12b --section cfg-mgmt
 each belongs to):
 
 ```bash
-stick run netconf-filtered-bgp --model anthropic/claude-haiku-5-5
-stick vs anthropic/claude-haiku-5-5 ollama/gemma4:12b netconf-filtered-bgp
+stick run bgp-peering-audit --model anthropic/claude-haiku-5-5
+stick vs anthropic/claude-haiku-5-5 ollama/gemma4:12b bgp-peering-audit
 ```
 
 **Every task in every section.** `--all` works with `stick run` and `stick vs`:
@@ -507,7 +507,6 @@ What is still to do:
 - **The judge model**: a set of human-graded examples to check it against, judge checks for the sections
   beyond NetBox, and tasks that ask for a written explanation.
 - **Your own tasks**: a scaffold command, and tasks loaded from a git address.
-- **An MCP server for the routers**, so the tasks that still need a shell to reach a router can drop it.
 - **Run variants**: the same model at different context sizes and quantisations.
 - **Several labs in parallel**, so a cloud model and a local model can run at the same time.
 - **More devices**: Cisco CML as a lab backend, and your own Arista, Juniper or Cisco images.

@@ -41,7 +41,7 @@ def test_doctor_json_exit_code(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_run_refuses_two_local_models() -> None:
     res = runner.invoke(
-        cli.app, ["run", "running-config-cli-frr", "--model", "strata/a", "--model", "ollama/b"]
+        cli.app, ["run", "config-interface-frr", "--model", "strata/a", "--model", "ollama/b"]
     )
     assert res.exit_code == 2
     assert "one after another" in res.output
@@ -68,7 +68,7 @@ def test_vs_refuses_two_local_models(tmp_path: Path) -> None:
 
 
 def test_run_explains_a_task_id_given_as_a_section() -> None:
-    result = runner.invoke(cli.app, ["run", "--model", "ollama/x", "--section", "netconf-filtered-bgp"])
+    result = runner.invoke(cli.app, ["run", "--model", "ollama/x", "--section", "bgp-peering-audit"])
     assert result.exit_code == 2
     assert "is a task, not a section" in result.output.replace("\n", " ")
 

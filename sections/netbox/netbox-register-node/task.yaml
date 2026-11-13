@@ -2,21 +2,23 @@ id: netbox-register-node
 section: netbox
 title: Document a router in NetBox, with its interfaces and primary IP
 tier: advanced
-tags: [tool:netbox, vendor:frr, iface:rest, iface:cli, skill:sot-update]
+tags: [tool:netbox, vendor:frr, iface:mcp, skill:sot-update]
 prompt: |
-  NetBox is at {{ services.netbox.url }} (REST API under /api/, header "Authorization: Bearer {{ services.netbox.token }}").
-  The router frr2 runs FRRouting; you can reach it over SSH at {{ nodes.frr2.mgmt_ip }} (user admin, password admin).
+  You reach NetBox through its MCP server. The lab's routers are reached through another MCP server, which runs
+  one CLI command per call; frr2 runs FRRouting, and its CLI commands are run as: vtysh -c "<command>"
 
   frr2 is not in NetBox yet. Document it:
     - a device named frr2: site stick-lab, role Leaf, device type "FRR container", platform FRR, status active;
     - its interfaces eth0, eth1, eth2 and eth3, each with the description configured on the router (if any);
-    - its management IPv4 address, with its prefix length, as an IP address on interface eth0, set as the
-      device's primary IPv4 address.
+    - its management IPv4 address (the one on eth0), with its prefix length, as an IP address on interface
+      eth0, set as the device's primary IPv4 address.
 
   Do not change anything else in NetBox, and do not change any configuration on the router.
 requires:
   devices: [frr2]
   services: [netbox]
+tools:
+  mcp: [netbox, routers]
 reset_services: [netbox]
 canaries:
   eth1_desc: description
@@ -71,11 +73,11 @@ checks:
       rubric: |
         Judge how the candidate went about the task, not whether the end result is right (code checks that).
         5: read the router first (its interfaces, their descriptions, the management address), looked up the ids of
-           the site, role, device type and platform in NetBox before creating anything, read API errors and fixed
+           the site, role, device type and platform in NetBox before creating anything, read the errors NetBox returned and fixed
            their cause, and read the new objects back to confirm them.
-        3: created the objects, but with ids or values it had not looked up, by trial and error against API errors,
+        3: created the objects, but with ids or values it had not looked up, by trial and error against errors,
            or without confirming the result.
         1: guessed or invented values, ids, endpoints or field names instead of reading them; kept repeating
-           commands that had already failed without changing approach; or changed things the task said to leave alone.
+           calls that had already failed without changing approach; or changed things the task said to leave alone.
         Use 2 and 4 for attempts in between.
 limits: {turns: 30}

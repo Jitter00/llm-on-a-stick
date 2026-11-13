@@ -53,12 +53,19 @@ stdio.
 
 | Service | Server | Version | Tools shown | Can change things | Notes |
 |---|---|---|---|---|---|
-| netbox | [netboxlabs/netbox-mcp-server](https://github.com/netboxlabs/netbox-mcp-server) | 1.2.2 | 4 of 4 | no | Read-only by design; takes object types (`dcim.device`) and API filters; returns 5 objects unless asked for more |
+| netbox | [netbox-mcp](https://github.com/mhajder/netbox-mcp) | 0.3.0 | 13 of 22 | yes | A young community server (NetBox Labs' own is read-only by design). Generic tools that take object types (`dcim.device`) and API filters; returns 10 objects unless asked for more. Not shown: custom scripts, GraphQL, config rendering, the bulk tools, rack-space search |
 | moto | [awslabs.aws-api-mcp-server](https://github.com/awslabs/mcp/tree/main/src/aws-api-mcp-server) | 1.6.0 | 1 of 2 | yes | `call_aws` runs one AWS CLI command per call. It accepts another endpoint only on a loopback address, and downloads AWS's service reference at every start (internet access needed). AWS has stopped developing it. `suggest_aws_commands` asks a hosted AWS service: not shown |
 | nautobot | [nautobot-mcp](https://github.com/bsmeding/nautobot-mcp-server) | 0.2.5 | 28 of 77 | yes (`NAUTOBOT_MCP_ALLOW_WRITES`) | A young community server. Typed list and get tools, free prefixes and addresses, generic REST and GraphQL tools |
 | librenms | [librenms-mcp](https://github.com/mhajder/librenms-mcp) | 1.13.0 | 33 of 113 | yes | Hides SNMP communities in what it returns |
 | zabbix | [zabbix-mcp](https://github.com/mhajder/zabbix-mcp) | 0.8.0 | 16 of 53 | yes | Supports Zabbix up to 7.4: it only talks to 8.0 with `ZABBIX_SKIP_VERSION_CHECK`, and the calls the tasks use work |
 | loki | [mcp-grafana](https://github.com/grafana/mcp-grafana) | 2.2.0 | 6 of 63 | no (started with `--disable-write`) | Grafana's own server; it reads Loki through Grafana's datasource, so a query names the datasource (`loki`). 10 lines per query unless asked for more, 100 at most; timestamps in nanoseconds. Not shown: dashboards, alerting, incidents, Prometheus, and `grafana_api_request` |
+
+One more server reaches the lab's routers and belongs to no service: `routers`, declared in
+`topologies/mcp.yaml` in the same format.
+
+| Name | Server | Version | Tools shown | Can change things | Notes |
+|---|---|---|---|---|---|
+| routers | [netmiko-mcp](https://github.com/ktbyers/netmiko_mcp) | 0.3.0 | 3 of 7 | FRR only, see the notes | By the author of Netmiko. One SSH login and one CLI command per call (about 0.5 s on FRR, 3 s on SR Linux). FRR is a `linux` device (user `netops`), so its CLI is `vtysh -c "..."`. Only commands starting with `vtysh -c`, `show` or `info` pass, with at most one pipe to `grep`, `head`, `tail` or `wc`. It has no configuration tool; `vtysh -c "configure terminal" -c "..."` passes the filter, which is how a task changes FRR. No NETCONF or gNMI. The inventory and the command list are in `topologies/mcp.yaml` and reach the server as environment variables |
 
 A server is declared in the service's `service.yaml`:
 

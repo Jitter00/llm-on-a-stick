@@ -1,0 +1,34 @@
+id: config-interface-frr
+section: cfg-mgmt
+title: Read one interface's configuration from an FRR router
+tier: basic
+floor: true  # the section's cheap floor task: CI validates it on every shared-code change
+tags: [vendor:frr, iface:mcp, skill:config-retrieval]
+prompt: |
+  You reach the lab's routers through an MCP server, which runs one CLI command per call. frr2 runs FRRouting,
+  and its CLI commands are run as: vtysh -c "<command>"
+
+  From frr2's running configuration, report what is configured on its interface eth3: the description and the
+  IPv4 address with its prefix length. Submit them with submit_answer:
+    {"description": "<description>", "ipv4": "<address/length>"}
+
+  Do not change any configuration on any device.
+requires:
+  devices: [frr2]
+tools:
+  mcp: [routers]
+canaries:
+  host_desc: description
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: json_file_matches
+    name: the answer holds eth3's description and address
+    params:
+      path: answer.json
+      expected: {description: "{{ canaries.host_desc }}", ipv4: 10.1.2.1/24}
+    weight: 3
+  - type: no_change_outside
+    name: no configuration was changed
+    params: {allowed: []}
+limits: {turns: 15}

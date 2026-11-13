@@ -175,3 +175,23 @@ def load(name: str, env: dict[str, str] | None = None) -> ServiceSpec:
     spec = ServiceSpec.model_validate(expand(raw, env))
     spec.directory = path.parent
     return spec
+
+
+def lab_mcp_servers() -> dict[str, McpServer]:
+    """The MCP servers that reach the lab's devices (topologies/mcp.yaml): not services, nothing to start."""
+    path = paths.assets_root() / "topologies" / "mcp.yaml"
+    if not path.exists():
+        return {}
+    raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    return {name: McpServer.model_validate(expand(block, None)) for name, block in raw.items()}
+
+
+def mcp_server(name: str) -> McpServer | None:
+    """The MCP server a task names under `tools.mcp`: a lab server, or the `mcp:` block of that service."""
+    lab = lab_mcp_servers()
+    return lab[name] if name in lab else load(name).mcp
+
+
+def with_mcp() -> list[str]:
+    """Every name a task can put under `tools.mcp`."""
+    return sorted([*lab_mcp_servers(), *(n for n in available() if load(n).mcp is not None)])

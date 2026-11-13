@@ -58,18 +58,19 @@ NetClaw or Claude Code, or a person.
 With the lab running, start the simplest real task (see [Tasks](tasks.md) for all of them):
 
 ```bash
-uv run stick task start running-config-cli-frr
+uv run stick task start config-interface-frr
 ```
 
-Follow the printed prompt yourself: SSH to frr2 and save its running config into the workspace file it names, for
-example:
+Follow the printed prompt yourself. A model would use the routers' MCP server and `submit_answer`; you can SSH
+to frr2, read eth3's description and address, and write the answer file that `submit_answer` would write:
 
 ```bash
-ssh admin@clab-stick-base-frr2 "show running-config" > runs/<run folder>/work/frr2.cfg   # password: admin
+ssh admin@clab-stick-base-frr2 "show running-config"   # password: admin
+echo '{"description": "<as shown>", "ipv4": "<as shown>"}' > runs/<run folder>/work/answer.json
 uv run stick grade
 ```
 
-Then try failing on purpose: save only part of the config, or add a made-up line, and grade again.
+Then try failing on purpose: leave a value out, or make one up, and grade again.
 
 ## Canary values
 

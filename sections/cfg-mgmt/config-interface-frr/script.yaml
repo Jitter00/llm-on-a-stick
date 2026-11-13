@@ -1,0 +1,10 @@
+# The task's reference steps as MCP calls: stick run config-interface-frr --model script/<this file>
+steps:
+  - tool: routers__send_show_command
+    args: {device_name: frr2, command: 'vtysh -c "show running-config"'}
+    capture:
+      description: 'interface eth3\s+description ([^\n]+?)\s*\n'
+      ipv4: 'interface eth3\s+description [^\n]+\n\s*ip address (\S+)'
+  - tool: submit_answer
+    args:
+      answer: {description: "{{ captured.description }}", ipv4: "{{ captured.ipv4 }}"}

@@ -72,7 +72,7 @@ def check_mcp_server(name: str, tool: str, arguments: dict[str, Any], expect: st
 
     A different tool list means the pinned server changed: look at what changed, then refresh the snapshot
     with STICK_UPDATE_MCP_SNAPSHOTS=1 (the unit tests check its size)."""
-    server = services.load(name).mcp
+    server = services.mcp_server(name)
     assert server is not None, f"{name} has no mcp: block"
     mcp.ensure_image()
     snapshot = MCP_SNAPSHOTS / f"{name}.json"

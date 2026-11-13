@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from llm_on_a_stick import paths, tasks
+from llm_on_a_stick import tasks
 from llm_on_a_stick.grading.labstate import DockerLabState
 from llm_on_a_stick.runner import loop, models, toolbox
 
@@ -30,8 +30,8 @@ def _leftover_toolboxes() -> list[str]:
 
 def test_scripted_model_solves_task_through_toolbox(lab: None, tmp_path: Path) -> None:
     toolbox.ensure_image()
-    task = tasks.find_task("running-config-cli-frr", [paths.sections_dir()])
-    client = models.make_client(f"script/{SCRIPTS / 'running-config-cli-frr.yaml'}")
+    task = tasks.load_task(SCRIPTS.parent / "tasks" / "cfg-mgmt" / "demo-frr-config-retrieval")
+    client = models.make_client(f"script/{SCRIPTS / 'demo-frr-config-retrieval.yaml'}")
     client.check()
 
     info, result, m = loop.run_task(task, client, DockerLabState(task.topology), tmp_path / "runs")
@@ -43,7 +43,7 @@ def test_scripted_model_solves_task_through_toolbox(lab: None, tmp_path: Path) -
         for line in (info.run_dir / "transcript.jsonl").read_text().splitlines()
         if json.loads(line)["kind"] == "command"
     ]
-    assert commands[1]["output"].startswith(str(len((info.workspace / "frr2.cfg").read_text().splitlines())))
+    assert commands[1]["output"].startswith(str(len((info.workspace / "frr1.cfg").read_text().splitlines())))
     assert _leftover_toolboxes() == []
 
 

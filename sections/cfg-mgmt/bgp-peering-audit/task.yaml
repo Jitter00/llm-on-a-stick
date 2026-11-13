@@ -1,0 +1,44 @@
+id: bgp-peering-audit
+section: cfg-mgmt
+title: Find the BGP neighbours configured with the wrong AS, across two vendors
+tier: advanced
+tags: [vendor:srl, vendor:frr, iface:mcp, skill:config-retrieval, skill:comparison]
+prompt: |
+  You reach the lab's routers through an MCP server, which runs one CLI command per call. srl1 and srl2 run
+  Nokia SR Linux. frr1 and frr2 run FRRouting, and their CLI commands are run as: vtysh -c "<command>"
+
+  Each of srl1 and srl2 has a BGP session with each of frr1 and frr2, over the link between them. A neighbour
+  is configured correctly when the AS number configured for it is the AS number the router at the other end
+  of that link has in its own BGP configuration. Somebody changed some of the neighbours' AS numbers.
+
+  From the four routers' running configurations, find every neighbour that is configured with the wrong AS
+  number. Submit them with submit_answer:
+    {"mismatches": [{"router": "<router with the wrong setting>", "neighbor": "<neighbour's address>",
+                     "configured_as": <AS number configured for the neighbour>,
+                     "actual_as": <AS number the neighbour really has>}]}
+  Use an empty list if every neighbour is right.
+
+  Only report: do not change any configuration on any device.
+requires:
+  devices: [srl1, srl2, frr1, frr2]
+tools:
+  mcp: [routers]
+canaries:
+  srl_as: asn
+  frr_as: asn
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: json_file_matches
+    name: the answer lists exactly the two wrong neighbours
+    params:
+      path: answer.json
+      expected:
+        mismatches:
+          - {router: srl1, neighbor: 10.0.1.3, configured_as: "42000{{ canaries.srl_as }}", actual_as: 65102}
+          - {router: frr1, neighbor: 10.0.2.0, configured_as: "42000{{ canaries.frr_as }}", actual_as: 65002}
+    weight: 3
+  - type: no_change_outside
+    name: no configuration was changed
+    params: {allowed: []}
+limits: {turns: 30}

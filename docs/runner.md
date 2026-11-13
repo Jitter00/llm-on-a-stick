@@ -5,7 +5,7 @@ gets **the same instructions, the same single tool and the same limits**, so loc
 fairly.
 
 ```bash
-uv run stick run running-config-cli-frr --model ollama/qwen3:14b
+uv run stick run config-interface-frr --model ollama/qwen3:14b
 uv run stick run --section cfg-mgmt --model ollama/qwen3:14b --model anthropic/claude-sonnet-5-5 --repeat 3
 uv run stick report                                   # compare everything in runs/
 ```
@@ -101,7 +101,8 @@ replaces all of the above:
   Each server runs in its own container for the attempt, from the `stick-mcp` image
   (`uv run stick image build mcp`; built automatically like the toolbox), on the host's network. Which server,
   its environment and the tools shown are the `mcp:` block of the service's `service.yaml`
-  ([Services](services.md#mcp-servers)).
+  ([Services](services.md#mcp-servers)). `routers` is not a service: it is the server that reaches the lab's
+  routers, declared in `topologies/mcp.yaml`.
 - **`submit_answer`**, a tool of the runner: without a shell the model can't write a file, so an answer goes
   there, as a JSON object. The runner writes it to `answer.json` in the workspace, where the checks read it;
   the last call counts.

@@ -26,7 +26,7 @@ Some things only the user can do. Check them first, and ask instead of working a
 ```bash
 stick task list                                            # task ids and their sections
 stick run --section cfg-mgmt --model anthropic/claude-haiku-5-5        # one model, one section
-stick run netconf-filtered-bgp --model anthropic/claude-haiku-5-5      # one task: its id, no --section
+stick run bgp-peering-audit --model anthropic/claude-haiku-5-5         # one task: its id, no --section
 stick run --all --model anthropic/claude-haiku-5-5 --repeat 3          # every task, three attempts each
 stick vs anthropic/claude-haiku-5-5 ollama/gemma4:12b --section cfg-mgmt   # two models, side by side
 stick judge runs/<name> --judge-model anthropic/claude-haiku-5-5       # why attempts failed (needs no lab)

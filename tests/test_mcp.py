@@ -16,7 +16,7 @@ from llm_on_a_stick.services.spec import McpServer
 
 FIXTURES = Path(__file__).parent / "fixtures"
 SNAPSHOTS = FIXTURES / "mcp_tools"
-WITH_MCP = ["netbox", "moto", "nautobot", "librenms", "zabbix", "loki"]
+WITH_MCP = ["netbox", "moto", "nautobot", "librenms", "zabbix", "loki", "routers"]
 
 
 def test_sanitize_inlines_references_and_drops_what_models_reject() -> None:
@@ -95,7 +95,7 @@ def test_flatten_keeps_text_and_names_the_rest() -> None:
 def test_every_mcp_server_is_declared_and_fits_a_small_context(name: str) -> None:
     """The snapshot is what the model is shown of the server (tests/integration/test_mcp.py compares it with
     the running server): few enough tools, and a tool list that small context windows can hold."""
-    server = services.load(name).mcp
+    server = services.mcp_server(name)
     assert server is not None and server.version
     shown = [ToolDef(**t) for t in json.loads((SNAPSHOTS / f"{name}.json").read_text(encoding="utf-8"))]
     assert 1 <= len(shown) <= 40, f"{name}: {len(shown)} tools"

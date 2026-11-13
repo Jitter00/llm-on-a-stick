@@ -338,10 +338,11 @@ def _run_mcp_tool(call: ToolCall, tools: Tools, s: Settings, m: Metrics, tr: Tra
 
 
 def mcp_servers(task: Task) -> dict[str, services.McpServer]:
-    """How to start each MCP server the task lists under `tools.mcp`, from those services' service.yaml."""
+    """How to start each MCP server the task lists under `tools.mcp`: from that service's service.yaml, or
+    from topologies/mcp.yaml for a server that reaches the lab's devices."""
     out: dict[str, services.McpServer] = {}
     for name in task.tools.get("mcp") or []:
-        server = services.load(name).mcp
+        server = services.mcp_server(name)
         if server is None:
             raise run_mod.RunError(f"{task.id}: service {name!r} has no `mcp:` block in its service.yaml")
         out[name] = server
