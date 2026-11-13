@@ -390,6 +390,7 @@ def _stats(mine: list[AttemptDetail]) -> dict[str, Any]:
     return {
         "attempts": len(mine),
         "passed": sum(a.outcome == "pass" for a in mine),
+        "errors": sum(a.outcome == "error" for a in mine),  # not the model's result
         "mean_score": round(mean(a.score for a in mine), 3),
         "tokens_in": sum(int(a.metrics.get("tokens_in") or 0) for a in mine),
         "tokens_out": sum(int(a.metrics.get("tokens_out") or 0) for a in mine),

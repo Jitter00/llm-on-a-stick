@@ -744,6 +744,9 @@ def _run_models(
                     errors += 1
                     continue
                 done.append(info.run_dir)
+                if loop.never_answered(m):
+                    err.print(f"  [red]the model never answered: {m.error}[/]", highlight=False)
+                    errors += 1
                 hints = f" [dim]({', '.join(result.failure_hints)})[/]" if result.failure_hints else ""
                 console.print(
                     f"  [{style[result.outcome]}]{result.outcome}[/] score {result.score:.2f}, "

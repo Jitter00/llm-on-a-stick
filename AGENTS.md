@@ -61,8 +61,8 @@ Don't parse the terminal table. Each run ends by printing two paths:
 
 - `report-<model>-<what>-<time>.html`: the page for the user. Give them the `file://` address as printed.
 - The `.json` file with the same name: the same numbers, for you.
-    - `contenders[]`: one per model and setting, with `attempts`, `passed`, `mean_score`, `tokens_in`,
-      `tokens_out`, `cost_usd`, `mean_wall_s`, `total_wall_s` (seconds, all attempts), `mean_turns`, and
+    - `contenders[]`: one per model and setting, with `attempts`, `passed`, `errors` (attempts with outcome
+      `error`: the lab, the grader or the model server failed), `mean_score`, `tokens_in`, `tokens_out`, `cost_usd`, `mean_wall_s`, `total_wall_s` (seconds, all attempts), `mean_turns`, and
       `sampling` (what was really sent). With a judge: `judge_score` (0..1, mean over `judge_attempts`),
       kept apart from `mean_score`.
     - `attempts{}`: one per attempt, with `task_id`, `outcome` (`pass`, `partial`, `fail`, `error`), `score`,

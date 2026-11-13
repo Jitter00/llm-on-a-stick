@@ -507,6 +507,10 @@ def test_model_error_and_no_tool_use(demo: Any, tmp_path: Path) -> None:
     assert (m.stop_reason, m.cost_usd) == ("model_error", 0.0)
     assert "does not support tools" in m.error
     assert "model-error" in result.failure_hints and "no-tool-use" not in result.failure_hints
+    # The model never answered: an error, whatever the checks say about the untouched lab.
+    assert (result.outcome, result.score, m.turns) == ("error", 0.0, 0)
+    saved = json.loads(next((tmp_path / "a").glob("*/result.json")).read_text())
+    assert saved["outcome"] == "error"
 
     silent = ListClient([Turn("I can't", [], Usage(), "end_turn")])
     _, result, m = loop.run_task(task, silent, lab, tmp_path / "b")
