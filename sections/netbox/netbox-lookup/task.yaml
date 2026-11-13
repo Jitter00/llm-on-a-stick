@@ -1,0 +1,48 @@
+id: netbox-lookup
+section: netbox
+title: Find a device by its asset tag
+tier: basic
+floor: true  # the section's cheap floor task: CI validates it on every shared-code change
+tags: [tool:netbox, iface:mcp, skill:sot-query]
+prompt: |
+  You reach NetBox through its MCP server.
+
+  One device in NetBox has the asset tag {{ canaries.tag }}. Find that device, the rack it is mounted in, and
+  the IPv4 address assigned to its interface eth1. Submit them with submit_answer:
+    {"device": "<device name>", "rack": "<rack name>", "address": "<address with prefix length, as NetBox shows it>"}
+topology: none
+requires:
+  services: [netbox]
+tools:
+  mcp: [netbox]
+reset_services: [netbox]
+canaries:
+  tag: hostname
+  device: hostname
+  rack: hostname
+  addr: ipv4
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: json_file_matches
+    name: the answer names the device, its rack and the address on eth1
+    params:
+      path: answer.json
+      expected: {device: "{{ canaries.device }}", rack: "{{ canaries.rack }}", address: "{{ canaries.addr }}/24"}
+    weight: 2
+  - type: netbox_unchanged
+    name: nothing was changed in NetBox
+    params: {allow_new: []}
+  - type: llm_judge
+    name: how it went about the lookup
+    params:
+      artifact: transcript
+      rubric: |
+        Judge how the candidate went about the task, not whether the end result is right (code checks that).
+        5: found the device by its asset tag with a filter, read its rack from that device, read the address
+           assigned to eth1 of that device, and submitted only values it had seen in the tools' results.
+        3: got there by listing far more than it needed (every device or every address), or submitted without
+           having seen one of the three values in a result.
+        1: guessed or invented values, object types or filter names instead of reading them; kept repeating
+           calls that had already failed without changing approach.
+limits: {turns: 15}

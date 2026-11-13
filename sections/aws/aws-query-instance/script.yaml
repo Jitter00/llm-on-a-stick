@@ -1,0 +1,22 @@
+# The task's reference steps as MCP calls: stick run aws-query-instance --model script/<this file>
+steps:
+  - tool: moto__call_aws
+    args:
+      cli_command: >-
+        aws ec2 describe-instances --filters Name=tag:Name,Values={{ canaries.host }}
+        --query Reservations[0].Instances[0].{ip:PrivateIpAddress,subnet:SubnetId,group:SecurityGroups[0].GroupName}
+    capture:
+      ip: 'ip\\?":\s*\\?"([^"\\]+)'
+      subnet: 'subnet\\?":\s*\\?"([^"\\]+)'
+      group: 'group\\?":\s*\\?"([^"\\]+)'
+  - tool: moto__call_aws
+    args:
+      cli_command: aws ec2 describe-subnets --subnet-ids {{ captured.subnet }} --query Subnets[0].{cidr:CidrBlock}
+    capture:
+      cidr: 'cidr\\?":\s*\\?"([^"\\]+)'
+  - tool: submit_answer
+    args:
+      answer:
+        private_ip: "{{ captured.ip }}"
+        subnet_cidr: "{{ captured.cidr }}"
+        security_group: "{{ captured.group }}"

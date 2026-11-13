@@ -221,6 +221,5 @@ def test_start_resets_nautobot_and_saves_its_baseline(
     assert snap["dcim/devices"][DEV]["name"] == "frr2"
     assert set(snap) == set(sotstate.ENDPOINTS["nautobot"])
     assert not (info.baseline_dir / "netbox.json").exists()
-    assert "Authorization: Token " in info.prompt
     env = run.script_env(task, info.run_dir, info.workspace, info.canaries, FakeLab())  # type: ignore[arg-type]
     assert env["STICK_NAUTOBOT_AUTH"].startswith("Token ")

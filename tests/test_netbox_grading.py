@@ -17,7 +17,7 @@ from llm_on_a_stick.services.seed import RestError
 from llm_on_a_stick.tasks import load_task
 from test_grading import FakeLab, check, make_ctx
 
-NETBOX_TASK = paths.sections_dir() / "netbox" / "netbox-query-interface"
+NETBOX_TASK = paths.sections_dir() / "netbox" / "netbox-drift"
 
 
 class FakeNetBox:

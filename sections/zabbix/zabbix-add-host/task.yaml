@@ -2,15 +2,14 @@ id: zabbix-add-host
 section: zabbix
 title: Add a router to Zabbix over SNMP
 tier: intermediate
-tags: [tool:zabbix, vendor:srl, iface:json-rpc, skill:nms-onboarding]
+tags: [tool:zabbix, vendor:srl, iface:mcp, skill:nms-onboarding]
 prompt: |
-  Zabbix is at {{ services.zabbix.url }} (JSON-RPC API: POST to /api_jsonrpc.php, header
-  "Authorization: Bearer {{ services.zabbix.token }}").
+  You reach Zabbix through its MCP server.
 
-  Add the router srl1 to Zabbix (method host.create) so that Zabbix monitors it over SNMP version 2c:
+  Add the router srl1 to Zabbix so that Zabbix monitors it over SNMP version 2c:
     - host name: {{ canaries.name }}
     - SNMP interface: its management address {{ nodes.srl1.mgmt_ip }}, port 161, community {{ canaries.community }}.
-      In host.create an SNMPv2c interface looks like this:
+      A host's SNMPv2c interface looks like this:
       {"type": 2, "main": 1, "useip": 1, "ip": "<address>", "dns": "", "port": "161",
        "details": {"version": 2, "community": "<community>"}}
     - host group: Routers (it exists)
@@ -21,6 +20,8 @@ prompt: |
 requires:
   devices: [srl1, frr1]
   services: [zabbix]
+tools:
+  mcp: [zabbix]
 reset_services: [zabbix]
 canaries:
   name: hostname

@@ -196,9 +196,14 @@ def test_builtin_tasks_are_complete() -> None:
                     f"{task.id}: no {sot} check"
                 )
         assert set(task.reset_services) <= set(services), f"{task.id} resets a service it doesn't require"
-    # Every attempt costs minutes on a local model: at most 5 tasks per section, i.e. per tool or group such
-    # as netbox or cfg-mgmt (docs/tasks.md).
-    assert max(per_section.values()) <= 5, per_section
+    # Every attempt costs minutes on a local model: three tasks per section (per tool or group such as
+    # netbox or cfg-mgmt), one of each tier (docs/tasks.md).
+    assert set(per_section.values()) == {3}, per_section
+    tiers: dict[str, list[str]] = {}
+    for load in map(tasks.load_task, found):
+        tiers.setdefault(load.section, []).append(load.tier)
+    for section, got in tiers.items():
+        assert sorted(got) == ["advanced", "basic", "intermediate"], f"{section}: {got}"
     # One cheap floor task per section (docs/tasks.md); CI validates it on every change to shared code.
     floors = [load.section for load in map(tasks.load_task, found) if load.floor]
     assert sorted(floors) == sorted(per_section), f"floor tasks per section: {floors}"

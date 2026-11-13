@@ -29,38 +29,62 @@ Every attempt starts from the same state. The lab stays up between attempts, tas
 4. the baseline is taken, for `no_change_outside`, `netbox_unchanged`, `nautobot_unchanged`, `librenms_unchanged`,
    `zabbix_unchanged` and `aws_unchanged`.
 
-A task with `topology: none` (the `aws` and `terraform` sections, and three of the `mcp` tasks) uses no lab
-device: step 1 is skipped, and the lab doesn't need to be running at all.
+A task with `topology: none` (the `aws` and `terraform` sections, and the tasks that only read or change a
+source of truth, such as `netbox-lookup`) uses no lab device: step 1 is skipped, and the lab doesn't need to be running at all.
+
+## How the model reaches the tools
+
+Agents reach network tools through MCP servers more and more, so the sections are built that way: the model
+has **no shell and no files**, only the tools of the section's MCP server and `submit_answer` (see
+[Running models](runner.md#mcp-servers-instead-of-a-shell)). The servers are the published ones, at pinned
+versions, not ours: what their tools offer, how they name things and how much they return is part of what is
+tested. So a result is about the model **and** the server as it is configured here; the transcript's first
+entry lists the tools.
+
+Large servers are cut down: a service's `mcp: allow:` list in its `service.yaml` names the tools the model is
+shown (NetBox's and the AWS one are shown whole, except a tool that calls a hosted AWS service). Zabbix's 53
+tools alone would cost about 18,000 tokens on every turn.
+
+Each of these tasks has a `script.yaml` next to it: its reference solution as MCP calls
+(`stick run netbox-lookup --model script/sections/netbox/netbox-lookup/script.yaml`), which the lab tests run
+to prove the task can be solved with the tools the model gets. The first run builds the MCP server image
+(`stick-mcp`, about 0.8 GB, a few minutes).
+
+Still on a shell, because no MCP server here reaches what they need:
+
+- `terraform`, for good: Terraform is a command and files in a directory.
+- The tasks that touch a router (`cfg-mgmt`, `netbox-drift`, `netbox-register-node`, `nautobot-next-ip`),
+  until a server for the routers is added.
+
+What this gives up: whether a model can write the REST, GraphQL or JSON-RPC call itself.
 
 ## cfg-mgmt: getting configuration right
 
-These five tasks test whether a model can *retrieve* configuration correctly, across two vendors (Nokia SR Linux and
-FRRouting) and two interfaces (CLI and NETCONF), before it's ever asked to change anything.
+These three tasks test whether a model can *retrieve* configuration correctly, across two vendors (Nokia SR Linux and
+FRRouting) and two interfaces (CLI and NETCONF), before it's ever asked to change anything. The model has a shell.
 
 | Task | Tier | What the agent must do | What can go wrong (and is detected) |
 |---|---|---|---|
 | `running-config-cli-frr` | basic | Save frr2's complete running config | Pager or cut-off output, invented lines, wrong command |
-| `running-config-cli-srl` | basic | Save srl1's complete running config in SR Linux "flat" (`set / ...`) format | Using the tree format, cutting the output short, Cisco-style commands |
 | `config-section-bgp` | intermediate | Save only the BGP part of srl2's and frr1's configs | Saving everything (`unfiltered-output`), missing the address-family block, invented neighbours |
 | `netconf-filtered-bgp` | advanced | NETCONF `<get-config>` with a filter returning only BGP neighbours | No filter (whole config returned), a wrong filter (no neighbours), wrong namespaces |
-| `consistency-cli-netconf-oxidized` | advanced | Compare srl1's config via CLI, NETCONF and its Oxidized backup; say which is outdated and what differs | Triggering a new backup, confusing interface elements in the NETCONF tree, blaming the wrong source |
 
-Requirements: the lab running (`uv run stick env up`); `consistency-cli-netconf-oxidized` also needs Oxidized
-(`uv run stick svc up oxidized`). `stick task start` refuses to start a task whose requirements aren't met.
+Requirements: the lab running (`uv run stick env up`). `stick task start` refuses to start a task whose
+requirements aren't met.
 
 ## netbox: the source of truth
 
-These tasks use NetBox 4.x through its REST API. Its API changed in ways that trip models trained on older
-versions: `role` instead of `device_role`, `nbt_` tokens sent as `Bearer`, required `status` fields, and an IP
-address that must be assigned to an interface before it can be a device's primary IP.
+These tasks use NetBox 4.x. The lookup goes through NetBox Labs' MCP server (4 read-only tools). The other two
+also read a router, and one writes to NetBox, which that server can't do: they use a shell and the REST API,
+whose changes trip models trained on older versions (`role` instead of `device_role`, `nbt_` tokens sent as
+`Bearer`, required `status` fields, and an IP address that must be assigned to an interface before it can be
+a device's primary IP).
 
 | Task | Tier | What the agent must do | What can go wrong (and is detected) |
 |---|---|---|---|
-| `netbox-query-interface` | basic | Find the interface with a given description on a device, and its IP address | No token or the wrong header, the distractor address, a changed NetBox |
-| `netbox-register-node` | intermediate | Document frr2 in NetBox: device, interfaces with the router's descriptions, mgmt IP as primary IPv4 | Wrong role/type/platform, descriptions not read off the router, primary IP not set (or set before it's assigned), edits to the seed |
+| `netbox-register-node` | advanced | Document frr2 in NetBox: device, interfaces with the router's descriptions, mgmt IP as primary IPv4 | Wrong role/type/platform, descriptions not read off the router, primary IP not set (or set before it's assigned), edits to the seed |
+| `netbox-lookup` | basic | Find the device with a given asset tag, the rack it is in and the address on its eth1 | Reading the first page only (the server returns five objects unless asked for more), a device whose tag merely contains the wanted one, eth0's address, an answer in the reply instead of `submit_answer` |
 | `netbox-drift` | intermediate | Report every difference between srl2 in NetBox and its running config | Missing the wrong address, inventing differences, "fixing" NetBox instead of reporting |
-| `netbox-cables-lldp` | intermediate | Add NetBox cables for frr1's data links, from its LLDP neighbours (read with `lldpcli` over a Linux shell; the SR Linux neighbours carry this run's random host names in LLDP and in NetBox) | Guessing instead of reading LLDP, a cable for the management network, the pre-4.x cable payload (`termination_a_type`) instead of `a_terminations` |
-| `netbox-next-ip` | advanced | Take the lowest free address of a NetBox loopback pool, record it as a /32 on frr2's `lo` in NetBox, and configure it on frr2 | Taking "the highest plus one" (the pool has a gap), the prefix's /24 instead of /32, recording it in NetBox but not on the router (or the other way round), touching anything else |
 
 Requirements: the lab and NetBox (`uv run stick env up`, `uv run stick svc up netbox`). Every attempt starts by
 restoring NetBox's seeded snapshot (`reset_services: [netbox]`, about 20 s), and `netbox_unchanged` fails
@@ -68,54 +92,51 @@ attempts that change anything the task didn't ask for. Run them with `uv run sti
 
 Each of these tasks also has one check for a [judge model](grading.md#the-judge-model) (`--judge-model`): how
 the model went about the task (read before writing, looked ids up, confirmed its result). It is scored apart
-and never changes pass or fail; without a judge it shows as "not graded". The other sections have none yet.
+and never changes pass or fail; without a judge it shows as "not graded". Only the `loki` tasks have one too.
 
 ## nautobot: the other source of truth
 
-The same jobs as the NetBox section, against Nautobot 3.x. Nautobot forked from NetBox but its data model has
-moved on (see [Services](services.md#nautobot)), so a model that answers from NetBox habits fails here: `Bearer`
-instead of `Token`, sites instead of locations, choice strings instead of Status objects, IP addresses outside a
-namespace, NetBox's `assigned_object_*` fields (silently ignored), and NetBox 4's cable payload. The drift task is
-replaced by a GraphQL one, a Nautobot feature that NetBox's tasks don't cover.
+Nautobot 3.x, through the community server `nautobot-mcp` (28 of its 77 tools), which can write. Nautobot forked
+from NetBox but its data model has moved on (see [Services](services.md#nautobot)), so a model that answers from
+NetBox habits fails here: sites instead of locations, choice strings instead of Status objects, IP addresses
+outside a namespace, NetBox's `assigned_object_*` fields (silently ignored). `nautobot-next-ip` also configures
+a router, so it still uses a shell and the REST API.
 
 | Task | Tier | What the agent must do | What can go wrong (and is detected) |
 |---|---|---|---|
-| `nautobot-query-interface` | basic | Find the interface with a given description on a device, and its IP address (linked through `ip-address-to-interface`, so the interface list doesn't show it) | `Bearer` instead of `Token`, the distractor address, a changed Nautobot |
-| `nautobot-register-node` | intermediate | Document frr2: device in location stick-lab, interfaces with the router's descriptions, mgmt IP in the stick-lab namespace as primary IPv4 | No status on the device or interfaces, `site` instead of `location`, the address in the wrong namespace, `assigned_object_*` (address left unlinked, so it can't be the primary IP) |
-| `nautobot-graphql` | intermediate | Save one GraphQL query returning every device at a location with its interfaces and addresses, and list the addresses in answer.json | NetBox's GraphQL schema (`device_list`, `site`, `device_role`), a query without the location filter (a distractor device), REST instead (the saved query is run) |
-| `nautobot-cables-lldp` | intermediate | Add Nautobot cables for frr1's data links, from its LLDP neighbours (random host names, as in the NetBox task) | Guessing instead of reading LLDP, a cable for the management network, NetBox 4's `a_terminations`, a missing or lower-case status |
+| `nautobot-query-interface` | basic | Find the interface with a given description on a device, and its IP address (linked through `ip-address-to-interface`, so the interface list doesn't show it) | The distractor address, another device's interface, a changed Nautobot |
+| `nautobot-carve-prefix` | intermediate | Reserve the first free /28 of a /24 in a namespace: the third one, a hole between taken blocks | "The one after the last", the same /24 in the Global namespace, a status or namespace given by name where the API wants a reference, more than one prefix |
 | `nautobot-next-ip` | advanced | Take the lowest free address of the stick-lab loopback pool, record it as a /32 on frr2's `lo`, and configure it on frr2 | The same /24 in the Global namespace (more addresses taken there), "the highest plus one" (the pool has a gap), the /24 instead of /32, only one side done |
 
-Requirements: the lab and Nautobot (`uv run stick env up`, `uv run stick svc up nautobot`). Every attempt starts
+Requirements: Nautobot, and the lab for `nautobot-next-ip`. Every attempt starts
 by restoring Nautobot's seeded snapshot (`reset_services: [nautobot]`, about 25 s), and `nautobot_unchanged` fails
 attempts that change anything the task didn't ask for. Run them with `uv run stick run --section nautobot ...`.
 
-## aws: cloud operations with the AWS CLI
+## aws: cloud operations
 
-AWS work against an emulated account ([moto](services.md#moto-emulated-aws)), with the `aws` CLI or boto3: the
-model chooses. Tasks state the goal, not the commands, and are graded on the resources the account ends up with.
+AWS work against an emulated account ([moto](services.md#moto-emulated-aws)), through AWS's
+`aws-api-mcp-server`: one tool that runs one AWS CLI command per call, with no pipes or `$(...)`, so ids go
+from one call to the next by hand. The server downloads AWS's service reference each time it starts, so these
+tasks need internet access. Tasks state the goal, not the commands, and are graded on the resources the account ends up with.
 Apart from the floor task, none of them says what to create: the model has to find out what is there, and what
 is wrong with it, first.
 
 | Task | Tier | What the agent must do | What can go wrong (and is detected) |
 |---|---|---|---|
 | `aws-query-instance` | basic | Report an instance's private IP, its subnet's CIDR block and its security group's name | The other instance's values, the subnet id instead of its CIDR block, a changed account |
-| `aws-ssh-exposure` | intermediate | Report every instance whose security groups let SSH in from the whole internet | Looking only for a rule on port 22 from 0.0.0.0/0: missing the port range that covers 22, the all-protocols rule, the `::/0` rule and the stopped instance; listing UDP 22, port 2222, a rule from another group, an outbound rule, or a group no instance uses |
 | `aws-orphan-cleanup` | intermediate | Delete a project's unattached volumes, unassociated Elastic IPs, and security groups that nothing uses or refers to | Deleting the group that another group's rule refers to, a stopped instance's volume, another project's or an untagged orphan (the emulator refuses none of these); leaving an orphan behind |
 | `aws-unreachable` | advanced | A web server doesn't answer HTTPS from the internet: find every cause and fix it | Stopping at the first of four causes (no public address, no default route, a network ACL deny entry, a security group that allows 443 from 10/8 only); opening more than 443; a default route on the main route table |
-| `aws-iam-least-privilege` | advanced | Replace an over-broad role's permissions with one inline policy for the six operations the application performs, on exact ARNs | An API operation's name that is not an IAM action (`s3:ListObjectsV2` for `s3:ListBucket`), `ListBucket` on the object ARN, `ssm:GetParameters`, the KMS alias ARN instead of the key's, the dead-letter queue, a wildcard, the old inline or managed policies left on the role, the managed policy deleted (another role uses it), the role recreated |
 
 Requirements: moto only (`uv run stick svc up moto`), not the lab. Every attempt starts from an empty account
 (`reset_services: [moto]`, about 0.2 s), and `aws_unchanged` fails attempts that add, change or delete anything
 the task didn't ask for. Run them with `uv run stick run --section aws ...`.
 
 To try one by hand (`stick task start`, then work on your own machine), set the four `AWS_*` variables from
-[Services](services.md#moto-emulated-aws) in your shell first: `stick run` sets them in the model's toolbox, but
-your shell doesn't have them.
+[Services](services.md#moto-emulated-aws) in your shell first.
 
 ## terraform: infrastructure as code
 
-Terraform against the same emulated account. Each task gives a working directory under the workspace with a
+Terraform against the same emulated account, with a shell (the one section that stays that way). Each task gives a working directory under the workspace with a
 configuration in it; the grader runs `terraform plan` and `terraform state list` there itself, and reads the
 account.
 
@@ -123,24 +144,20 @@ account.
 |---|---|---|---|
 | `tf-plan-report` | basic | Say what applying an edited configuration would create, update, replace and delete, without applying | Applying it, calling a replacement an update, missing the resource that is only deleted |
 | `tf-debug` | intermediate | Repair a configuration that never applied (a `for_each` reference without a key, two security groups in a dependency cycle, a subnet outside the VPC) and apply it | Fixing the first error only, breaking the cycle by dropping a rule, moving only some rules out of the groups (inline and separate rules fight: the plan is never clean), building the rest with the CLI |
-| `tf-import` | advanced | Bring a hand-made VPC, subnet, security group, internet gateway and route table under Terraform without changing them | Recreating instead of importing, a configuration that doesn't match the real settings (DNS hostnames, public addresses, the group's description and rules, tags), the table's route written as a separate resource that is never imported, "fixing" the difference with an apply |
 | `tf-drift` | advanced | People worked by hand in a managed VPC: adopt the two approved changes (an instance resize, a new subnet), undo the rest (a rule on a managed group, a security group nobody manages) | A blind `terraform apply` (reverts the resize), `apply -refresh-only` (keeps the rule), stopping when the plan is clean (the plan shows neither the new subnet nor the new group), recreating the subnet instead of importing it, importing it without its tags |
-| `tf-refactor-module` | advanced | Move two subnet resources into a local module with one `for_each` resource and add a third, without recreating the two | Destroy and create instead of `moved` blocks or `state mv`, the wrong module address or keys, the module not initialised, the new subnet missing |
 
 Requirements: moto only. Run them with `uv run stick run --section terraform ...`.
 
 ## librenms: monitoring
 
-LibreNMS polls the routers over SNMP (see [Services](services.md#librenms)). These tasks drive it through its
-REST API, and most of them relate what the NMS shows to what the devices do. The grader forces a poll before it
+LibreNMS polls the routers over SNMP (see [Services](services.md#librenms)). These tasks drive it through the
+community server `librenms-mcp` (33 of its 113 tools), and most of them relate what the NMS shows to what the devices do. The grader forces a poll before it
 looks, so results never depend on the poller's timing.
 
 | Task | Tier | What the agent must do | What can go wrong (and is detected) |
 |---|---|---|---|
-| `librenms-query-port` | basic | Find the port with a given description among the monitored devices; report the device's system name, the port name and its ifIndex | Wrong token header, the distractor port with another description, changing anything |
-| `librenms-add-device` | intermediate | Add srl1 over SNMPv2c with this run's community, so that LibreNMS really polls it | A wrong payload (`hostname`, `version`, `community`), `force_add` hiding a wrong community (device listed but down), touching frr1 |
+| `librenms-query-port` | basic | Find the port with a given description among the monitored devices; report the device's system name, the port name and its ifIndex | The distractor port with another description, an id instead of the system name, changing anything |
 | `librenms-fix-monitoring` | intermediate | One router is down in LibreNMS since its community was changed on the device: find which, and fix LibreNMS's entry | Deleting and re-adding the device (new id, history lost), changing the router instead, "fixing" a healthy device |
-| `librenms-alert-rule` | advanced | Create a critical rule for ports with a given description that are down; it must fire for exactly one port (another port with the description is up, dozens of undescribed ports are down) | A rule that never fires (bad builder JSON), one that fires for every down port, a duplicate rule after the API's misleading error, wrong severity |
 | `librenms-netbox-sync` | advanced | Add to LibreNMS every device NetBox lists as active (random names, real addresses), by primary IPv4 | Adding the planned device, re-adding the one already monitored, using NetBox names LibreNMS can't resolve, changing NetBox |
 
 Requirements: the lab and LibreNMS (`uv run stick env up`, `uv run stick svc up librenms`); `librenms-netbox-sync`
@@ -150,19 +167,17 @@ with `uv run stick run --section librenms ...`.
 
 ## zabbix: monitoring
 
-Zabbix polls the routers over SNMP (see [Services](services.md#zabbix)). These tasks drive it through its
-JSON-RPC API. Three of them are graded by what Zabbix then does: whether it reaches the host, whether the
-trigger raises a problem, which hosts it puts in maintenance. The grader forces the polls it needs.
+Zabbix polls the routers over SNMP (see [Services](services.md#zabbix)). These tasks drive it through the
+community server `zabbix-mcp` (16 of its 53 tools). Two of them are graded by what Zabbix then does: whether it
+reaches the host, and which hosts it puts in maintenance. The grader forces the polls it needs.
 
 | Task | Tier | What the agent must do | What can go wrong (and is detected) |
 |---|---|---|---|
-| `zabbix-query-host` | basic | Find the host with a given tag value among three; report its name and the address of its SNMP interface | The `auth` property instead of the header, a host whose tag value merely starts the same, no interface in the answer (`selectInterfaces`), changing anything |
+| `zabbix-query-host` | basic | Find the host with a given tag value among three; report its name and the address of its SNMP interface | No tag filter in the tool: the hosts' tags have to be asked for and read; a host whose tag value merely starts the same, no interface in the answer, changing anything |
 | `zabbix-add-host` | intermediate | Add srl1 over SNMPv2c with this run's community, in a given group and with a given template, so that Zabbix really polls it | A wrong interface (`details`), names where ids are wanted, a wrong community (Zabbix takes it; the host is listed and never reached), touching frr1 |
-| `zabbix-fix-monitoring` | intermediate | One router can't be polled since its community was changed on the device: find which, and fix its host in Zabbix | Deleting and re-adding the host (new id, history lost), changing the router instead, the global macro instead of the host's, "fixing" a healthy host |
-| `zabbix-trigger` | advanced | Create one High trigger for the port with a given description that is down (a port with the same description is up on the other router); it must raise a problem | A trigger on the wrong router or port (no problem), a bad expression, one trigger per router, wrong severity |
-| `zabbix-maintenance` | advanced | Put exactly the hosts of one host group in a 2-hour maintenance without data collection, starting now | A group whose name merely contains the wanted one, "with data collection" (the default), times that aren't epoch seconds or a period that isn't 2 hours, no time period, editing the hosts instead |
+| `zabbix-netbox-maintenance` | advanced | A 2-hour maintenance for exactly the Zabbix hosts of one NetBox tenant's devices; the names differ, the addresses match (uses NetBox's server too) | Joining on names, the tenant whose name starts the same, times that aren't epoch seconds or 2 hours apart, a host group instead of the two hosts, two maintenances |
 
-Requirements: the lab and Zabbix (`uv run stick env up`, `uv run stick svc up zabbix`). Every attempt starts
+Requirements: the lab and Zabbix; `zabbix-netbox-maintenance` needs NetBox instead of the lab. Every attempt starts
 from a Zabbix with no hosts (`reset_services: [zabbix]`, about 10 s), and `zabbix_unchanged` fails attempts
 that add, change or delete anything the task didn't ask for. Run them with
 `uv run stick run --section zabbix ...`.
@@ -171,9 +186,7 @@ that add, change or delete anything the task didn't ask for. Run them with
 
 The four routers send their syslog to Loki ([Services](services.md#loki)). The model has **no shell**: it
 reads the logs through Grafana's MCP server (6 of its tools: finding the datasource, labels, log queries,
-statistics, patterns). This is the first section built on an MCP server from the start, and it has three
-tasks, one per tier, not five: every task is a question about logs, so more of them would repeat the same
-skill. Each setup makes real events on the routers (logins, a port going down, a commit), with other events
+statistics, patterns). Each setup makes real events on the routers (logins, a port going down, a commit), with other events
 around them, and waits until Loki has the lines.
 
 | Task | Tier | What the agent must do | What can go wrong (and is detected) |
@@ -186,39 +199,14 @@ Requirements: the lab and the `loki` service (Loki, Alloy, Grafana: about 0.4 GB
 `submit_answer`; each task has a `script.yaml` with its reference solution as MCP calls. A fourth task, one
 that needs an aggregate query, is an open item in `TODO.md`.
 
-## mcp: the same tools through MCP servers
-
-In the other sections the model has a shell and writes its own `curl`, `aws` or Python. Here it has **no shell
-and no files**: its only tools are those of an MCP server (see
-[Running models](runner.md#mcp-servers-instead-of-a-shell)), the way many agents reach these tools in practice.
-There is one task per server, from easy to hard. The servers are the published ones, at pinned versions, not
-ours: what their tools offer, how they name things and how much they return is part of what is tested.
-
-| Task | Tier | Server | What the agent must do | What can go wrong (and is detected) |
-|---|---|---|---|---|
-| `mcp-netbox-lookup` | basic | NetBox Labs' `netbox-mcp-server` (4 read-only tools) | Find the device with a given asset tag, the rack it is in and the address on its eth1 | Reading the first page only (the server returns five objects unless asked for more), a device whose tag merely contains the wanted one, eth0's address, an answer in the reply instead of `submit_answer` |
-| `mcp-aws-move-eip` | intermediate | AWS's `aws-api-mcp-server` (one tool: an AWS CLI command per call) | Move an Elastic IP from a stopped instance to a named running one | No pipes or `$(...)`: ids go from one call to the next by hand. Associating without `--allow-reassociation`, moving the other address (its Name tag starts the same), starting or terminating an instance |
-| `mcp-nautobot-carve-prefix` | intermediate | `nautobot-mcp` (28 of 77 tools) | Reserve the first free /28 of a /24 in a namespace: the third one, a hole between taken blocks | "The one after the last", the same /24 in the Global namespace, a status or namespace given by name where the API wants a reference, more than one prefix |
-| `mcp-librenms-ip-owner` | intermediate | `librenms-mcp` (33 of 113 tools) | Which device and port carries an address, and every IPv4 address on that port | The address list ties addresses to ports only by id: three lookups to join. Stopping at the first address, the other router's port (it has an extra address too), ifDescr or an id instead of ifName |
-| `mcp-zabbix-netbox-maintenance` | advanced | `zabbix-mcp` (16 of 53 tools) and NetBox's | A 2-hour maintenance for exactly the Zabbix hosts of one NetBox tenant's devices; the names differ, the addresses match | Joining on names, the tenant whose name starts the same, times that aren't epoch seconds or 2 hours apart, a host group instead of the two hosts, two maintenances |
-
-Requirements: the five services, and the lab for `mcp-librenms-ip-owner` only; `stick run --section mcp ...`
-starts what is missing, and builds the MCP server image the first time (`stick-mcp`, about 0.8 GB, a few minutes).
-The AWS server downloads AWS's service reference each time it starts, so `mcp-aws-move-eip` needs internet
-access. Each task also has a `script.yaml`: its reference solution as MCP calls
-(`stick run mcp-netbox-lookup --model script/sections/mcp/mcp-netbox-lookup/script.yaml`), which the lab tests
-run to prove the task can be solved with the tools the model gets.
-
-Large servers are cut down: a service's `mcp: allow:` list in its `service.yaml` names the tools the model is
-shown (NetBox's and the AWS one are shown whole, except a tool that calls a hosted AWS service). Zabbix's 53
-tools alone would cost about 18,000 tokens on every turn. So a result here is about the server as it is
-configured in this repository, at that version; the transcript's first entry lists the tools.
-
 ## Which tasks are kept
 
 Most models tested here run locally, where one attempt can take minutes, so every task has to earn its place.
 Each section (a tool such as `netbox`, or a group such as `cfg-mgmt`; the wider groupings are in
-`sections/README.md`) has **at most five tasks**, and each one must tell models apart:
+`sections/README.md`) has **three tasks, one per tier** (basic, intermediate, advanced), and each one must tell
+models apart. Three keeps a full run short (24 tasks), at a price: with one attempt per task a section's result
+moves in thirds, so compare sections only on runs with `--repeat 3` or more. Where the server can write, one
+of the three changes something.
 
 - **No obvious tasks.** A task that every model tried passes every time measures nothing. The exception is one
   cheap "floor" task per section, kept on purpose: it shows that a model can use the tool at all, in seconds
@@ -238,6 +226,11 @@ out what is there first (`aws-vpc-build`, `aws-sg-tighten`, `aws-iam-role` and `
 `aws-orphan-cleanup`, `tf-import`, `tf-drift` and the refactoring task got harder). On the new ones gemma4:12b
 passes about four attempts in ten (the floor tasks nearly always, `aws-unreachable`, `tf-import` and `tf-drift`
 never in six attempts), and Claude Haiku with thinking off about nineteen in twenty.
+
+Cut to three per section, and moved to MCP servers (0.20): 19 tasks went, among them the full-configuration
+SR Linux task and the three-way consistency task (a full configuration doesn't fit in a tool result, and
+Oxidized has no MCP server), the LLDP cabling tasks, `nautobot-graphql` (the server's GraphQL tool leaves little
+to get wrong), and the `mcp` section, whose tasks moved into their tools' sections.
 
 ## Writing a task
 

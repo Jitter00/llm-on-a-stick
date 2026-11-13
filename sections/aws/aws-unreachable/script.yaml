@@ -1,0 +1,63 @@
+# The task's reference steps as MCP calls: stick run aws-unreachable --model script/<this file>
+# Associate the waiting Elastic IP, add the default route, delete the deny entry, open 443 to the world.
+steps:
+  - tool: moto__call_aws
+    args:
+      cli_command: >-
+        aws ec2 describe-instances --filters Name=tag:Name,Values={{ canaries.host }}
+        --query Reservations[0].Instances[0].InstanceId
+    capture:
+      inst: '(i-[0-9a-f]+)'
+  - tool: moto__call_aws
+    args:
+      cli_command: >-
+        aws ec2 describe-addresses --filters Name=tag:Name,Values={{ canaries.host }}
+        --query Addresses[0].AllocationId
+    capture:
+      eip: '(eipalloc-[0-9a-f]+)'
+  - tool: moto__call_aws
+    args:
+      cli_command: >-
+        aws ec2 describe-internet-gateways --filters Name=tag:Name,Values={{ canaries.name }}
+        --query InternetGateways[0].InternetGatewayId
+    capture:
+      igw: '(igw-[0-9a-f]+)'
+  - tool: moto__call_aws
+    args:
+      cli_command: >-
+        aws ec2 describe-route-tables --filters Name=tag:Name,Values={{ canaries.name }}-web
+        --query RouteTables[0].RouteTableId
+    capture:
+      rtb: '(rtb-[0-9a-f]+)'
+  - tool: moto__call_aws
+    args:
+      cli_command: >-
+        aws ec2 describe-network-acls --filters Name=tag:Name,Values={{ canaries.name }}-web
+        --query NetworkAcls[0].NetworkAclId
+    capture:
+      acl: '(acl-[0-9a-f]+)'
+  - tool: moto__call_aws
+    args:
+      cli_command: >-
+        aws ec2 describe-security-groups --filters Name=group-name,Values={{ canaries.host }}
+        --query SecurityGroups[0].GroupId
+    capture:
+      group: '(sg-[0-9a-f]+)'
+  - tool: moto__call_aws
+    args:
+      cli_command: >-
+        aws ec2 associate-address --allocation-id {{ captured.eip }} --instance-id {{ captured.inst }}
+  - tool: moto__call_aws
+    args:
+      cli_command: >-
+        aws ec2 create-route --route-table-id {{ captured.rtb }} --destination-cidr-block 0.0.0.0/0
+        --gateway-id {{ captured.igw }}
+  - tool: moto__call_aws
+    args:
+      cli_command: >-
+        aws ec2 delete-network-acl-entry --network-acl-id {{ captured.acl }} --ingress --rule-number 90
+  - tool: moto__call_aws
+    args:
+      cli_command: >-
+        aws ec2 authorize-security-group-ingress --group-id {{ captured.group }} --protocol tcp --port 443
+        --cidr 0.0.0.0/0

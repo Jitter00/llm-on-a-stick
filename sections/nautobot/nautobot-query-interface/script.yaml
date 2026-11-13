@@ -1,0 +1,17 @@
+# The task's reference steps as MCP calls: stick run nautobot-query-interface --model script/<this file>
+steps:
+  - tool: nautobot__get_device_interfaces
+    args:
+      device_name_or_id: "{{ canaries.device }}"
+      filters: {description: "{{ canaries.desc }}"}
+    capture:
+      id: '"id":\s*"([0-9a-f-]{36})"'
+      name: '"name":\s*"([^"]+)"'
+  - tool: nautobot__list_ip_addresses
+    args:
+      filters: {interfaces: "{{ captured.id }}"}
+    capture:
+      address: '"address":\s*"([^"]+)"'
+  - tool: submit_answer
+    args:
+      answer: {interface: "{{ captured.name }}", address: "{{ captured.address }}"}

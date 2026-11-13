@@ -1,0 +1,16 @@
+# The task's reference steps as MCP calls: stick run librenms-netbox-sync --model script/<this file>
+# (A script knows which two devices are missing; a model has to compare the two lists.)
+steps:
+  - tool: netbox__netbox_get_objects
+    args:
+      object_type: dcim.device
+      filters: {status: active}
+      fields: [name, status, primary_ip4]
+  - tool: librenms__devices_list
+    args: {}
+  - tool: librenms__device_add
+    args:
+      payload: {hostname: "{{ nodes.srl1.mgmt_ip }}", version: v2c, community: stick-ro}
+  - tool: librenms__device_add
+    args:
+      payload: {hostname: "{{ nodes.frr1.mgmt_ip }}", version: v2c, community: stick-ro}

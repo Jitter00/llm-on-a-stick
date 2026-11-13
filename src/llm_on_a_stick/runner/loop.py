@@ -6,7 +6,7 @@ Every model gets the same system prompt, the same single tool and the same limit
 the run folder: transcript.jsonl (each turn and command), metrics.json, and result.json with `metrics`
 filled in.
 
-A task with `tools: {mcp: [...]}` (the mcp section) swaps the toolbox and its one tool for the tools of
+A task with `tools: {mcp: [...]}` swaps the toolbox and its one tool for the tools of
 those MCP servers (runner/mcp.py) plus `submit_answer`: no shell, another system prompt, the same limits.
 """
 

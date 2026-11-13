@@ -3,17 +3,19 @@ section: nautobot
 title: Find an interface and its IP address in Nautobot
 tier: basic
 floor: true  # the section's cheap floor task: CI validates it on every shared-code change
-tags: [tool:nautobot, iface:rest, skill:sot-query]
+tags: [tool:nautobot, iface:mcp, skill:sot-query]
 prompt: |
-  Nautobot is at {{ services.nautobot.url }} (REST API under /api/, header "Authorization: Token {{ services.nautobot.token }}").
+  You reach Nautobot through its MCP server.
 
   In Nautobot, the device {{ canaries.device }} has one interface whose description is "{{ canaries.desc }}".
-  Find that interface and the IPv4 address assigned to it, and write them to {{ workspace }}/answer.json:
+  Find that interface and the IPv4 address assigned to it, and give them with `submit_answer`:
     {"interface": "<interface name>", "address": "<address with prefix length, as Nautobot shows it>"}
 
   Do not change anything in Nautobot or on any device.
 requires:
   services: [nautobot]
+tools:
+  mcp: [nautobot]
 reset_services: [nautobot]
 canaries:
   device: hostname

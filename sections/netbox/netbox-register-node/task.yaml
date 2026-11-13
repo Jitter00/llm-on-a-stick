@@ -1,7 +1,7 @@
 id: netbox-register-node
 section: netbox
 title: Document a router in NetBox, with its interfaces and primary IP
-tier: intermediate
+tier: advanced
 tags: [tool:netbox, vendor:frr, iface:rest, iface:cli, skill:sot-update]
 prompt: |
   NetBox is at {{ services.netbox.url }} (REST API under /api/, header "Authorization: Bearer {{ services.netbox.token }}").

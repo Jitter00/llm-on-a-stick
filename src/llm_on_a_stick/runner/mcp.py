@@ -1,4 +1,4 @@
-"""MCP servers as the model's tools (the mcp section): no shell, only what the servers offer.
+"""MCP servers as the model's tools: no shell, only what the servers offer.
 
 One container per server and attempt, from the stick-mcp image (images/mcp: the upstream servers, pinned),
 on the host network, spoken to over stdio. Which servers a task gets is its `tools.mcp` list; how each one

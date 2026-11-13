@@ -263,7 +263,7 @@ def test_the_netbox_tasks_have_a_judge_check() -> None:
     from llm_on_a_stick import paths
 
     found = [tasks.load_task(p) for p in tasks.discover([paths.sections_dir() / "netbox"])]
-    assert len(found) == 5
+    assert len(found) == 3
     for task in found:
         assert [c.params["artifact"] for c in task.checks if c.type == tasks.JUDGE_CHECK] == ["transcript"], (
             task.id

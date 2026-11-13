@@ -1,0 +1,15 @@
+# The task's reference steps as MCP calls: stick run librenms-query-port --model script/<this file>
+steps:
+  - tool: librenms__ports_search_field
+    args: {field: ifAlias, search: "{{ canaries.desc }}"}
+    capture:
+      device_id: '"device_id":\s*"?(\d+)'
+      port: '"ifName":\s*"([^"]+)"'
+  - tool: librenms__devices_list
+    args:
+      query: {type: device_id, query: "{{ captured.device_id }}"}
+    capture:
+      device: '"sysName":\s*"([^"]+)"'
+  - tool: submit_answer
+    args:
+      answer: {device: "{{ captured.device }}", port: "{{ captured.port }}", ifindex: 32780}

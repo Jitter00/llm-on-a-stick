@@ -21,7 +21,7 @@ from llm_on_a_stick.services.spec import MysqlSnapshot
 from llm_on_a_stick.tasks import load_task
 from test_grading import FakeLab, check, make_ctx
 
-TASK = paths.sections_dir() / "zabbix" / "zabbix-fix-monitoring"
+TASK = paths.sections_dir() / "zabbix" / "zabbix-query-host"
 TOKEN = "0123456789abcdef" * 4
 
 
@@ -349,6 +349,5 @@ def test_start_saves_a_zabbix_baseline(tmp_path: Path, monkeypatch: pytest.Monke
     info = run.start(task, tmp_path / "runs", FakeLab())  # type: ignore[arg-type]
     snap = json.loads((info.baseline_dir / "zabbix.json").read_text())
     assert snap["hosts"]["10800"]["label"] == "frr1"
-    assert f'"Authorization: Bearer {TOKEN}"' in info.prompt and "/api_jsonrpc.php" in info.prompt
     env = run.script_env(task, info.run_dir, info.workspace, info.canaries, FakeLab())  # type: ignore[arg-type]
     assert env["STICK_ZABBIX_URL"] == "http://127.0.0.1:8085"

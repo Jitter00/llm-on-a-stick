@@ -4,9 +4,7 @@ Validating every task of every section takes minutes per task on a CI runner, so
 
 - every task of a **section** whose folder it changes (`sections/<section>/...`), or that requires a
   **service** it changes (`services/<name>/...`, `tests/integration/test_<name>.py`), plus that service's own
-  lab tests;
-  (the mcp section doesn't count here: it spans five services, and a change to one of them would start all
-  five; each service's own lab tests check its MCP server instead);
+  lab tests (a service that several sections use, such as NetBox, selects each of them);
 - for a change to **shared code** (`src/`, `sections/_lib/`, topologies, router configs, images, the lab
   tests' helpers, dependencies...): the generic lab tests and each section's **floor** task (`floor: true`),
   enough to catch broken plumbing without validating everything;
@@ -67,14 +65,11 @@ class Selection:
         return cls(names("STICK_LAB_SECTIONS"), names("STICK_LAB_SERVICES"), env.get("STICK_LAB_CORE") == "1")
 
 
-def section_services(task_list: Iterable[tasks.Task], mcp: bool = True) -> dict[str, set[str]]:
-    """Section -> the services its tasks require (`mcp=False`: leaving out the mcp section, which spans
-    several services; a section whose tasks reach its one service through an MCP server, as loki's do,
-    counts)."""
+def section_services(task_list: Iterable[tasks.Task]) -> dict[str, set[str]]:
+    """Section -> the services its tasks require."""
     out: dict[str, set[str]] = {}
     for task in task_list:
-        if mcp or task.section != "mcp":
-            out.setdefault(task.section, set()).update(task.requires.get("services") or [])
+        out.setdefault(task.section, set()).update(task.requires.get("services") or [])
     return out
 
 
@@ -84,13 +79,12 @@ def select(
     """The lab tests needed for a change to the files `changed` (repo-relative POSIX paths)."""
     task_list = list(task_list)
     needs = section_services(task_list)
-    users = section_services(task_list, mcp=False)
     known_services = set(service_names)
     sel = Selection()
 
     def add_service(name: str) -> None:
         sel.services.add(name)
-        sel.sections.update(s for s, svcs in users.items() if name in svcs)
+        sel.sections.update(s for s, svcs in needs.items() if name in svcs)
 
     for path in changed:
         parts = PurePosixPath(path).parts

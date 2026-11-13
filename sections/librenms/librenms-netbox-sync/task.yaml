@@ -2,10 +2,9 @@ id: librenms-netbox-sync
 section: librenms
 title: Make LibreNMS monitor the devices NetBox lists as active
 tier: advanced
-tags: [tool:librenms, tool:netbox, iface:rest, skill:sot-driven-change]
+tags: [tool:librenms, tool:netbox, iface:mcp, skill:sot-driven-change]
 prompt: |
-  LibreNMS is at {{ services.librenms.url }} (REST API under /api/v0/, header "X-Auth-Token: {{ services.librenms.token }}").
-  NetBox is at {{ services.netbox.url }} (REST API under /api/, header "Authorization: Bearer {{ services.netbox.token }}").
+  You reach LibreNMS and NetBox through their MCP servers.
 
   NetBox is the source of truth for what must be monitored: every device whose status in NetBox is active,
   and no other. Bring LibreNMS in line with it:
@@ -18,6 +17,8 @@ prompt: |
 requires:
   devices: [srl1, srl2, frr1, frr2]
   services: [librenms, netbox]
+tools:
+  mcp: [librenms, netbox]
 reset_services: [librenms, netbox]
 canaries:
   n1: hostname

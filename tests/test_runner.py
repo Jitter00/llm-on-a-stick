@@ -749,6 +749,11 @@ def test_full_report_and_html(demo: Any, tmp_path: Path) -> None:
     assert data["total_wall_s"] == pytest.approx(a["total_wall_s"] + b["total_wall_s"], abs=0.2)
     assert data["tasks"][0]["better"] is None and "Level" in data["versus"]["headline"]
     assert data["turn_limits"] == [attempts[0].metrics["limits"]["turns"]]
+    # Totals per section and per tier, per contender; two attempts of one task, so not "one attempt each".
+    (section,), (tier,) = data["by_section"], data["by_tier"]
+    assert section["name"] == "cfg-mgmt" and tier["name"] == attempts[0].tier
+    assert section["per"][a["id"]] == {"tasks": 1, "attempts": 2, "passed": 0, "mean_score": a["mean_score"]}
+    assert tier["per"][b["id"]]["attempts"] == 1 and data["max_repeats"] == 2
 
     attempts[2].outcome, attempts[2].score = "pass", 1.0  # as if strata/b had passed
     data = report.build_report(attempts)
