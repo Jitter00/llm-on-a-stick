@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.20.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.19.0...v0.20.0) (2026-11-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* **tasks:** make the sections MCP-first, three tasks each, and remove the mcp section ([#52](https://github.com/Jitter00/llm-on-a-stick/issues/52))
+
+### Features
+
+* **tasks:** make the sections MCP-first, three tasks each, and remove the mcp section ([#52](https://github.com/Jitter00/llm-on-a-stick/issues/52)) ([d823d86](https://github.com/Jitter00/llm-on-a-stick/commit/d823d8680f42057d5fc82687de787861db23b056))
+
 ## [0.19.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.18.0...v0.19.0) (2026-11-12)
 
 
