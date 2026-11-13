@@ -4,6 +4,9 @@ updates:
     directory: /
     schedule: {interval: weekly}
     commit-message: {prefix: "chore", include: scope}
+    # One PR a week: separate PRs all change uv.lock, so each merge makes the others rebase and rerun CI.
+    groups:
+      python: {patterns: ["*"]}
   - package-ecosystem: github-actions
     directory: /
     schedule: {interval: weekly}
