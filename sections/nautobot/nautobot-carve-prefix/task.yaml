@@ -1,0 +1,42 @@
+id: nautobot-carve-prefix
+section: nautobot
+title: Reserve the first free /28 of a prefix
+tier: intermediate
+tags: [tool:nautobot, iface:mcp, skill:ipam-allocation]
+prompt: |
+  You reach Nautobot through its MCP server.
+
+  In the namespace stick-lab, the prefix {{ canaries.pool }}.0/24 is handed out to customers in /28 blocks.
+  Reserve the first free /28 of it (the one with the lowest address): create that prefix in the same
+  namespace, with the status Reserved, the type network and the description "{{ canaries.desc }}".
+
+  Create that one prefix only, and do not change anything else in Nautobot.
+topology: none
+requires:
+  services: [nautobot]
+tools:
+  mcp: [nautobot]
+reset_services: [nautobot]
+canaries:
+  pool: net24
+  desc: description
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: nautobot_object
+    name: the first free /28 is reserved in the stick-lab namespace
+    params:
+      endpoint: ipam/prefixes
+      filters: {prefix: "{{ canaries.pool }}.32/28", namespace: stick-lab}
+      expect: {status.name: Reserved, type: network, description: "{{ canaries.desc }}"}
+    weight: 3
+  - type: nautobot_object
+    name: only one prefix was created
+    params:
+      endpoint: ipam/prefixes
+      filters: {q: "{{ canaries.desc }}"}
+      count: 1
+  - type: nautobot_unchanged
+    name: nothing else was changed in Nautobot
+    params: {allow_new: [ipam/prefixes]}
+limits: {turns: 20}

@@ -1,0 +1,23 @@
+# The task's reference steps as MCP calls: stick run zabbix-add-host --model script/<this file>
+steps:
+  - tool: zabbix__hostgroup_get
+    args: {group_name_contains: Routers, output: [groupid, name]}
+    capture:
+      group: '"groupid":\s*"(\d+)"'
+  - tool: zabbix__template_get
+    args: {template_name_contains: Network Generic Device by SNMP, output: [templateid, host]}
+    capture:
+      template: '"templateid":\s*"(\d+)"'
+  - tool: zabbix__host_create
+    args:
+      host: "{{ canaries.name }}"
+      groups: [{groupid: "{{ captured.group }}"}]
+      templates: [{templateid: "{{ captured.template }}"}]
+      interfaces:
+        - type: 2
+          main: 1
+          useip: 1
+          ip: "{{ nodes.srl1.mgmt_ip }}"
+          dns: ""
+          port: "161"
+          details: {version: 2, bulk: 1, community: "{{ canaries.community }}"}

@@ -67,7 +67,7 @@ jobs:
     runs-on: ubuntu-24.04
     # Only the lab tests this PR needs (llm_on_a_stick.labselect): the sections it touches, plus each section's
     # floor task when shared code changes. Usually ~20 min; shared code plus one section ~30 min. The worst
-    # case is a PR that changes every service, which selects every task of seven sections (~75 min). The MCP
+    # case is a PR that changes every service, which selects every task (24; ~75 min was measured with 43). The MCP
     # server image (stick-mcp) is built by the tests that use it, the first time one runs.
     timeout-minutes: 90
     steps:

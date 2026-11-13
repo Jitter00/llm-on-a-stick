@@ -38,7 +38,7 @@ snapshot:
     - service: valkey
       cmd: [sh, -c, 'valkey-cli --pass "$REDIS_PASSWORD" --no-auth-warning FLUSHALL']
 
-# The mcp section: NetBox Labs' server. Read-only by design: four tools, which take NetBox object types
+# The MCP server: NetBox Labs' server. Read-only by design: four tools, which take NetBox object types
 # ("dcim.device") and API filters.
 mcp:
   server: netbox

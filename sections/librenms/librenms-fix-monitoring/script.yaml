@@ -1,0 +1,11 @@
+# The task's reference steps as MCP calls: stick run librenms-fix-monitoring --model script/<this file>
+steps:
+  - tool: librenms__devices_list
+    args:
+      query: {type: down}
+    capture:
+      down: '"hostname":\s*"([^"]+)"'
+  - tool: librenms__device_update
+    args:
+      hostname: "{{ captured.down }}"
+      payload: {community: "{{ canaries.community }}"}

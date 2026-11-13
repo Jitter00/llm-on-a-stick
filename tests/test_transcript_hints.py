@@ -191,6 +191,43 @@ def test_ignored_error_only_when_the_model_said_it_had_finished(tmp_path: Path) 
     assert "ignored-error" in transcript_hints(run, stop_reason="done")
 
 
+# --------------------------------------------------------------------------- MCP tool calls
+
+
+def call(tool: str, failed: bool = False, **arguments: object) -> dict:
+    return {"kind": "tool_call", "tool": tool, "arguments": arguments, "is_error": failed, "timed_out": False}
+
+
+MCP_TASK = ROOT / "sections/zabbix/zabbix-add-host"
+
+
+def test_no_verification_when_nothing_is_read_after_a_change_through_a_tool(tmp_path: Path) -> None:
+    blind = [call("hostgroup_get"), call("host_create", host="r1")]
+    assert transcript_hints(make_run(tmp_path / "a", blind, task_dir=MCP_TASK)) == ["no-verification"]
+    checked = [*blind, call("host_get")]
+    assert transcript_hints(make_run(tmp_path / "b", checked, task_dir=MCP_TASK)) == []
+    reads_only = [call("host_get"), call("device_ports_get")]
+    assert transcript_hints(make_run(tmp_path / "c", reads_only, task_dir=MCP_TASK)) == []
+
+
+def test_an_aws_cli_call_changes_something_unless_it_describes_gets_or_lists(tmp_path: Path) -> None:
+    describe = call("call_aws", cli_command="aws ec2 describe-volumes --filters Name=status,Values=available")
+    delete = call("call_aws", cli_command="aws ec2 delete-volume --volume-id vol-1")
+    assert transcript_hints(make_run(tmp_path / "a", [describe, delete], task_dir=MCP_TASK)) == [
+        "no-verification"
+    ]
+    assert transcript_hints(make_run(tmp_path / "b", [delete, describe], task_dir=MCP_TASK)) == []
+
+
+def test_ignored_error_when_the_last_change_through_a_tool_failed(tmp_path: Path) -> None:
+    failed = [call("host_create", failed=True), call("host_get")]
+    assert transcript_hints(make_run(tmp_path / "a", failed, task_dir=MCP_TASK)) == ["ignored-error"]
+    retried = [call("host_create", failed=True), call("host_create"), call("host_get")]
+    assert transcript_hints(make_run(tmp_path / "b", retried, task_dir=MCP_TASK)) == []
+    gave_up = make_run(tmp_path / "c", failed, task_dir=MCP_TASK, stop_reason="max_turns")
+    assert transcript_hints(gave_up) == []
+
+
 # --------------------------------------------------------------------------- old runs
 
 

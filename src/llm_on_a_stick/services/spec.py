@@ -111,7 +111,7 @@ Snapshot = Annotated[
 
 
 class McpServer(BaseModel):
-    """The MCP server a model reaches this service through in the mcp section: one of the upstream servers
+    """The MCP server a model reaches this service through: one of the upstream servers
     in the stick-mcp image (images/mcp), started for each attempt with this environment."""
 
     server: str  # its name in the image: `docker run stick-mcp:dev <server>`

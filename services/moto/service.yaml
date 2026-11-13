@@ -28,7 +28,7 @@ snapshot:
   kind: http
   url: http://127.0.0.1:${STICK_MOTO_PORT:-8083}/moto-api/reset
 
-# The mcp section: AWS's API server (awslabs.aws-api-mcp-server), which runs one AWS CLI command per call.
+# The MCP server: AWS's API server (awslabs.aws-api-mcp-server), which runs one AWS CLI command per call.
 # It only accepts a custom endpoint on a loopback address, and downloads AWS's service reference when it
 # starts (it needs internet access). `suggest_aws_commands` asks a hosted AWS service: not offered.
 mcp:

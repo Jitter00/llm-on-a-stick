@@ -3,20 +3,20 @@ section: zabbix
 title: Find a host by its tag in Zabbix
 tier: basic
 floor: true  # the section's cheap floor task: CI validates it on every shared-code change
-tags: [tool:zabbix, iface:json-rpc, skill:nms-query]
+tags: [tool:zabbix, iface:mcp, skill:nms-query]
 prompt: |
-  Zabbix is at {{ services.zabbix.url }} (JSON-RPC API: POST to /api_jsonrpc.php, header
-  "Authorization: Bearer {{ services.zabbix.token }}").
+  You reach Zabbix through its MCP server.
 
-  One of the hosts in Zabbix has the tag "circuit" with the value "{{ canaries.circuit }}". Find it with the
-  API (method host.get; "selectTags": "extend" and "selectInterfaces": "extend" in its params add each
-  host's tags and interfaces to the answer) and write to {{ workspace }}/answer.json:
+  One of the hosts in Zabbix has the tag "circuit" with the value "{{ canaries.circuit }}". Find it and
+  give with `submit_answer`:
     {"host": "<the host's name in Zabbix>", "ip": "<the IP address of its SNMP interface>"}
 
   Do not change anything in Zabbix or on any device.
 requires:
   devices: [srl1, srl2, frr1]
   services: [zabbix]
+tools:
+  mcp: [zabbix]
 reset_services: [zabbix]
 canaries:
   circuit: description

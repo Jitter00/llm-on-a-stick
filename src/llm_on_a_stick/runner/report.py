@@ -452,6 +452,35 @@ def _rank(per: dict[str, Any]) -> tuple[float, float]:
     return per["passed"] / len(per["attempts"]), per["mean_score"]
 
 
+TIERS = ["basic", "intermediate", "advanced"]
+
+
+def _breakdown(attempts: list[AttemptDetail], field_name: str, order: list[str]) -> list[dict[str, Any]]:
+    """Passes and mean score per contender for each value of `field_name` ("section" or "tier"): values in
+    `order` first, then the rest by name. Attempts without a value (a removed task) are left out."""
+    groups: dict[str, dict[str, list[AttemptDetail]]] = {}
+    for a in attempts:
+        name = str(getattr(a, field_name))
+        if name:
+            groups.setdefault(name, {}).setdefault(a.contender, []).append(a)
+    names = [n for n in order if n in groups] + sorted(n for n in groups if n not in order)
+    return [
+        {
+            "name": name,
+            "per": {
+                cid: {
+                    "tasks": len({a.task_id for a in theirs}),
+                    "attempts": len(theirs),
+                    "passed": sum(a.outcome == "pass" for a in theirs),
+                    "mean_score": round(mean(a.score for a in theirs), 3),
+                }
+                for cid, theirs in groups[name].items()
+            },
+        }
+        for name in names
+    ]
+
+
 def build_report(attempts: list[AttemptDetail], title: str = "") -> dict[str, Any]:
     """Everything the report page shows, as one JSON-ready structure (also written as report.json)."""
     keys = sorted({(a.model, a.sampling) for a in attempts})
@@ -524,6 +553,11 @@ def build_report(attempts: list[AttemptDetail], title: str = "") -> dict[str, An
         # The judge models that scored these attempts (normally one). Their scores are never in `mean_score`.
         "judges": sorted({str(a.judge["model"]) for a in attempts if a.judge and a.judge.get("model")}),
         "tasks": tasks,
+        # Totals per section and per tier. With one attempt per task and three tasks in a section, a section
+        # moves in thirds: `max_repeats` lets the page say so.
+        "by_section": _breakdown(attempts, "section", []),
+        "by_tier": _breakdown(attempts, "tier", TIERS),
+        "max_repeats": max((a.repeat for a in attempts), default=0),
         "versus": _versus(contenders, tasks) if 2 <= len(contenders) <= MAX_VERSUS else None,
         "attempts": {a.id: asdict(a) for a in attempts},
         "hint_text": HINT_TEXT,

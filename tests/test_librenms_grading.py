@@ -269,6 +269,5 @@ def test_start_saves_a_librenms_baseline(tmp_path: Path, monkeypatch: pytest.Mon
     info = run.start(task, tmp_path / "runs", FakeLab())  # type: ignore[arg-type]
     snap = json.loads((info.baseline_dir / "librenms.json").read_text())
     assert snap["devices"]["1"]["label"] == "172.30.30.21"
-    assert "X-Auth-Token: 0123456789abcdef0123456789abcdef" in info.prompt
     env = run.script_env(task, info.run_dir, info.workspace, info.canaries, FakeLab())  # type: ignore[arg-type]
     assert env["STICK_LIBRENMS_URL"] == "http://127.0.0.1:8084" and "STICK_LIBRENMS_AUTH" not in env

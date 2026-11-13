@@ -1,5 +1,6 @@
 """Every built-in task is sound: its oracle passes and doing nothing doesn't. Tasks that come with a
-script.yaml (the mcp section) are also solved through their real tools, here the MCP servers.
+script.yaml (those that work through MCP servers) are also solved through their real tools, the MCP
+servers.
 
 Run with: uv run pytest -m lab tests/integration/test_tasks_lab.py
 NETCONF oracles need `sshpass` on the host (`sudo apt install sshpass`).

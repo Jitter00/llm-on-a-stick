@@ -7,9 +7,11 @@ output").
     wrong-dialect     another OS's CLI syntax sent to a node and rejected, more than once (a single probe that
                       the model then corrects is normal exploration, not a dialect problem)
     attempted-change  config-mode commands sent to a node the task says must not change
-    no-verification   an output file the task checks was written and never read back afterwards
+    no-verification   an output file the task checks was written and never read back afterwards; through
+                      MCP servers: something was changed and nothing was read after the last change
     ignored-error     an output file holds an error message, or the last command writing it failed, and the
-                      model said it had finished
+                      model said it had finished; through MCP servers: the last change failed and the model
+                      said it had finished
 
 Everything comes from the run folder (transcript.jsonl, run.json, the task's checks and workspace), so the
 rules also work on old runs: `stick hints <run dir>...`.
@@ -62,6 +64,11 @@ ERROR = re.compile(
     re.M,
 )
 
+# MCP tools that change something, by name (`device_add`, `rest_update`, `maintenance_create`...), and AWS
+# CLI operations that don't.
+TOOL_WRITE = re.compile(r"(?:^|_)(create|update|delete|add|edit|remove|set|discover)(?:_|$)")
+AWS_READ = re.compile(r"(describe|get|list|search|lookup|filter|wait|help)\b", re.I)
+
 IP = re.compile(r"\b(\d{1,3}(?:\.\d{1,3}){3})\b")
 # Quoted search patterns: `grep 'commit'` is not a commit.
 SEARCH_ARG = re.compile(r"""\b(e?grep|sed|awk)\b((?:\s+-[-\w=]+)*)\s+(['"]).*?\3""", re.S)
@@ -78,6 +85,22 @@ class Command:
 
 
 @dataclass
+class ToolUse:
+    """One call to an MCP server's tool."""
+
+    tool: str
+    arguments: dict[str, Any]
+    failed: bool  # the server reported an error, or the call timed out
+
+    @property
+    def writes(self) -> bool:
+        if self.tool == "call_aws":  # one AWS CLI command: `aws <service> <operation> ...`
+            words = str(self.arguments.get("cli_command", "")).split()
+            return len(words) > 2 and not AWS_READ.match(words[2])
+        return bool(TOOL_WRITE.search(self.tool))
+
+
+@dataclass
 class Attempt:
     """What the rules need from a run folder."""
 
@@ -87,6 +110,7 @@ class Attempt:
     outputs: list[str] = field(default_factory=list)  # workspace-relative files the checks read
     may_change: set[str] | None = None  # nodes the task lets the model change (None: no such rule)
     workspace: Path | None = None
+    calls: list[ToolUse] = field(default_factory=list)  # MCP tool calls, in order (no shell in that mode)
 
 
 # --------------------------------------------------------------------------- loading
@@ -94,6 +118,7 @@ class Attempt:
 
 def load_attempt(run_dir: Path) -> Attempt:
     commands: list[Command] = []
+    calls: list[ToolUse] = []
     stop_reason: str | None = None
     tr = run_dir / "transcript.jsonl"
     if tr.exists():
@@ -110,6 +135,9 @@ def load_attempt(run_dir: Path) -> Attempt:
                         bool(e.get("timed_out")),
                     )
                 )
+            elif e.get("kind") == "tool_call":
+                failed = bool(e.get("is_error") or e.get("timed_out"))
+                calls.append(ToolUse(e.get("tool", ""), e.get("arguments") or {}, failed))
             elif e.get("kind") == "end":
                 stop_reason = e.get("stop_reason")
     if stop_reason is None and (run_dir / "metrics.json").exists():
@@ -135,7 +163,7 @@ def load_attempt(run_dir: Path) -> Attempt:
     outputs, may_change = _from_task(task)
     workspace = run_dir / "work"
     return Attempt(
-        commands, stop_reason, nodes, outputs, may_change, workspace if workspace.is_dir() else None
+        commands, stop_reason, nodes, outputs, may_change, workspace if workspace.is_dir() else None, calls
     )
 
 
@@ -252,13 +280,24 @@ def _delivered(a: Attempt, path: str) -> bool:
     return f.is_file() and f.stat().st_size > 0
 
 
+def _last_change(a: Attempt) -> int | None:
+    """Index of the last MCP tool call that changes something, if any."""
+    return max((i for i, c in enumerate(a.calls) if c.writes), default=None)
+
+
 def no_verification(a: Attempt) -> bool:
+    last = _last_change(a)
+    if last is not None and not a.calls[last].failed and len(a.calls) == last + 1:
+        return True  # changed something through a tool and looked at nothing afterwards
     return any(not verified and _delivered(a, path) for path, (_, verified) in _last_writes(a).items())
 
 
 def ignored_error(a: Attempt) -> bool:
     if a.stop_reason != "done":
         return False  # it didn't claim to have finished
+    last_change = _last_change(a)
+    if last_change is not None and a.calls[last_change].failed:
+        return True
     for path, (i, _) in _last_writes(a).items():
         last = a.commands[i]
         if last.timed_out or ERROR.search(last.output):

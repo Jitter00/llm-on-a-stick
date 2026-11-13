@@ -1,0 +1,15 @@
+# The task's reference steps as MCP calls: stick run zabbix-query-host --model script/<this file>
+# (A script knows the host's name; a model has to find it by its tag.)
+steps:
+  - tool: zabbix__host_get
+    args:
+      filter_params: {host: "{{ canaries.n2 }}"}
+      output: [hostid, host]
+      select_tags: true
+      select_interfaces: true
+    capture:
+      host: '"host":\s*"([^"]+)"'
+      ip: '"ip":\s*"([^"]+)"'
+  - tool: submit_answer
+    args:
+      answer: {host: "{{ captured.host }}", ip: "{{ captured.ip }}"}

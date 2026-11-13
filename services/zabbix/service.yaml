@@ -71,7 +71,7 @@ snapshot:
   path: /snapshots/baseline.sql
   stop: [server]
 
-# The mcp section: the community server zabbix-mcp. It supports Zabbix up to 7.4 and refuses to talk to 8.0
+# The MCP server: the community server zabbix-mcp. It supports Zabbix up to 7.4 and refuses to talk to 8.0
 # without ZABBIX_SKIP_VERSION_CHECK. 16 of its 53 tools are offered: hosts, groups, templates, items,
 # triggers, problems and maintenance (not users, proxies, macros, scripts, import/export, SLAs...).
 mcp:

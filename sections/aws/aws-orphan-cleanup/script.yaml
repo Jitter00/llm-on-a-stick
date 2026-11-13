@@ -1,0 +1,37 @@
+# The task's reference steps as MCP calls: stick run aws-orphan-cleanup --model script/<this file>
+# (A script knows the orphans' names; a model has to find out what is unused.)
+steps:
+  - tool: moto__call_aws
+    args:
+      cli_command: >-
+        aws ec2 describe-volumes --filters Name=tag:Name,Values={{ canaries.vol1 }} --query Volumes[0].VolumeId
+    capture:
+      vol1: '(vol-[0-9a-f]+)'
+  - tool: moto__call_aws
+    args:
+      cli_command: >-
+        aws ec2 describe-volumes --filters Name=tag:Name,Values={{ canaries.vol2 }} --query Volumes[0].VolumeId
+    capture:
+      vol2: '(vol-[0-9a-f]+)'
+  - tool: moto__call_aws
+    args:
+      cli_command: >-
+        aws ec2 describe-addresses --filters Name=tag:Name,Values={{ canaries.eip }}
+        --query Addresses[0].AllocationId
+    capture:
+      eip: '(eipalloc-[0-9a-f]+)'
+  - tool: moto__call_aws
+    args:
+      cli_command: >-
+        aws ec2 describe-security-groups --filters Name=group-name,Values={{ canaries.sg }}
+        --query SecurityGroups[0].GroupId
+    capture:
+      sg: '(sg-[0-9a-f]+)'
+  - tool: moto__call_aws
+    args: {cli_command: "aws ec2 delete-volume --volume-id {{ captured.vol1 }}"}
+  - tool: moto__call_aws
+    args: {cli_command: "aws ec2 delete-volume --volume-id {{ captured.vol2 }}"}
+  - tool: moto__call_aws
+    args: {cli_command: "aws ec2 release-address --allocation-id {{ captured.eip }}"}
+  - tool: moto__call_aws
+    args: {cli_command: "aws ec2 delete-security-group --group-id {{ captured.sg }}"}

@@ -65,7 +65,7 @@ snapshot:
     - service: redis
       cmd: [valkey-cli, FLUSHALL]
 
-# The mcp section: the community server librenms-mcp. 33 of its 113 tools are offered: devices, ports,
+# The MCP server: the community server librenms-mcp. 33 of its 113 tools are offered: devices, ports,
 # addresses, neighbours, alerts and logs (not billing, graphs, locations, services, Oxidized, port groups...).
 mcp:
   server: librenms

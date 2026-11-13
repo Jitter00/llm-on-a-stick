@@ -2,11 +2,11 @@ id: aws-orphan-cleanup
 section: aws
 title: Delete a project's unused volumes, addresses and security groups
 tier: intermediate
-tags: [tool:aws-cli, iface:rest, skill:cloud-cleanup]
+tags: [tool:aws, iface:mcp, skill:cloud-cleanup]
 topology: none
 prompt: |
-  An AWS account is ready in your toolbox: `aws` and boto3 work as they are (the credentials, the region
-  eu-west-1 and the API endpoint, an emulator, are set in the environment).
+  You reach an AWS account (region eu-west-1, an emulator) through the AWS API MCP server, which runs one
+  AWS CLI command per call.
 
   The project "{{ canaries.project }}" has been scaled down, but its server is still running. Its
   resources carry the tag project={{ canaries.project }}. Clean up what the project no longer uses:
@@ -19,6 +19,8 @@ prompt: |
   lets you delete things that real AWS would refuse to delete, so check before you delete.
 requires:
   services: [moto]
+tools:
+  mcp: [moto]
 reset_services: [moto]
 canaries:
   project: hostname

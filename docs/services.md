@@ -46,8 +46,8 @@ errors in the body, so its health check posts a request (`health.post`) and look
 ## MCP servers
 
 Six services also have an **MCP server**: what a model works through in the
-[`mcp`](tasks.md#mcp-the-same-tools-through-mcp-servers) and [`loki`](tasks.md#loki-the-routers-syslog) sections, instead of a shell. They are the published
-servers, pinned, all in one image (`images/mcp`, built as `stick-mcp:dev`; one virtualenv each, from
+[tasks that work through MCP servers](tasks.md#how-the-model-reaches-the-tools), instead of a shell. They are
+the published servers, pinned, all in one image (`images/mcp`, built as `stick-mcp:dev`; one virtualenv each, from
 hash-pinned requirement files). `stick run` starts one container per server and attempt and talks to it over
 stdio.
 

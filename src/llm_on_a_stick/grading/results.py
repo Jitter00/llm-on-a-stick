@@ -68,8 +68,8 @@ HINT_TEXT: dict[str, str] = {
     "answer-in-reply": "found the answer and put it in the reply instead of delivering it",
     "wrong-dialect": "kept sending another OS's CLI syntax to a node",
     "attempted-change": "sent config-mode commands to a node that must not change",
-    "no-verification": "wrote an output file and never read it back",
-    "ignored-error": "finished although an output file holds an error",
+    "no-verification": "wrote an output file, or changed something, and never looked at the result",
+    "ignored-error": "finished although an output file holds an error, or its last change failed",
 }
 
 

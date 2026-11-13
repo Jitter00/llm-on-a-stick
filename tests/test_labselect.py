@@ -19,17 +19,18 @@ def test_docs_and_unit_tests_need_no_lab() -> None:
 
 
 def test_a_task_folder_selects_its_section_and_the_services_it_needs() -> None:
-    s = sel("sections/nautobot/nautobot-graphql/setup.sh")
+    s = sel("sections/nautobot/nautobot-next-ip/setup.sh")
     assert s == Selection(sections={"nautobot"}, services={"nautobot"}, core=False)
     s = sel("sections/cfg-mgmt/running-config-cli-frr/task.yaml")
-    assert s.sections == {"cfg-mgmt"} and "oxidized" in s.services and not s.core
+    assert s == Selection(sections={"cfg-mgmt"})  # routers only: no service
 
 
 def test_a_service_selects_every_section_that_requires_it() -> None:
     s = sel("services/oxidized/router.db")
-    assert s.services == {"oxidized"} and s.sections == {"cfg-mgmt"} and not s.core
+    assert s == Selection(services={"oxidized"})  # no section uses Oxidized: its own lab tests only
     assert sel("tests/integration/test_netbox.py") == sel("services/netbox/seed.yaml")
-    assert sel("services/netbox/seed.yaml").sections == {"netbox", "librenms"}  # librenms-netbox-sync
+    # librenms-netbox-sync and zabbix-netbox-maintenance read NetBox too.
+    assert sel("services/netbox/seed.yaml").sections == {"netbox", "librenms", "zabbix"}
 
 
 def test_shared_code_selects_the_generic_tests_and_floor_tasks_only() -> None:
@@ -70,30 +71,30 @@ def test_the_cloud_sections_share_moto() -> None:
 def test_the_librenms_section_and_its_service() -> None:
     s = sel("services/librenms/service.yaml")
     assert s == Selection(sections={"librenms"}, services={"librenms", "netbox"}, core=False)
-    assert sel("sections/librenms/librenms-alert-rule/task.yaml").sections == {"librenms"}
+    assert sel("sections/librenms/librenms-query-port/task.yaml").sections == {"librenms"}
     assert sel("configs/srl/srl1.cli").core  # the boot config every section starts from
 
 
 def test_the_zabbix_section_and_its_service() -> None:
     s = sel("services/zabbix/service.yaml")
-    assert s == Selection(sections={"zabbix"}, services={"zabbix"}, core=False)
-    assert sel("sections/zabbix/zabbix-trigger/setup.sh") == Selection(
-        sections={"zabbix"}, services={"zabbix"}
+    assert s == Selection(sections={"zabbix"}, services={"zabbix", "netbox"}, core=False)
+    assert sel("sections/zabbix/zabbix-add-host/setup.sh") == Selection(
+        sections={"zabbix"}, services={"zabbix", "netbox"}
     )
-    assert sel("tests/integration/test_zabbix.py").services == {"zabbix"}
+    assert sel("tests/integration/test_zabbix.py").services == {"zabbix", "netbox"}
 
 
 def test_the_loki_section_and_its_service() -> None:
-    # Its tasks work through an MCP server, like the mcp section's, but it has one service: that selects it.
     s = sel("services/loki/config.alloy")
     assert s == Selection(sections={"loki"}, services={"loki"}, core=False)
     assert sel("sections/loki/loki-link-flap/setup.sh") == Selection(sections={"loki"}, services={"loki"})
     assert sel("tests/integration/test_loki.py").services == {"loki"}
 
 
-def test_the_mcp_section_needs_five_services_but_none_of_them_selects_it() -> None:
-    s = sel("sections/mcp/mcp-netbox-lookup/task.yaml")
-    assert s == Selection(sections={"mcp"}, services={"netbox", "nautobot", "moto", "librenms", "zabbix"})
-    for name in ("netbox", "nautobot", "moto", "librenms", "zabbix"):
-        assert "mcp" not in sel(f"services/{name}/service.yaml").sections, name
+def test_a_service_selects_every_section_that_uses_it() -> None:
+    # NetBox is also the source of truth in one LibreNMS task and one Zabbix task.
+    s = sel("services/netbox/service.yaml")
+    assert s.sections == {"netbox", "librenms", "zabbix"}
+    assert s.services == {"netbox", "librenms", "zabbix"}
+    assert sel("sections/mcp/gone/task.yaml").empty  # the former mcp section: nothing left to test
     assert sel("images/mcp/Dockerfile").core and sel("src/llm_on_a_stick/runner/mcp.py").core

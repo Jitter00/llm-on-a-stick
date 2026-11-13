@@ -2,22 +2,21 @@
 
 Built-in tasks live here, one directory per task: `sections/<section>/<task-id>/task.yaml`.
 
-A **section** is a set of tasks you run together (`stick run --section netbox ...`), with at most five tasks each.
-New tasks get one section per tool, so you can test only the tools you use; `cfg-mgmt` stays one section, and
-`mcp` spans five tools on purpose: it tests the way of working (MCP servers instead of a shell), one task per
-server.
+A **section** is a set of tasks you run together (`stick run --section netbox ...`), with three tasks each: one basic, one
+intermediate, one advanced. New tasks get one section per tool, so you can test only the tools you use;
+`cfg-mgmt` stays one section. The model works through the tool's MCP server, with no shell, except in
+`terraform` and in the tasks that touch a router (until the routers have a server too).
 
 | Section | Tasks | What it covers |
 |---|---|---|
-| `cfg-mgmt` | 5 | config retrieval over clear-text CLI and NETCONF, Oxidized backups |
-| `netbox` | 5 | NetBox 4.x REST API: queries, documenting a router, drift between NetBox and a device, cables from LLDP, the next free IP configured on a router |
-| `nautobot` | 5 | Nautobot 3.x REST and GraphQL APIs: queries, documenting a router, one GraphQL query for a location, cables from LLDP, the next free IP in a namespace configured on a router |
-| `aws` | 5 | AWS with the `aws` CLI or boto3, against an emulated account (moto): queries, an audit of SSH exposure, cleaning up unused resources, a web server unreachable for several reasons, cutting a role down to least privilege |
-| `terraform` | 5 | Terraform against the same account: reading a plan, repairing a broken configuration, importing, reconciling manual changes, refactoring into a module |
-| `librenms` | 5 | LibreNMS 26.10 REST API over SNMP-polled routers: a port query, adding a device, fixing a device that went down, an alert rule that must fire for the right port, adding what NetBox lists as active |
-| `zabbix` | 5 | Zabbix 8.0 JSON-RPC API over SNMP-polled routers: a host query, adding a host, fixing a host Zabbix can't reach, a trigger that must raise a problem on the right router, a maintenance for exactly one host group |
-| `loki` | 3 | The routers' syslog in Loki, through Grafana's MCP server, with no shell: failed logins for an account, a flapping link and the BGP session it takes down, the configuration change behind dropped sessions |
-| `mcp` | 5 | The same tools through their MCP servers, with no shell: one task per server (NetBox, AWS, Nautobot, LibreNMS, Zabbix with NetBox), from a lookup to a change that joins two servers |
+| `cfg-mgmt` | 3 | config retrieval over clear-text CLI and NETCONF (shell) |
+| `netbox` | 3 | NetBox 4.x: a lookup through its MCP server; drift between NetBox and a device and documenting a router (shell and REST API) |
+| `nautobot` | 3 | Nautobot 3.x through its MCP server: a lookup, reserving the first free prefix; the next free IP in a namespace configured on a router (shell and REST API) |
+| `aws` | 3 | AWS through AWS's API MCP server, against an emulated account (moto): a query, cleaning up unused resources, a web server unreachable for several reasons |
+| `terraform` | 3 | Terraform against the same account (shell): reading a plan, repairing a broken configuration, reconciling manual changes |
+| `librenms` | 3 | LibreNMS 26.10 through its MCP server, over SNMP-polled routers: a port query, fixing a device that went down, adding what NetBox lists as active |
+| `zabbix` | 3 | Zabbix 8.0 through its MCP server, over SNMP-polled routers: a host query, adding a host, a maintenance for the hosts of one NetBox tenant |
+| `loki` | 3 | The routers' syslog in Loki, through Grafana's MCP server: failed logins for an account, a flapping link and the BGP session it takes down, the configuration change behind dropped sessions |
 
 ## Groupings
 
@@ -31,10 +30,9 @@ The wider areas the sections belong to, for orientation only (nothing in `task.y
 | Validation and observability | `librenms`, `zabbix`, `loki`, *batfish*, *suzieq*, *gnmic-prometheus*, *pyats* (Cisco/CML only) |
 | Cloud | `aws`, `terraform` (no lab devices: `topology: none`) |
 | Troubleshooting | *troubleshooting*: injected faults, correlating events across tools |
-| Ways of working | `mcp`: MCP servers as the only tools (the other sections give the model a shell, except `loki`, built on its MCP server from the start) |
 
 The schema is `src/llm_on_a_stick/data/task.schema.json`. Check tasks with `stick task lint`.
 Your own tasks can live anywhere: `stick task lint ./my-tests`.
 
 `_lib/common.sh` holds helpers for setup and oracle scripts. Prove a task is sound with `stick task validate`.
-Which tasks are kept (at most five per section, none obvious): `docs/tasks.md`.
+Which tasks are kept (three per section, none obvious): `docs/tasks.md`.

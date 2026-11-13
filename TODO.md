@@ -49,22 +49,23 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
 - [ ] Runner follow-ups: scheduler (parallel *lab work* only: **never run several local models at the same time**;
       local models always go one after another, and API models may run in parallel; for `stick vs`, a lab instance per
       model so that a cloud and a local model can run at the same time), publish `stick-toolbox` to GHCR, Inspect-format log export,
-      MCP tools as a variant of any task (`--tools mcp`; today only the `mcp` section's own tasks use MCP
-      servers), an MCP server for the routers themselves, context-window variants (`--num-ctx`), streaming for
+      **an MCP server for the routers themselves** (upstream and pinned; then `cfg-mgmt`, `netbox-drift`,
+      `netbox-register-node` and `nautobot-next-ip` move off the shell, and cfg-mgmt's floor task is replaced)
+      and a NetBox MCP server that can write, context-window variants (`--num-ctx`), streaming for
       long Anthropic turns, macOS support for the toolbox.
 - [ ] **Judge model**: built (`--judge-model`, `stick judge`); what is left is under "Next up".
 - [ ] **Report.** `stick report` (table/md/json per model and attempt), the HTML page (`--html`, also written by
-      `stick run`) and `stick vs` exist; next: breakdowns by section, tag and failure class.
+      `stick run`) and `stick vs` exist, with totals per section and tier; next: breakdowns by tag and failure class.
 
 ## Phase 2: tasks, user tests, variants, scheduler
 
-- [ ] **At most 5 tasks for each of the other sections, none obvious** (rules: docs/tasks.md, "Which tasks are
-      kept"; pick the ones local models are likely to get wrong). New sections are per tool (powerdns, kea,
+- [ ] **Three tasks per section (basic, intermediate, advanced), none obvious, through the tool's MCP server**
+      (rules: docs/tasks.md, "Which tasks are kept"; pick the ones local models are likely to get wrong). New sections are per tool (powerdns, kea,
       ...); the groupings are in sections/README.md. Also `lab-mgmt` and `troubleshooting` (fault injection:
       MTU mismatch, wrong ASN, ACL blackhole).
 - [ ] **User-defined tasks.** `--tasks-dir` (local path or git URL); `stick task new` (scaffold); `stick task validate`
       (oracle must PASS, no-op agent must FAIL); a `@check` plugin interface + entry points; `matrix:` expansion.
-- [ ] **Run variants.** Same model × context window (8k/32k/128k) first, then quantisation, CLI vs MCP tools, reasoning
+- [ ] **Run variants.** Same model × context window (8k/32k/128k) first, then quantisation, reasoning
       effort, with/without docs.
 - [ ] **Scheduler.** Group tasks by shared services, bin-pack parallel lab instances under the doctor RAM budget
       (minus local model RAM), limit API concurrency per provider; `stick run --dry-run` prints the plan.
@@ -78,8 +79,8 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
       The network change affects Linux too, so every section needs re-testing.
 - [ ] CML backend (lab-per-sample via `virl2_client`; CML-Free 5-node limit; Cisco refplat images only inside CML).
 - [ ] BYO vendor images: Arista cEOS, Juniper vJunos/cRPD (vrnetlab), Cisco XRd/Cat8kv. Fetch/build scripts only, never redistributed.
-- [ ] NetClaw's MCP servers (Apache-2.0) as another tool layer for the "CLI vs MCP" variant (the `mcp` section
-      uses each tool's own published server); NetClaw itself as an agent under test.
+- [ ] NetClaw's MCP servers (Apache-2.0) as another tool layer (the sections
+      use each tool's own published server); NetClaw itself as an agent under test.
 - [ ] IETF draft-cui-nmrg-llm-benchmark task import.
 - [ ] Public leaderboard (local models broken out by hardware and quantisation).
 
@@ -105,7 +106,7 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
 - SR Linux NETCONF trees contain `<interface>` under network-instances, LLDP etc. with reused names; use
   `data/interface` for the real interfaces.
 - Oxidized only stores a new version when the config changed: wait for the backup *run* (nodes.json `last.end`).
-- MCP (the `mcp` section): the Python SDK is at 2.x (`MCPServer`, snake_case fields; 1.x examples don't run).
+- MCP: the Python SDK is at 2.x (`MCPServer`, snake_case fields; 1.x examples don't run).
   AWS's API server takes `AWS_ENDPOINT_URL` only for a loopback address, hence host networking, and needs the
   internet at start. `zabbix-mcp` refuses Zabbix 8.0 without `ZABBIX_SKIP_VERSION_CHECK=true`. Its
   `maintenance_create` can't make a maintenance without data collection.

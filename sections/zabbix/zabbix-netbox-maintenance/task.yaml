@@ -1,0 +1,49 @@
+id: zabbix-netbox-maintenance
+section: zabbix
+title: Put a NetBox tenant's devices in maintenance in Zabbix
+tier: advanced
+tags: [tool:zabbix, tool:netbox, iface:mcp, skill:nms-maintenance, skill:cross-tool]
+prompt: |
+  You reach NetBox and Zabbix through their MCP servers.
+
+  The devices of the NetBox tenant {{ canaries.tenant }} are being upgraded now. Zabbix monitors the same
+  devices under other names: a Zabbix host is the NetBox device whose primary IPv4 address is the address of
+  the host's interface.
+
+  Create one maintenance period in Zabbix, named {{ canaries.window }}, that starts now and lasts 2 hours,
+  with data collection, for exactly the Zabbix hosts of that tenant's devices.
+
+  Create that one maintenance only. Do not change anything else in Zabbix (hosts, host groups).
+topology: none
+requires:
+  services: [netbox, zabbix]
+tools:
+  mcp: [netbox, zabbix]
+reset_services: [netbox, zabbix]
+canaries:
+  tenant: hostname
+  window: hostname
+  net: net24
+  h1: hostname
+  h2: hostname
+  h3: hostname
+  h4: hostname
+  h5: hostname
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: zabbix_maintenance
+    name: the tenant's two hosts, and only they, are in a 2-hour maintenance with data collection
+    params:
+      name: "{{ canaries.window }}"
+      hosts: ["{{ canaries.h1 }}", "{{ canaries.h2 }}"]
+      duration_s: 7200
+      data_collection: true
+    weight: 3
+  - type: zabbix_unchanged
+    name: nothing else was changed in Zabbix
+    params: {allow_new: ["maintenances:{{ canaries.window }}"]}
+  - type: netbox_unchanged
+    name: nothing was changed in NetBox
+    params: {allow_new: []}
+limits: {turns: 30}

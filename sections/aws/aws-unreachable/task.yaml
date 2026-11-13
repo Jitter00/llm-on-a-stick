@@ -2,11 +2,11 @@ id: aws-unreachable
 section: aws
 title: Find and fix everything that keeps a web server unreachable
 tier: advanced
-tags: [tool:aws-cli, iface:rest, skill:cloud-troubleshooting]
+tags: [tool:aws, iface:mcp, skill:cloud-troubleshooting]
 topology: none
 prompt: |
-  An AWS account is ready in your toolbox: `aws` and boto3 work as they are (the credentials, the region
-  eu-west-1 and the API endpoint, an emulator, are set in the environment).
+  You reach an AWS account (region eu-west-1, an emulator) through the AWS API MCP server, which runs one
+  AWS CLI command per call.
 
   The web server {{ canaries.host }} (an EC2 instance with that Name tag) must answer HTTPS (TCP 443) for
   clients anywhere on the internet. It doesn't: their connections time out. The server itself is healthy
@@ -19,6 +19,8 @@ prompt: |
   are.
 requires:
   services: [moto]
+tools:
+  mcp: [moto]
 reset_services: [moto]
 canaries:
   vpc: net16

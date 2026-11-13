@@ -39,7 +39,7 @@ snapshot:
     - service: redis
       cmd: [sh, -c, 'valkey-cli --pass "$REDIS_PASSWORD" --no-auth-warning FLUSHALL']
 
-# The mcp section: the community server nautobot-mcp. Its tools can change Nautobot only with
+# The MCP server: the community server nautobot-mcp. Its tools can change Nautobot only with
 # NAUTOBOT_MCP_ALLOW_WRITES. 28 of its 77 tools are offered: the inventory and IPAM ones and the generic REST
 # and GraphQL ones (not circuits, virtualisation, jobs, users, webhooks...).
 mcp:

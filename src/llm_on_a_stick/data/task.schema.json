@@ -9,7 +9,7 @@
   "properties": {
     "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
     "section": {
-      "enum": ["lab-mgmt", "cfg-mgmt", "netbox", "nautobot", "aws", "terraform", "librenms", "zabbix", "mcp", "loki", "validation-observability", "troubleshooting"],
+      "enum": ["lab-mgmt", "cfg-mgmt", "netbox", "nautobot", "aws", "terraform", "librenms", "zabbix", "loki", "validation-observability", "troubleshooting"],
       "description": "The group of tasks it is run with (`stick run --section`): a tool such as netbox, or cfg-mgmt. Wider groupings (SoT/DDI...) are listed in sections/README.md."
     },
     "title": {"type": "string", "minLength": 3},

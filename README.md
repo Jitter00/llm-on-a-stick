@@ -11,9 +11,9 @@ fields, changing things it shouldn't), not just a score.
 
 > **What works today:** the virtual lab; the `stick` command; seven tools around it (NetBox, Nautobot, LibreNMS,
 > Zabbix, Oxidized, Loki with the routers' syslog, and an emulated AWS account for the AWS CLI and Terraform);
-> **43 tasks** in nine sections,
-> from getting router configs right over CLI and NETCONF to keeping NetBox in sync and fixing monitoring, and
-> the same tools through their MCP servers instead of a shell; the
+> **24 tasks** in eight sections (three each: basic, intermediate, advanced),
+> from getting router configs right over CLI and NETCONF to keeping NetBox in sync and fixing monitoring, most
+> of them through the tools' MCP servers instead of a shell; the
 > **grader**, which checks every attempt and explains what went wrong; and the **runner**, which lets AI models
 > attempt the tasks and compares the results in a report. Start with the [Quick start](#quick-start). What comes
 > next: [Roadmap](#roadmap).
@@ -35,7 +35,7 @@ cd llm-on-a-stick
 uv sync
 uv run stick doctor                                            # checks your machine and lists your models
 uv run stick image build frr                                   # once, about a minute
-uv run stick run --section cfg-mgmt --model ollama/gemma4:12b  # five tasks, one model
+uv run stick run --section cfg-mgmt --model ollama/gemma4:12b  # three tasks, one model
 ```
 
 `stick run` starts the lab and the tools the tasks need, lets the model attempt the five config management
@@ -254,10 +254,10 @@ stick run running-config-cli-frr --model ollama/qwen3:14b
 The model gets the task's instructions and one tool: running shell commands in a small "toolbox" container that can
 reach the lab. When it says it's done (or runs out of turns or time), the grader scores the attempt. The first run
 builds the toolbox image, which takes a few minutes (about 1.5 GB: it includes the AWS CLI and Terraform).
-In the `mcp` and `loki` sections the model has no shell: its tools are those of the tools' MCP servers
-([docs/tasks.md](docs/tasks.md#mcp-the-same-tools-through-mcp-servers)).
+That is `cfg-mgmt` and `terraform`. In most other tasks the model has no shell: its tools are those of the
+tool's MCP server ([docs/tasks.md](docs/tasks.md#how-the-model-reaches-the-tools)).
 
-**3. Compare two models on the five `cfg-mgmt` tasks**, three attempts each (models don't always do the same thing twice).
+**3. Compare two models on the three `cfg-mgmt` tasks**, three attempts each (models don't always do the same thing twice).
 **Run local models one after another, never at the same time**: they share your GPU and memory. Finish the first
 model, stop its server, then run the second:
 
@@ -449,7 +449,7 @@ uv run pytest -m lab -v tests/integration/test_zabbix.py     # Zabbix
 uv run pytest -m lab -v tests/integration/test_loki.py       # Loki (the routers' syslog)
 uv run pytest -m lab -v tests/integration/test_moto.py       # the emulated AWS account
 uv run pytest -m lab -v tests/integration/test_grading_lab.py # the grader
-uv run pytest -m lab -v tests/integration/test_tasks_lab.py   # every task can be solved, and can't be faked (and the mcp tasks through their MCP servers)
+uv run pytest -m lab -v tests/integration/test_tasks_lab.py   # every task can be solved, and can't be faked (and, for MCP tasks, through their MCP servers)
 uv run pytest -m lab -v tests/integration/test_runner_lab.py  # the runner and its toolbox
 ```
 
@@ -507,8 +507,8 @@ What is still to do:
 - **The judge model**: a set of human-graded examples to check it against, judge checks for the sections
   beyond NetBox, and tasks that ask for a written explanation.
 - **Your own tasks**: a scaffold command, and tasks loaded from a git address.
-- **Run variants**: the same model at different context sizes and quantisations, and the same task with a
-  shell and with MCP tools (today the `mcp` section has its own tasks).
+- **An MCP server for the routers**, so the tasks that still need a shell to reach a router can drop it.
+- **Run variants**: the same model at different context sizes and quantisations.
 - **Several labs in parallel**, so a cloud model and a local model can run at the same time.
 - **More devices**: Cisco CML as a lab backend, and your own Arista, Juniper or Cisco images.
 - **A public leaderboard.**
