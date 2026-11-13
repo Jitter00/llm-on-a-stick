@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.21.1](https://github.com/Jitter00/llm-on-a-stick/compare/v0.21.0...v0.21.1) (2026-11-13)
+
+
+### Bug fixes
+
+* **runner:** report an attempt as error when the model never answered ([#57](https://github.com/Jitter00/llm-on-a-stick/issues/57)) ([26391f5](https://github.com/Jitter00/llm-on-a-stick/commit/26391f5fb7bace25de75fc74b8528c28af32e591))
+
 ## [0.21.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.20.0...v0.21.0) (2026-11-13)
 
 
