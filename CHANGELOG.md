@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.21.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.20.0...v0.21.0) (2026-11-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* **tasks:** reach the routers and NetBox writes through MCP servers ([#54](https://github.com/Jitter00/llm-on-a-stick/issues/54))
+
+### Features
+
+* **tasks:** reach the routers and NetBox writes through MCP servers ([#54](https://github.com/Jitter00/llm-on-a-stick/issues/54)) ([fd84983](https://github.com/Jitter00/llm-on-a-stick/commit/fd84983d43a4b52b0abd33710f6be8d5011b4062))
+
 ## [0.20.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.19.0...v0.20.0) (2026-11-13)
 
 
