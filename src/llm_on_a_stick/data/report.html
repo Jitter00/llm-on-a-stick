@@ -126,7 +126,7 @@ const R = JSON.parse(document.getElementById("data").textContent);
 const C = R.contenders, A = R.attempts, VS = R.versus;
 const byId = Object.fromEntries(C.map(c => [c.id, c]));
 const ICON = {pass: "✓", partial: "◐", fail: "✕", error: "!"};
-const WORD = {pass: "pass", partial: "partial", fail: "fail", error: "error (lab or grader)"};
+const WORD = {pass: "pass", partial: "partial", fail: "fail", error: "error (lab, grader or model server)"};
 
 function el(tag, attrs, ...kids) {
   const n = document.createElement(tag);

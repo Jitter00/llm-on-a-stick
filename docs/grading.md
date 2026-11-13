@@ -92,8 +92,9 @@ config from memory or inventing a plausible one.
 
 - **pass**: every check passed.
 - **partial** / **fail**: some or none passed. `score` is the weighted share of passed checks (0 to 1).
-- **error**: a check couldn't run (lab down, service not running, mistake in the task). Not the model's fault, and
-  excluded from model comparisons.
+- **error**: a check couldn't run (lab down, service not running, mistake in the task), or the model server
+  failed before the model's first reply (unreachable, rejected credentials, no tool support). Score 0. It says
+  nothing about how the model works, and is excluded from model comparisons.
 
 ## Failure hints
 

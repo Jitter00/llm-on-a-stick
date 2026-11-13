@@ -224,6 +224,11 @@ def _hints(m: Metrics) -> list[FailureHint]:
     return hints
 
 
+def never_answered(m: Metrics) -> bool:
+    """The model server failed before the model's first reply: the attempt is an error, not a result."""
+    return m.stop_reason == "model_error" and m.turns == 0
+
+
 def answer_in_reply(reply: str, canaries: dict[str, str]) -> bool:
     """The final reply quotes one of this attempt's random values: the model found the answer (it can only
     know a canary by reading it off the lab) but didn't deliver it where the task asked."""
@@ -527,6 +532,9 @@ def run_task(
     m.cost_usd = cost(spec.spec, spec.endpoint.local, m.tokens_in, m.tokens_out)
 
     result = grade_mod.grade(info.run_dir, lab=lab)
+    if never_answered(m):
+        # Some checks pass on an untouched lab: the grade would say "partial" about a model that did nothing.
+        result.outcome, result.score = "error", 0.0
     hints = _hints(m)
     if "no-output" in result.failure_hints and answer_in_reply(final_text, info.canaries):
         hints.append("answer-in-reply")
