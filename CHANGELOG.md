@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.21.1...v0.22.0) (2026-11-14)
+
+
+### Features
+
+* **telemetry:** add the telemetry section, three tasks on gNMI streaming telemetry in Prometheus ([#59](https://github.com/Jitter00/llm-on-a-stick/issues/59)) ([b1d9379](https://github.com/Jitter00/llm-on-a-stick/commit/b1d93798d90ba29bd7ee7078bd2f0d2e216200f9))
+
 ## [0.21.1](https://github.com/Jitter00/llm-on-a-stick/compare/v0.21.0...v0.21.1) (2026-11-13)
 
 
