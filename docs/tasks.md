@@ -23,7 +23,7 @@ Every attempt starts from the same state. The lab stays up between attempts, tas
    - FRR runs `frr-reload.py` against its startup config, `configs/frr/<node>/frr.conf`;
    - it takes about 2 s for the four routers, and the times are in the run's `restore.log`;
 2. the services the task lists under `reset_services` go back to their baseline (NetBox's seeded snapshot:
-   ~20 s, Nautobot's: ~25 s, LibreNMS's empty database: ~1 s, Zabbix's: ~10 s, Loki's empty store: ~5 s, moto's
+   ~20 s, Nautobot's: ~25 s, LibreNMS's empty database: ~1 s, Zabbix's: ~10 s, Loki's empty store: ~5 s, Prometheus's: ~0.2 s, moto's
    empty account: ~0.2 s), after the routers, so that Loki doesn't keep what the restore itself logged;
 3. the task's `setup.sh` plants this run's canaries (or a fault);
 4. the baseline is taken, for `no_change_outside`, `netbox_unchanged`, `nautobot_unchanged`, `librenms_unchanged`,
@@ -193,6 +193,25 @@ from a Zabbix with no hosts (`reset_services: [zabbix]`, about 10 s), and `zabbi
 that add, change or delete anything the task didn't ask for. Run them with
 `uv run stick run --section zabbix ...`.
 
+## telemetry: streaming telemetry from the routers
+
+srl1 and srl2 stream the state and counters of their ports and BGP sessions over gNMI, and Prometheus keeps
+them ([Services](services.md#telemetry)). The model has **no shell**: it reads them through Grafana's MCP
+server (5 of its tools: finding the datasource, metric names, label names and values, PromQL queries). Each
+setup waits until Prometheus has a starting point, makes real events on the routers, and waits until
+Prometheus has them. In two of the three tasks everything is up again when the model starts: the answer is
+only in the history.
+
+| Task | Tier | What the agent must do | What can go wrong (and is detected) |
+|---|---|---|---|
+| `telemetry-idle-ports` | basic | On srl2: how many ports are enabled and up, and how many are enabled but down | Counting every port that is down (most are disabled); counting srl1's enabled port too; a result with all 68 ports, which is cut off; an answer in the reply instead of `submit_answer` |
+| `telemetry-port-flaps` | intermediate | One port kept going down: the router, the port, how often it went down, and the neighbour of the BGP session that dropped with it | Another port that went down once; a session reset with no port down; counting every change of state (down and up) instead of every fall; a range query whose result is cut off |
+| `telemetry-session-drops` | advanced | Three sessions dropped for three reasons (the port was disabled, the link failed, the session alone was reset): which is which, and how often the reset one came back | Taking a failed link for a disabled port (only the admin state tells them apart); matching sessions to ports by guessing instead of by time; counting the resets from `session_state`, which misses those that were over between two scrapes |
+
+Requirements: the lab, the `telemetry` service (gNMIc, Prometheus: about 0.1 GB) and the `loki` service for
+its Grafana. Answers go through `submit_answer`; each task has a `script.yaml` with its reference solution
+as MCP calls. These tasks have no judge check. Only the SR Linux routers stream: FRR has no gNMI.
+
 ## loki: the routers' syslog
 
 The four routers send their syslog to Loki ([Services](services.md#loki)). The model has **no shell**: it
@@ -215,7 +234,7 @@ that needs an aggregate query, is an open item in `TODO.md`.
 Most models tested here run locally, where one attempt can take minutes, so every task has to earn its place.
 Each section (a tool such as `netbox`, or a group such as `cfg-mgmt`; the wider groupings are in
 `sections/README.md`) has **three tasks, one per tier** (basic, intermediate, advanced), and each one must tell
-models apart. Three keeps a full run short (24 tasks), at a price: with one attempt per task a section's result
+models apart. Three keeps a full run short (27 tasks), at a price: with one attempt per task a section's result
 moves in thirds, so compare sections only on runs with `--repeat 3` or more. Where the server can write, one
 of the three changes something.
 
@@ -264,7 +283,7 @@ score ([Grading](grading.md#judge-checks-in-a-task)). Scripts get these environm
 | `STICK_NODE_<NODE>` / `STICK_NODE_<NODE>_IP` | Container name / management IP of each lab node, e.g. `STICK_NODE_SRL1` |
 | `STICK_<SERVICE>_URL` / `STICK_<SERVICE>_AUTH` | A service's host URL and, if it has an API token, its `Authorization` header value, e.g. `STICK_NETBOX_URL` |
 | `AWS_ENDPOINT_URL`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION` | Only for tasks that require `moto`: what the AWS tools need to reach the emulator |
-| `STICK_LIB` | Folder with shared helpers: `source "$STICK_LIB/common.sh"` gives `srl_set`, `srl_cli`, `frr_conf`, `frr_cli`, `netconf_get_config`, `oxidized_backup_now`, `netbox_api`, `netbox_id`, `nautobot_api`, `nautobot_id`, `librenms_api`, `librenms_add_device(s)`, `librenms_poll`, `librenms_wait_snmp`, `srl_snmp_community`, `zabbix_api`, `zabbix_add_host`, `zabbix_group_id`, `zabbix_poll`, `zabbix_wait_available`, `zabbix_wait_items`, `snmp_wait`, `srl_commit` (several SR Linux commands in one commit), `ssh_login` (a password login from a lab node), `loki_count`, `loki_lines`, `loki_wait` |
+| `STICK_LIB` | Folder with shared helpers: `source "$STICK_LIB/common.sh"` gives `srl_set`, `srl_cli`, `frr_conf`, `frr_cli`, `netconf_get_config`, `oxidized_backup_now`, `netbox_api`, `netbox_id`, `nautobot_api`, `nautobot_id`, `librenms_api`, `librenms_add_device(s)`, `librenms_poll`, `librenms_wait_snmp`, `srl_snmp_community`, `zabbix_api`, `zabbix_add_host`, `zabbix_group_id`, `zabbix_poll`, `zabbix_wait_available`, `zabbix_wait_items`, `snmp_wait`, `srl_commit` (several SR Linux commands in one commit), `ssh_login` (a password login from a lab node), `loki_count`, `loki_lines`, `loki_wait`, `prom_value`, `prom_labels`, `prom_wait`, `telemetry_ready` |
 
 Prompts can use `{{ services.<name>.url }}` and, for services with an API token, `{{ services.<name>.token }}`
 (the value after `Bearer`/`Token`, or the whole `X-Auth-Token` for LibreNMS).

@@ -34,10 +34,10 @@ Filled in as each service is added (Phase 0, step 3).
 | LibreNMS 26.10.2 | ✅ os `srlinux`, ports with descriptions | ✅ os `linux` (generic) | up, reachable from `stick-mgmt` at 172.30.30.104:8000; polls both, alert rules fire, reset verified (`tests/integration/test_librenms.py`) |
 | Zabbix 8.0.0 | ✅ generic SNMP template, ports with descriptions | ✅ generic SNMP template | up, API reachable from `stick-mgmt` at 172.30.30.107:8080 (the server polls from .106); polls both, triggers raise problems, maintenance takes effect, reset verified (`tests/integration/test_zabbix.py`) |
 | Oxidized 0.37.0 | ✅ custom model | ✅ custom model | Oxidized ships neither; ours are in `services/oxidized/model/` (`test_oxidized.py`) |
-| MCP servers (NetBox 1.2.2, AWS API 1.6.0, nautobot-mcp 0.2.5, librenms-mcp 1.13.0, zabbix-mcp 0.8.0, mcp-grafana 2.2.0) | n/a | n/a | ✅ each starts against its service and solves its task (`check_mcp_server` in each service's lab tests, `test_tasks_lab.py`). zabbix-mcp supports Zabbix up to 7.4: with its version check off, the calls used work against 8.0. Not verified: the tools no task uses |
+| MCP servers (NetBox 1.2.2, AWS API 1.6.0, nautobot-mcp 0.2.5, librenms-mcp 1.13.0, zabbix-mcp 0.8.0, mcp-grafana 2.2.0 for Loki and for Prometheus) | n/a | n/a | ✅ each starts against its service and solves its task (`check_mcp_server` in each service's lab tests, `test_tasks_lab.py`). zabbix-mcp supports Zabbix up to 7.4: with its version check off, the calls used work against 8.0. Not verified: the tools no task uses |
 | Batfish | ❓ (expected ❌) | ❓ (expected ⚠️) | Batfish isn't known to parse SR Linux; FRR support is partial |
 | SuzieQ | ❓ | ❓ | |
-| gNMIc + Prometheus | ❓ | ❌ | FRR telemetry would come over SNMP instead |
+| gNMIc 0.49.1 + Prometheus 3.16.0 | ✅ gNMI 0.10.0 on port 57400 (TLS, the lab's self-signed certificate); sampled and on-change subscriptions both work | ❌ no gNMI | up; a port going down shows within two scrapes; reset verified (`tests/integration/test_telemetry.py`) |
 | Loki 3.7.9 (Alloy 1.21.3, Grafana 13.3.1) | ✅ lines arrive with `host`, `app`, `severity` and `facility` labels | ✅ the same labels | up, syslog taken at 172.30.30.108:1514; reset verified (`tests/integration/test_loki.py`). SR Linux's gRPC server logs one warning a second (no TLS profile `EDA`): real noise that a query has to filter out |
 | PowerDNS / Kea | n/a | n/a | Hosts would use Kea for DHCP |
 | Gitea | n/a | n/a | Config repo for GitOps-style tasks |

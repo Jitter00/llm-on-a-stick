@@ -16,7 +16,7 @@ from llm_on_a_stick.services.spec import McpServer
 
 FIXTURES = Path(__file__).parent / "fixtures"
 SNAPSHOTS = FIXTURES / "mcp_tools"
-WITH_MCP = ["netbox", "moto", "nautobot", "librenms", "zabbix", "loki", "routers"]
+WITH_MCP = ["netbox", "moto", "nautobot", "librenms", "zabbix", "loki", "telemetry", "routers"]
 
 
 def test_sanitize_inlines_references_and_drops_what_models_reject() -> None:

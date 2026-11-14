@@ -357,3 +357,35 @@ loki_wait() {
     echo "loki_wait: $got lines for $query, wanted $want" >&2
     return 1
 }
+
+# --- Telemetry (gNMI from the SR Linux routers, kept in Prometheus) ---------
+# $STICK_TELEMETRY_URL is Prometheus, from `stick task start`.
+# The value of a PromQL query that gives one number, or nothing: prom_value 'count(session_state == 1)'
+prom_value() {
+    curl -fsS -G "${STICK_TELEMETRY_URL%/}/api/v1/query" --data-urlencode "query=$1" |
+        jq -r '.data.result[0].value[1] // empty'
+}
+# Wait until a query gives exactly <number> (a value reaches Prometheus up to 10 seconds after the event):
+# prom_wait 'count(session_state == 1)' 4 [seconds, default 90]
+prom_wait() {
+    local query=$1 want=$2 got=""
+    for _ in $(seq 1 "${3:-90}"); do
+        got=$(prom_value "$query" 2>/dev/null || true)
+        [[ "$got" == "$want" ]] && return 0
+        sleep 1
+    done
+    echo "prom_wait: ${got:-nothing} for $query, wanted $want" >&2
+    return 1
+}
+# One label of each series a query returns, one per line: prom_labels 'session_state == 0' neighbor_peer_address
+prom_labels() {
+    curl -fsS -G "${STICK_TELEMETRY_URL%/}/api/v1/query" --data-urlencode "query=$1" |
+        jq -r --arg l "$2" '.data.result[].metric[$l]'
+}
+# The starting point of a telemetry task: Prometheus has been emptied, so wait until it has scraped both
+# routers again, with every BGP session up. Events before that would have no "before" to compare with.
+telemetry_ready() {
+    prom_wait 'count(session_state == 1)' 4
+    prom_wait 'count(oper_state == 1)' 4
+    sleep 6  # one more scrape, so that the counters have a first sample too
+}

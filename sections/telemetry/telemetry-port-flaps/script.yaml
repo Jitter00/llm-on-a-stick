@@ -1,0 +1,33 @@
+# The task's reference steps as MCP calls: stick run telemetry-port-flaps --model script/<this file>
+steps:
+  - tool: telemetry__list_datasources
+    args: {type: prometheus}
+    capture:
+      uid: '"uid":\s*"([^"]+)"'
+  - tool: telemetry__query_prometheus
+    args:
+      datasourceUid: "{{ captured.uid }}"
+      expr: 'topk(1, resets(oper_state[15m]))'
+      queryType: instant
+      startTime: now
+      endTime: now
+    capture:
+      router: '"source":\s*"([^"]+)"'
+      interface: '"interface_name":\s*"([^"]+)"'
+      times: '"value":\s*\[[\d.e+]+,\s*"(\d+)"\]'
+  - tool: telemetry__query_prometheus
+    args:
+      datasourceUid: "{{ captured.uid }}"
+      expr: 'resets(session_state{source="{{ captured.router }}"}[15m]) > 0'
+      queryType: instant
+      startTime: now
+      endTime: now
+    capture:
+      neighbor: '"neighbor_peer_address":\s*"([^"]+)"'
+  - tool: submit_answer
+    args:
+      answer:
+        router: "{{ captured.router }}"
+        interface: "{{ captured.interface }}"
+        times_down: "{{ captured.times }}"
+        bgp_neighbor: "{{ captured.neighbor }}"

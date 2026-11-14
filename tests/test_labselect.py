@@ -85,10 +85,18 @@ def test_the_zabbix_section_and_its_service() -> None:
 
 
 def test_the_loki_section_and_its_service() -> None:
-    s = sel("services/loki/config.alloy")
-    assert s == Selection(sections={"loki"}, services={"loki"}, core=False)
+    s = sel("services/loki/config.alloy")  # the telemetry tasks read Prometheus through Loki's Grafana
+    assert s == Selection(sections={"loki", "telemetry"}, services={"loki", "telemetry"}, core=False)
     assert sel("sections/loki/loki-link-flap/setup.sh") == Selection(sections={"loki"}, services={"loki"})
-    assert sel("tests/integration/test_loki.py").services == {"loki"}
+    assert sel("tests/integration/test_loki.py").services == {"loki", "telemetry"}
+
+
+def test_the_telemetry_section_needs_loki_for_its_grafana() -> None:
+    s = sel("services/telemetry/gnmic.yaml")
+    assert s == Selection(sections={"telemetry"}, services={"telemetry", "loki"}, core=False)
+    assert sel("sections/telemetry/telemetry-port-flaps/setup.sh") == Selection(
+        sections={"telemetry"}, services={"telemetry", "loki"}
+    )
 
 
 def test_a_service_selects_every_section_that_uses_it() -> None:

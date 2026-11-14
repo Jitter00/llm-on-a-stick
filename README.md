@@ -3,22 +3,28 @@
 **One eval harness, many LLMs. Start poking.**
 
 llm-on-a-stick is a free, open-source benchmark that tests how well AI models (LLMs) handle real network engineering
-work: pulling router configs over CLI and NETCONF, keeping NetBox and Nautobot in sync with the network, fixing
-monitoring in LibreNMS and Zabbix, and working with the AWS CLI and Terraform. You run it on your own machine,
-against a small virtual network, and compare a local model (for
+work: reading configuration off routers from two vendors, keeping NetBox and Nautobot in sync with the network,
+fixing monitoring in LibreNMS and Zabbix, finding a root cause in the routers' logs or their streaming
+telemetry, and working with AWS and Terraform. You run it on your own machine, against a small virtual network, and compare a local model (for
 example one running in Ollama) with a paid one. It tells you **why** a model fails (wrong CLI syntax, made-up API
 fields, changing things it shouldn't), not just a score.
 
-> **What works today:** the virtual lab; the `stick` command; seven tools around it (NetBox, Nautobot, LibreNMS,
-> Zabbix, Oxidized, Loki with the routers' syslog, and an emulated AWS account for the AWS CLI and Terraform);
-> **24 tasks** in eight sections (three each: basic, intermediate, advanced),
-> from reading router configs right across two vendors to keeping NetBox in sync and fixing monitoring, all
-> but the Terraform ones through MCP servers instead of a shell; the
+**The tests are MCP-first.** The model does the work the way AI agents increasingly reach network tools: through
+a published MCP server for each tool, not a shell. Eight of the nine sections work this way, including the one on the
+routers themselves. Only Terraform gives the model a shell. More in [MCP-first](#mcp-first).
+
+> **What works today:** the virtual lab; the `stick` command; eight tools around it (NetBox, Nautobot, LibreNMS,
+> Zabbix, Oxidized, Loki with the routers' syslog, Prometheus with their streaming telemetry, and an emulated
+> AWS account for the AWS CLI and Terraform);
+> **27 tasks** in nine sections (three each: basic, intermediate, advanced),
+> from reading router configs right across two vendors to keeping NetBox in sync and fixing monitoring,
+> **MCP-first**: all but the Terraform ones go through MCP servers instead of a shell; the
 > **grader**, which checks every attempt and explains what went wrong; and the **runner**, which lets AI models
 > attempt the tasks and compares the results in a report. Start with the [Quick start](#quick-start). What comes
 > next: [Roadmap](#roadmap).
 
-**Contents:** [Quick start](#quick-start) · [What you need](#what-you-need) · [Install](#install-step-by-step) ·
+**Contents:** [Quick start](#quick-start) · [MCP-first](#mcp-first) · [What you need](#what-you-need) ·
+[Install](#install-step-by-step) ·
 [Your first lab](#your-first-lab-about-10-minutes) ·
 [Run a model](#run-a-model) · [Commands at a glance](#commands-at-a-glance) · [Cheat sheet](#cheat-sheet) ·
 [Run the tests](#run-the-tests-yourself) · [Troubleshooting](#troubleshooting) · [Glossary](#glossary)
@@ -38,8 +44,9 @@ uv run stick image build frr                                   # once, about a m
 uv run stick run --section cfg-mgmt --model ollama/gemma4:12b  # three tasks, one model
 ```
 
-`stick run` starts the lab and the tools the tasks need, lets the model attempt the five config management
-tasks, and prints the address of a report page: what passed, and why the rest failed. The first run also
+`stick run` starts the lab and the tools the tasks need, lets the model attempt the three config management
+tasks through the routers' MCP server, and prints the address of a report page: what passed, and why the
+rest failed. The first run also
 downloads and builds about 2.5 GB of container images, so it takes longer than the ones after it.
 
 Two things to know before you trust the result:
@@ -51,6 +58,29 @@ Two things to know before you trust the result:
 
 Next: [compare two models](#commands-at-a-glance), or look around the lab yourself in
 [Your first lab](#your-first-lab-about-10-minutes).
+
+## MCP-first
+
+In every section but one, the model has **no shell and no files**. Its only tools are those of an MCP server,
+plus one for handing in its answer:
+
+| Section | The model works through |
+|---|---|
+| `cfg-mgmt` | an MCP server that logs in to the routers and runs one CLI command per call (`netmiko-mcp`) |
+| `netbox`, `nautobot`, `librenms`, `zabbix` | a published MCP server for that tool |
+| `loki`, `telemetry` | Grafana's MCP server, reading Loki and Prometheus |
+| `aws` | AWS's API MCP server, against the emulated account |
+| `terraform` | a shell: Terraform is a command and files in a directory |
+
+- **The servers are published ones, at pinned versions**, not written for this benchmark. What their tools
+  offer, how they name things and how much they return is part of what is tested.
+- **A result is about the model and the server together**, as the server is configured here. Large servers are
+  cut down to the tools a task could need.
+- **Tasks that span tools get several servers**: comparing NetBox with a router, for example, gives the model
+  both.
+
+Which servers, which versions and which of their tools:
+[docs/tasks.md](docs/tasks.md#how-the-model-reaches-the-tools) and [docs/services.md](docs/services.md).
 
 ## The lab
 
@@ -73,7 +103,7 @@ tools such as NetBox and Oxidized, connected to the lab's management network lik
 | | |
 |---|---|
 | **Operating system** | Linux (Ubuntu, Debian, Fedora...) or Windows 11 with WSL2. On a Mac you can bring up the lab but not run models against it yet; the way round is a Linux virtual machine on the Mac (see [docs/platforms.md](docs/platforms.md)). |
-| **Memory (RAM)** | About 6 GB free for one section, about 11 GB to run every section at once (`--all`). The lab uses ~4 GB; each tool adds its own: NetBox ~1.5 GB, Nautobot ~1.3 GB, Zabbix ~1.3 GB, LibreNMS ~0.8 GB, Loki with Grafana ~0.4 GB, the emulated AWS account ~0.2 GB, Oxidized ~50 MB. A model running on the same machine needs its own memory on top. `stick doctor` shows what fits. |
+| **Memory (RAM)** | About 6 GB free for one section, about 11 GB to run every section at once (`--all`). The lab uses ~4 GB; each tool adds its own: NetBox ~1.5 GB, Nautobot ~1.3 GB, Zabbix ~1.3 GB, LibreNMS ~0.8 GB, Loki with Grafana ~0.4 GB, the emulated AWS account ~0.2 GB, gNMIc with Prometheus ~0.1 GB, Oxidized ~50 MB. A model running on the same machine needs its own memory on top. `stick doctor` shows what fits. |
 | **Disk** | About 10 GB free for the container images. |
 | **Internet** | For the first download of images and tools. |
 
@@ -248,14 +278,16 @@ stick doctor          # lists the model servers it finds and the models they ser
 **2. Run one task with one model:**
 
 ```bash
-stick run tf-plan-report --model ollama/qwen3:14b
+stick run config-interface-frr --model ollama/qwen3:14b
 ```
 
-The model gets the task's instructions and one tool: running shell commands in a small "toolbox" container that can
-reach the lab. When it says it's done (or runs out of turns or time), the grader scores the attempt. The first run
-builds the toolbox image, which takes a few minutes (about 1.5 GB: it includes the AWS CLI and Terraform).
-That is the `terraform` section. In every other task the model has no shell: its tools are those of the
-tool's MCP server ([docs/tasks.md](docs/tasks.md#how-the-model-reaches-the-tools)).
+The model gets the task's instructions and the tools of the task's MCP servers (see [MCP-first](#mcp-first)).
+When it says it's done (or runs out of turns or time), the grader scores the attempt. The first run builds the
+MCP server image, which takes a few minutes (about 0.8 GB).
+
+The `terraform` tasks are the exception: there the model gets one tool, running shell commands in a small
+"toolbox" container that can reach the lab. Its image is built on first use too (about 1.5 GB: it includes the
+AWS CLI and Terraform).
 
 **3. Compare two models on the three `cfg-mgmt` tasks**, three attempts each (models don't always do the same thing twice).
 **Run local models one after another, never at the same time**: they share your GPU and memory. Finish the first
@@ -391,6 +423,7 @@ stick env down
 | LibreNMS 26.10 | <http://127.0.0.1:8084> | `http://172.30.30.104:8000` | `admin` / `Stick-lab-9x!Qz` |
 | Zabbix 8.0 | <http://127.0.0.1:8085> | `http://172.30.30.107:8080` | `Admin` / `zabbix` |
 | Loki 3.7 (in Grafana 13.3) | <http://127.0.0.1:8086> | syslog to `172.30.30.108:1514` | `admin` / `Stick-lab-9x!Qz` |
+| Prometheus 3.16 (telemetry from gNMIc 0.49) | <http://127.0.0.1:8088> | `http://172.30.30.110:9090` | none |
 
 | Command | What it does |
 |---|---|
@@ -447,6 +480,7 @@ uv run pytest -m lab -v tests/integration/test_nautobot.py   # Nautobot
 uv run pytest -m lab -v tests/integration/test_librenms.py   # LibreNMS
 uv run pytest -m lab -v tests/integration/test_zabbix.py     # Zabbix
 uv run pytest -m lab -v tests/integration/test_loki.py       # Loki (the routers' syslog)
+uv run pytest -m lab -v tests/integration/test_telemetry.py  # gNMIc and Prometheus (streaming telemetry)
 uv run pytest -m lab -v tests/integration/test_moto.py       # the emulated AWS account
 uv run pytest -m lab -v tests/integration/test_grading_lab.py # the grader
 uv run pytest -m lab -v tests/integration/test_tasks_lab.py   # every task can be solved, and can't be faked (and, for MCP tasks, through their MCP servers)
@@ -502,7 +536,7 @@ model on my own machine and compare it to a frontier model".
 
 What is still to do:
 
-- **More tools**, each with its own tasks: Gitea, telemetry (gNMI), DNS and DHCP, SuzieQ, Batfish.
+- **More tools**, each with its own tasks: Gitea, DNS and DHCP, SuzieQ, Batfish.
 - **More task sections**: lab management and troubleshooting (faults put into the lab for the model to find).
 - **The judge model**: a set of human-graded examples to check it against, judge checks for the sections
   beyond NetBox, and tasks that ask for a written explanation.

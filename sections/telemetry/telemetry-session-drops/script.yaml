@@ -1,0 +1,76 @@
+# The task's reference steps as MCP calls: stick run telemetry-session-drops --model script/<this file>
+# (A script can't compare results: it picks the reset session as the one that came up more than once, which
+# this task's setup guarantees; a model has to rule out the other two.)
+steps:
+  - tool: telemetry__list_datasources
+    args: {type: prometheus}
+    capture:
+      uid: '"uid":\s*"([^"]+)"'
+  - tool: telemetry__query_prometheus
+    args:
+      datasourceUid: "{{ captured.uid }}"
+      expr: 'resets(admin_state[15m]) > 0'
+      queryType: instant
+      startTime: now
+      endTime: now
+    capture:
+      dis_router: '"source":\s*"([^"]+)"'
+      dis_port: '"interface_name":\s*"([^"]+)"'
+  - tool: telemetry__query_prometheus
+    args:
+      datasourceUid: "{{ captured.uid }}"
+      expr: 'resets(oper_state[15m]) > 0 unless resets(admin_state[15m]) > 0'
+      queryType: instant
+      startTime: now
+      endTime: now
+    capture:
+      fail_router: '"source":\s*"([^"]+)"'
+      fail_port: '"interface_name":\s*"([^"]+)"'
+  - tool: telemetry__query_prometheus
+    args:
+      datasourceUid: "{{ captured.uid }}"
+      expr: >-
+        max_over_time((session_state{source="{{ captured.dis_router }}"} == bool 0 and on(source)
+        (oper_state{source="{{ captured.dis_router }}", interface_name="{{ captured.dis_port }}"} == 0))[15m:5s]) > 0
+      queryType: instant
+      startTime: now
+      endTime: now
+    capture:
+      dis_neighbor: '"neighbor_peer_address":\s*"([^"]+)"'
+  - tool: telemetry__query_prometheus
+    args:
+      datasourceUid: "{{ captured.uid }}"
+      expr: >-
+        max_over_time((session_state{source="{{ captured.fail_router }}"} == bool 0 and on(source)
+        (oper_state{source="{{ captured.fail_router }}", interface_name="{{ captured.fail_port }}"} == 0))[15m:5s]) > 0
+      queryType: instant
+      startTime: now
+      endTime: now
+    capture:
+      fail_neighbor: '"neighbor_peer_address":\s*"([^"]+)"'
+  - tool: telemetry__query_prometheus
+    args:
+      datasourceUid: "{{ captured.uid }}"
+      expr: 'max_over_time(established_transitions[15m]) - min_over_time(established_transitions[15m]) > 1'
+      queryType: instant
+      startTime: now
+      endTime: now
+    capture:
+      only_router: '"source":\s*"([^"]+)"'
+      only_neighbor: '"neighbor_peer_address":\s*"([^"]+)"'
+      times: '"value":\s*\[[\d.e+]+,\s*"(\d+)"\]'
+  - tool: submit_answer
+    args:
+      answer:
+        port_disabled:
+          router: "{{ captured.dis_router }}"
+          interface: "{{ captured.dis_port }}"
+          neighbor: "{{ captured.dis_neighbor }}"
+        link_failed:
+          router: "{{ captured.fail_router }}"
+          interface: "{{ captured.fail_port }}"
+          neighbor: "{{ captured.fail_neighbor }}"
+        session_only:
+          router: "{{ captured.only_router }}"
+          neighbor: "{{ captured.only_neighbor }}"
+          times: "{{ captured.times }}"

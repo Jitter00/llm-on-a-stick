@@ -1,0 +1,30 @@
+# The task's reference steps as MCP calls: stick run telemetry-idle-ports --model script/<this file>
+steps:
+  - tool: telemetry__list_datasources
+    args: {type: prometheus}
+    capture:
+      uid: '"uid":\s*"([^"]+)"'
+  - tool: telemetry__query_prometheus
+    args:
+      datasourceUid: "{{ captured.uid }}"
+      expr: 'count(admin_state{source="srl2"} == 1 and oper_state{source="srl2"} == 1)'
+      queryType: instant
+      startTime: now
+      endTime: now
+    capture:
+      up: '"value":\s*\[[\d.e+]+,\s*"(\d+)"\]'
+  - tool: telemetry__query_prometheus
+    args:
+      datasourceUid: "{{ captured.uid }}"
+      expr: 'count(admin_state{source="srl2"} == 1 and oper_state{source="srl2"} == 0)'
+      queryType: instant
+      startTime: now
+      endTime: now
+    capture:
+      down: '"value":\s*\[[\d.e+]+,\s*"(\d+)"\]'
+  - tool: submit_answer
+    args:
+      answer:
+        router: srl2
+        enabled_and_up: "{{ captured.up }}"
+        enabled_but_down: "{{ captured.down }}"

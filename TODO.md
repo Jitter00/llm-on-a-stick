@@ -28,8 +28,9 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
 - [ ] **Gitea.** Seed an org, a `lab-configs` repo and an API token; snapshot = its DB and repo volume. Needed for the GitOps tasks.
 - [x] **Syslog (Loki, received by Alloy, read through Grafana).** All four routers log to it; the `loki` section has three
       tasks, MCP only. Open: a fourth task that needs an aggregate query (which router logged the most errors).
-- [ ] **Telemetry (gNMIc + Prometheus).** gNMI subscriptions to SR Linux (interface counters, BGP state); FRR has no gNMI
-      (document SNMP as its path). Verify counters appear in Prometheus.
+- [x] **Telemetry (gNMIc + Prometheus).** gNMI subscriptions to both SR Linux routers (port and BGP states, counters), read
+      through the Grafana of the `loki` service; the `telemetry` section has three tasks, MCP only. Open: FRR has no gNMI,
+      so the leaves are not in it; a task on traffic counters.
 - [ ] **DDI (PowerDNS + Kea).** Authoritative zone for the lab (`stick.lab`) with API enabled; Kea DHCP on the host subnets.
       This means h1/h2 switch from static IPs to DHCP (a topology change, so update the integration tests).
 - [ ] **SuzieQ.** Poller against SR Linux and FRR; check which of the two it supports.

@@ -1,0 +1,48 @@
+# How `stick svc` drives the telemetry service. ${VAR:-default} is expanded from the environment, using the
+# same variables and defaults as compose.yaml. gNMIc subscribes to srl1 and srl2 (gNMI, port 57400); FRR has
+# no gNMI, so frr1 and frr2 are not in it.
+name: telemetry
+description: Streaming telemetry from the SR Linux routers (gNMIc 0.49) kept in Prometheus 3.16
+compose: compose.yaml
+project: stick-telemetry
+wait_timeout_s: 120
+
+health:
+  url: http://127.0.0.1:${STICK_PROMETHEUS_PORT:-8088}/-/ready
+
+endpoints:
+  prometheus (host): http://127.0.0.1:${STICK_PROMETHEUS_PORT:-8088}
+  prometheus (lab mgmt network): http://172.30.30.110:9090
+  gnmic metrics (lab mgmt network): http://172.30.30.109:9804/metrics
+
+credentials:
+  prometheus: none
+
+# Prometheus's own HTTP API, for the task scripts (the model only gets the MCP server).
+api:
+  base_url: http://127.0.0.1:${STICK_PROMETHEUS_PORT:-8088}/
+
+# The baseline is an empty store: reset deletes every series (one request, Prometheus keeps running). What
+# the routers report now is back at the next scrape, 5 seconds later at most; the history is gone.
+snapshot:
+  kind: http
+  method: POST
+  url: http://127.0.0.1:${STICK_PROMETHEUS_PORT:-8088}/api/v1/admin/tsdb/delete_series?match%5B%5D=%7B__name__%3D~%22.%2B%22%7D
+
+# Grafana's own MCP server, started read-only, against the Grafana that the `loki` service runs: a task
+# that names this server must require both services. 5 of its 63 tools are offered: finding the datasource
+# and the Prometheus tools. Not shown: the Loki tools (the `loki` server has those), dashboards, alerting,
+# and grafana_api_request (any call to Grafana's API).
+mcp:
+  server: grafana
+  version: 2.2.0
+  env:
+    GRAFANA_URL: http://127.0.0.1:${STICK_GRAFANA_PORT:-8086}
+    GRAFANA_USERNAME: admin
+    GRAFANA_PASSWORD: ${STICK_GRAFANA_PASSWORD:-Stick-lab-9x!Qz}
+  allow:
+    - list_datasources
+    - list_prometheus_metric_names
+    - list_prometheus_label_names
+    - list_prometheus_label_values
+    - query_prometheus
