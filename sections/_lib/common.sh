@@ -354,7 +354,8 @@ loki_wait() {
         [[ "$got" -gt "$want" ]] && break
         sleep 1
     done
-    echo "loki_wait: $got lines for $query, wanted $want" >&2
+    # The lines themselves, on one line (the caller reports the last line of a failed script).
+    echo "loki_wait: $got lines for $query, wanted $want: $(loki_lines "$query" 2>/dev/null | cut -c1-160 | paste -sd'~' | cut -c1-1500)" >&2
     return 1
 }
 
