@@ -45,7 +45,7 @@ errors in the body, so its health check posts a request (`health.post`) and look
 
 ## MCP servers
 
-Six services also have an **MCP server**: what a model works through in the
+Seven services also have an **MCP server**: what a model works through in the
 [tasks that work through MCP servers](tasks.md#how-the-model-reaches-the-tools), instead of a shell. They are
 the published servers, pinned, all in one image (`images/mcp`, built as `stick-mcp:dev`; one virtualenv each, from
 hash-pinned requirement files). `stick run` starts one container per server and attempt and talks to it over
@@ -59,6 +59,7 @@ stdio.
 | librenms | [librenms-mcp](https://github.com/mhajder/librenms-mcp) | 1.13.0 | 33 of 113 | yes | Hides SNMP communities in what it returns |
 | zabbix | [zabbix-mcp](https://github.com/mhajder/zabbix-mcp) | 0.8.0 | 16 of 53 | yes | Supports Zabbix up to 7.4: it only talks to 8.0 with `ZABBIX_SKIP_VERSION_CHECK`, and the calls the tasks use work |
 | loki | [mcp-grafana](https://github.com/grafana/mcp-grafana) | 2.2.0 | 6 of 63 | no (started with `--disable-write`) | Grafana's own server; it reads Loki through Grafana's datasource, so a query names the datasource (`loki`). 10 lines per query unless asked for more, 100 at most; timestamps in nanoseconds. Not shown: dashboards, alerting, incidents, Prometheus, and `grafana_api_request` |
+| telemetry | [mcp-grafana](https://github.com/grafana/mcp-grafana) | 2.2.0 | 5 of 63 | no (started with `--disable-write`) | The same server, against the same Grafana (the one the `loki` service runs), shown its Prometheus tools instead of its Loki ones. `query_prometheus` needs `endTime` even for an instant query, and every answer carries a link to Grafana's Explore page |
 
 One more server reaches the lab's routers and belongs to no service: `routers`, declared in
 `topologies/mcp.yaml` in the same format.
@@ -254,11 +255,54 @@ and its description, e.g. `Interface ethernet-1/1(to frr1): Operational status`,
     - a host deleted and added again has a new id and no history: the `zabbix_unchanged` check counts that
       as deleting it.
 
+## Telemetry
+
+Streaming telemetry. The two SR Linux routers push values over gNMI; **gNMIc** subscribes to them and
+publishes what it receives as a metrics page, and **Prometheus** scrapes that page every 5 seconds and keeps
+the history. Models read it through Grafana's MCP server, and that Grafana is the one the `loki` service
+runs: **a task that uses telemetry requires both services**.
+
+| | |
+|---|---|
+| Version | gNMIc 0.49.1, Prometheus 3.16.0 |
+| Prometheus (host) | <http://127.0.0.1:8088> (`STICK_PROMETHEUS_PORT`), no authentication; task scripts use it |
+| On the lab's management network | gNMIc `172.30.30.109` (metrics at `:9804/metrics`), Prometheus `172.30.30.110:9090`, Grafana `172.30.30.111` |
+| Grafana datasource | uid `prometheus` (in `services/loki/grafana/datasources.yaml`) |
+| Routers | srl1 and srl2, gNMI on port 57400 with TLS, as `admin`. FRR has no gNMI: frr1 and frr2 are not in it |
+| Start | about 10 s |
+| Reset | about 0.2 s: one request deletes every series; Prometheus keeps running |
+| Memory | about 0.1 GB (plus the `loki` service for Grafana) |
+
+What is collected, for every `ethernet-1/*` port and every BGP neighbour in the default network instance:
+
+| Metric | Labels | Sent |
+|---|---|---|
+| `admin_state`, `oper_state` (1 for enable or up, 0 otherwise) | `source`, `interface_name` | when it changes |
+| `session_state` (1 for established, 0 otherwise) | `source`, `neighbor_peer_address` | when it changes |
+| `in_octets`, `out_octets`, `in_packets`, `in_error_packets`, `carrier_transitions` and the rest of the port's statistics | `source`, `interface_name` | every 5 s |
+| `received_routes`, `active_routes`, `sent_routes` (IPv4), `established_transitions` | `source`, `neighbor_peer_address` | every 5 s |
+
+`source` is the router's name.
+
+- **States are numbers.** SR Linux sends `up` or `established` as text and Prometheus keeps numbers only, so
+  gNMIc converts them (`services/telemetry/gnmic.yaml`).
+- **Names are shortened** to the last part of the gNMI path: `in_octets`, not
+  `srl_nokia_interfaces_interface_statistics_in_octets`.
+- **A state that doesn't change is sent once.** gNMIc would drop a value it hasn't heard for 60 seconds; that
+  expiry is turned off, or every steady state would vanish from Prometheus after a minute.
+- **A short event can fall between two scrapes.** A session that is reset and back within 5 seconds may never
+  show as down in `session_state`; the router's own counter (`established_transitions`) still counts it.
+- **Reset removes the history, not the present**: what the routers report now is back at the next scrape. Task
+  setups wait for that before they cause anything (`telemetry_ready` in `sections/_lib/common.sh`).
+- **Every port is there**, 34 on each router, most of them disabled and down: a query for ports that are down
+  returns little else.
+
 ## Loki
 
 The routers' syslog. Three containers: **Loki** keeps the lines, **Alloy** receives syslog from the routers
-and pushes it to Loki, and **Grafana** has Loki as its only datasource. Models reach it through Grafana's MCP
-server only.
+and pushes it to Loki, and **Grafana** has Loki as a datasource. Models reach it through Grafana's MCP
+server only. Grafana's second datasource is the Prometheus of the [telemetry](#telemetry) service, which
+answers only while that service runs.
 
 | | |
 |---|---|

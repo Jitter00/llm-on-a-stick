@@ -1,0 +1,73 @@
+# gNMIc for the telemetry service. Lab-only credentials; the routers use the lab's self-signed certificate.
+username: admin
+password: NokiaSrl1!
+skip-verify: true
+encoding: json_ietf
+
+targets:
+  srl1: {address: "172.30.30.11:57400"}
+  srl2: {address: "172.30.30.12:57400"}
+
+subscriptions:
+  # Numbers that move all the time: sent every 5 seconds.
+  counters:
+    paths:
+      - /interface[name=ethernet-1/*]/statistics
+      - /network-instance[name=default]/protocols/bgp/neighbor[peer-address=*]/afi-safi[afi-safi-name=ipv4-unicast]/received-routes
+      - /network-instance[name=default]/protocols/bgp/neighbor[peer-address=*]/afi-safi[afi-safi-name=ipv4-unicast]/active-routes
+      - /network-instance[name=default]/protocols/bgp/neighbor[peer-address=*]/afi-safi[afi-safi-name=ipv4-unicast]/sent-routes
+      - /network-instance[name=default]/protocols/bgp/neighbor[peer-address=*]/established-transitions
+    mode: stream
+    stream-mode: sample
+    sample-interval: 5s
+  # States: sent when they change.
+  state:
+    paths:
+      - /interface[name=ethernet-1/*]/admin-state
+      - /interface[name=ethernet-1/*]/oper-state
+      - /network-instance[name=default]/protocols/bgp/neighbor[peer-address=*]/session-state
+    mode: stream
+    stream-mode: on-change
+
+outputs:
+  prometheus:
+    type: prometheus
+    listen: ":9804"
+    path: /metrics
+    # A state that doesn't change is sent once: never drop a value for being old (the default is 60s).
+    expiration: -1s
+    event-processors: [short-names, drop-subscription, admin-state, oper-state, session-state, to-number]
+
+processors:
+  # in_octets instead of srl_nokia_interfaces_interface_statistics_in_octets.
+  short-names:
+    event-strings:
+      value-names: [".*"]
+      transforms:
+        - path-base: {apply-on: "name"}
+  drop-subscription:
+    event-delete:
+      tag-names: ["^subscription-name$"]
+  # Prometheus keeps numbers only: 1 for enable, up and established, 0 for anything else.
+  admin-state:
+    event-strings:
+      value-names: ["^admin-state$"]
+      transforms:
+        - replace: {apply-on: "value", old: "^enable$", new: "1"}
+        - replace: {apply-on: "value", old: "^[a-z-]+$", new: "0"}
+  oper-state:
+    event-strings:
+      value-names: ["^oper-state$"]
+      transforms:
+        - replace: {apply-on: "value", old: "^up$", new: "1"}
+        - replace: {apply-on: "value", old: "^[a-z-]+$", new: "0"}
+  session-state:
+    event-strings:
+      value-names: ["^session-state$"]
+      transforms:
+        - replace: {apply-on: "value", old: "^established$", new: "1"}
+        - replace: {apply-on: "value", old: "^[a-z-]+$", new: "0"}
+  to-number:
+    event-convert:
+      value-names: ["^admin-state$", "^oper-state$", "^session-state$"]
+      type: int

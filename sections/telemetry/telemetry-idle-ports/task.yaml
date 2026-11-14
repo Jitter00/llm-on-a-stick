@@ -1,0 +1,43 @@
+id: telemetry-idle-ports
+section: telemetry
+title: Count a router's ports that are enabled but have no link, from streaming telemetry in Prometheus
+tier: basic
+floor: true  # the section's cheap floor task: CI validates it on every shared-code change
+tags: [tool:prometheus, iface:mcp, skill:promql]
+prompt: |
+  srl1 and srl2 (Nokia SR Linux) stream telemetry over gNMI: the state and counters of their ports and of
+  their BGP sessions. It is kept in Prometheus, which you reach through Grafana's MCP server. frr1 and frr2
+  do not stream anything.
+
+  Somebody enabled ports on srl2 that have nothing connected to them. Report, for srl2 as it is now, how many
+  ports are enabled and up, and how many are enabled but down. Submit with submit_answer:
+    {"router": "srl2", "enabled_and_up": <number>, "enabled_but_down": <number>}
+requires:
+  devices: [srl1, srl2, frr1, frr2, h1, h2]
+  services: [loki, telemetry]
+tools:
+  mcp: [telemetry]
+reset_services: [telemetry]
+canaries:
+  ports: count
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: json_file_matches
+    name: the answer counts the enabled ports that are down
+    params:
+      path: answer.json
+      expected:
+        router: srl2
+        enabled_but_down: "{{ canaries.ports }}"
+    weight: 2
+  - type: json_file_matches
+    name: the answer counts the enabled ports that are up
+    params:
+      path: answer.json
+      expected:
+        enabled_and_up: 2
+  - type: no_change_outside
+    name: no configuration was changed
+    params: {allowed: []}
+limits: {turns: 15}

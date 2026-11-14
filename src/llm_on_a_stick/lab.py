@@ -13,10 +13,13 @@ SERVICE_IPS = {
     "librenms": "172.30.30.104",
     "zabbix": "172.30.30.106",
     "loki": "172.30.30.108",  # Alloy, the syslog receiver; Loki and Grafana are reached from the host
+    "telemetry": "172.30.30.109",  # gNMIc, which subscribes to the SR Linux routers
 }
 # Further containers of a service that need the management network (LibreNMS's dispatcher polls from it;
 # Zabbix's server polls from the first address, its web frontend has the API).
 SERVICE_EXTRA_IPS = {
     "librenms": ["172.30.30.105"],
     "zabbix": ["172.30.30.107"],
+    "loki": ["172.30.30.111"],  # Grafana, which reads the telemetry service's Prometheus over this network
+    "telemetry": ["172.30.30.110"],  # Prometheus
 }

@@ -3,7 +3,7 @@
 set -euo pipefail
 source "$STICK_LIB/common.sh"
 srl=$(srl_cli "$STICK_NODE_SRL2" "info flat network-instance default protocols bgp" | tr -d '"')
-frr=$(frr_cli "$STICK_NODE_FRR1" "show running-config" | awk '/^router bgp/ {f=1} f {print} f && /^exit$/ {exit}')
+frr=$(frr_cli "$STICK_NODE_FRR1" "show running-config" | awk '/^router bgp/ && !d {f=1} f {print} f && /^exit$/ {f=0; d=1}')  # no early exit: it breaks vtysh's pipe
 srl_neighbor() {  # <address>
     jq -n --arg a "$1" \
         --argjson p "$(sed -n "s|^set / network-instance default protocols bgp neighbor $1 peer-as ||p" <<<"$srl")" \

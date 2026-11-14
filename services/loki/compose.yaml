@@ -1,7 +1,8 @@
 # Loki for llm-on-a-stick: the routers' syslog, kept in Loki and read through Grafana.
 #   - alloy receives syslog from the routers at a fixed address on the lab's management network and pushes
 #     it to Loki
-#   - grafana has Loki as its only datasource (uid `loki`): the MCP server works through it
+#   - grafana has Loki as a datasource (uid `loki`): the MCP server works through it. Its second
+#     datasource is the Prometheus of the `telemetry` service (uid `prometheus`)
 #   - lab-only credentials, overridable from the shell
 name: stick-loki
 
@@ -49,6 +50,10 @@ services:
       interval: 2s
     ports:
       - "127.0.0.1:${STICK_GRAFANA_PORT:-8086}:3000"
+    networks:  # the lab's management network: the `telemetry` service's Prometheus is a datasource there
+      default: {}
+      stick-mgmt:
+        ipv4_address: 172.30.30.111
     volumes:
       - ./grafana/datasources.yaml:/etc/grafana/provisioning/datasources/stick.yaml:ro
       - grafana-data:/var/lib/grafana

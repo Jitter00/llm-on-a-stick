@@ -1,0 +1,53 @@
+# Streaming telemetry for llm-on-a-stick: the SR Linux routers push values over gNMI, Prometheus keeps them.
+#   - gnmic subscribes to srl1 and srl2 from a fixed address on the lab's management network and publishes
+#     what it receives as a metrics page
+#   - prometheus scrapes that page every 5 seconds; it has a fixed address there too, so that the Grafana
+#     of the `loki` service can read it (the model's MCP server works through that Grafana)
+#   - FRR has no gNMI: frr1 and frr2 are not in here
+name: stick-telemetry
+
+services:
+  gnmic:
+    image: ghcr.io/openconfig/gnmic:0.49.1
+    hostname: gnmic
+    command: [--config, /etc/gnmic/stick.yaml, subscribe]
+    stop_grace_period: 2s
+    networks:
+      default: {}
+      stick-mgmt:
+        ipv4_address: 172.30.30.109
+    volumes:
+      - ./gnmic.yaml:/etc/gnmic/stick.yaml:ro
+
+  prometheus:
+    image: docker.io/prom/prometheus:v3.16.0
+    hostname: prometheus
+    command:
+      - --config.file=/etc/prometheus/stick.yaml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=1d
+      - --web.enable-admin-api  # for the reset: delete every series
+    stop_grace_period: 2s
+    depends_on:
+      gnmic: {condition: service_started}
+    healthcheck:
+      test: wget -q -O /dev/null http://localhost:9090/-/ready || exit 1
+      start_period: 30s
+      timeout: 5s
+      interval: 2s
+    ports:
+      - "127.0.0.1:${STICK_PROMETHEUS_PORT:-8088}:9090"
+    networks:
+      default: {}
+      stick-mgmt:
+        ipv4_address: 172.30.30.110
+    volumes:
+      - ./prometheus.yaml:/etc/prometheus/stick.yaml:ro
+      - prometheus-data:/prometheus
+
+networks:
+  stick-mgmt:
+    external: true
+
+volumes:
+  prometheus-data:

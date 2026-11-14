@@ -1,4 +1,5 @@
-# Grafana's only datasource: the lab's Loki, at a fixed uid.
+# Grafana's datasources, at fixed uids: the lab's Loki, and the Prometheus of the `telemetry` service, which
+# only answers while that service runs (it is reached at its fixed address on the lab's management network).
 apiVersion: 1
 datasources:
   - name: Loki
@@ -7,4 +8,11 @@ datasources:
     access: proxy
     url: http://loki:3100
     isDefault: true
+    editable: false
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://172.30.30.110:9090
+    isDefault: false
     editable: false

@@ -1,0 +1,46 @@
+id: telemetry-port-flaps
+section: telemetry
+title: Find the port that kept going down and the BGP session it took with it, from streaming telemetry
+tier: intermediate
+tags: [tool:prometheus, iface:mcp, skill:promql, skill:correlation]
+prompt: |
+  srl1 and srl2 (Nokia SR Linux) stream telemetry over gNMI: the state and counters of their ports and of
+  their BGP sessions. It is kept in Prometheus, which you reach through Grafana's MCP server. frr1 and frr2
+  do not stream anything.
+
+  In the last few minutes one port on one of the two routers went down and came back several times, and
+  the BGP session over that link dropped with it. Other things happened in the lab over the same minutes,
+  and everything is up again now. Find the port in the telemetry and submit with submit_answer:
+    {"router": "<the router the port is on>", "interface": "<the port, as the telemetry names it>",
+     "times_down": <how many times the port went down>,
+     "bgp_neighbor": "<the neighbour address, as that router names it, of the BGP session that dropped with it>"}
+requires:
+  devices: [srl1, srl2, frr1, frr2, h1, h2]
+  services: [loki, telemetry]
+tools:
+  mcp: [telemetry]
+reset_services: [telemetry]
+canaries:
+  flaps: count
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: json_file_matches
+    name: the answer names the port and how often it went down
+    params:
+      path: answer.json
+      expected:
+        router: srl2
+        interface: ethernet-1/1
+        times_down: "{{ canaries.flaps }}"
+    weight: 2
+  - type: json_file_matches
+    name: the answer names the BGP session that dropped with it
+    params:
+      path: answer.json
+      expected:
+        bgp_neighbor: 10.0.2.1
+  - type: no_change_outside
+    name: no configuration was changed
+    params: {allowed: []}
+limits: {turns: 25}
