@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.25.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.24.0...v0.25.0) (2026-11-15)
+
+
+### Features
+
+* **gitea:** a Gitea service and three GitOps tasks through gitea-mcp ([#65](https://github.com/Jitter00/llm-on-a-stick/issues/65)) ([ecd5d6d](https://github.com/Jitter00/llm-on-a-stick/commit/ecd5d6d9278b9ae708cc4292bf500db2d62be48f))
+
 ## [0.24.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.23.0...v0.24.0) (2026-11-15)
 
 
