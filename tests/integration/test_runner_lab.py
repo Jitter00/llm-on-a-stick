@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from llm_on_a_stick import lab as instances
 from llm_on_a_stick import tasks
 from llm_on_a_stick.grading.labstate import DockerLabState
 from llm_on_a_stick.runner import loop, models, toolbox
@@ -22,7 +23,8 @@ SCRIPTS = Path(__file__).parents[1] / "fixtures" / "scripts"
 
 def _leftover_toolboxes() -> list[str]:
     out = subprocess.run(
-        ["docker", "ps", "-a", "--filter", "label=stick-toolbox=1", "--format", "{{.Names}}"],
+        ["docker", "ps", "-a", "--filter", "label=stick-toolbox=1",
+         "--filter", f"label=stick-instance={instances.instance()}", "--format", "{{.Names}}"],
         capture_output=True, text=True, check=True,
     )  # fmt: skip
     return out.stdout.split()
@@ -49,11 +51,11 @@ def test_scripted_model_solves_task_through_toolbox(lab: None, tmp_path: Path) -
 
 def test_command_timeout_and_non_interactive(lab: None, tmp_path: Path) -> None:
     toolbox.ensure_image()
-    with toolbox.Toolbox(tmp_path, "stick-toolbox-test", max_output=200) as box:
+    with toolbox.Toolbox(tmp_path, f"stick-toolbox-test-{instances.instance()}", max_output=200) as box:
         slow = box.exec("sleep 30", timeout_s=2)
         assert slow.timed_out and slow.seconds < 15
         # no terminal: a password prompt fails fast instead of hanging
-        prompt = box.exec("ssh admin@172.30.30.22 true", timeout_s=20)
+        prompt = box.exec(f"ssh admin@{DockerLabState().nodes()['frr2'].mgmt_ipv4} true", timeout_s=20)
         assert prompt.exit_code != 0 and not prompt.timed_out
         big = box.exec("seq 1 10000", timeout_s=10)
         assert big.truncated and "characters omitted" in big.output

@@ -35,7 +35,7 @@ checks:
       expected:
         router: srl2
         user: "{{ canaries.user }}"
-        source: 172.30.30.31
+        source: "{{ nodes.h1.mgmt_ip }}"
     weight: 2
   - type: json_file_matches
     name: the answer gives the value the change set

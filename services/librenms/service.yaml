@@ -3,7 +3,7 @@
 name: librenms
 description: LibreNMS 26.10 network monitoring (SNMP polling, alert rules; REST API v0)
 compose: compose.yaml
-project: stick-librenms
+project: ${STICK_NAME:-stick}-librenms
 wait_timeout_s: 420
 
 # Healthy = the API answers with the token, which only exists once `init` below has run.
@@ -14,7 +14,7 @@ health:
 
 endpoints:
   web (host): http://127.0.0.1:${STICK_LIBRENMS_PORT:-8084}
-  api (lab mgmt network): http://172.30.30.104:8000/api/v0/
+  api (lab mgmt network): http://${STICK_MGMT_PREFIX:-172.30.30}.104:8000/api/v0/
 
 credentials:
   username: admin

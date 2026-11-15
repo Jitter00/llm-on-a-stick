@@ -87,9 +87,9 @@ def test_boto3_reads_the_endpoint_from_the_environment(moto: ServiceSpec) -> Non
 
 def test_reachable_from_the_lab_network(moto: ServiceSpec) -> None:
     """Lab nodes and other services reach moto at its fixed management address."""
-    url = f"http://{lab_consts.SERVICE_IPS['moto']}:5000/moto-api/"
+    url = f"http://{lab_consts.service_ip('moto')}:5000/moto-api/"
     res = subprocess.run(
-        ["docker", "run", "--rm", "--network", lab_consts.MGMT_NETWORK, toolbox.IMAGE,
+        ["docker", "run", "--rm", "--network", lab_consts.mgmt_network(), toolbox.IMAGE,
          "curl", "-sf", "-o", "/dev/null", "-w", "%{http_code}", url],
         capture_output=True, text=True, check=False,
     )  # fmt: skip

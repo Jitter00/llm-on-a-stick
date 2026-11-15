@@ -4,7 +4,7 @@
 #   - prometheus scrapes that page every 5 seconds; it has a fixed address there too, so that the Grafana
 #     of the `loki` service can read it (the model's MCP server works through that Grafana)
 #   - FRR has no gNMI: frr1 and frr2 are not in here
-name: stick-telemetry
+name: ${STICK_NAME:-stick}-telemetry
 
 services:
   gnmic:
@@ -15,9 +15,9 @@ services:
     networks:
       default: {}
       stick-mgmt:
-        ipv4_address: 172.30.30.109
+        ipv4_address: ${STICK_MGMT_PREFIX:-172.30.30}.109
     volumes:
-      - ./gnmic.yaml:/etc/gnmic/stick.yaml:ro
+      - ${STICK_GNMIC_CONFIG:-./gnmic.yaml}:/etc/gnmic/stick.yaml:ro
 
   prometheus:
     image: docker.io/prom/prometheus:v3.16.0
@@ -40,13 +40,14 @@ services:
     networks:
       default: {}
       stick-mgmt:
-        ipv4_address: 172.30.30.110
+        ipv4_address: ${STICK_MGMT_PREFIX:-172.30.30}.110
     volumes:
       - ./prometheus.yaml:/etc/prometheus/stick.yaml:ro
       - prometheus-data:/prometheus
 
 networks:
   stick-mgmt:
+    name: ${STICK_NAME:-stick}-mgmt
     external: true
 
 volumes:

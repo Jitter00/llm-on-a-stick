@@ -10,7 +10,7 @@ import subprocess
 from collections.abc import Iterator
 
 import pytest
-from labutil import check_mcp_server, service_session, wait_for
+from labutil import PREFIX, check_mcp_server, service_session, wait_for
 
 from llm_on_a_stick import lab as lab_consts
 from llm_on_a_stick import services
@@ -19,7 +19,8 @@ from llm_on_a_stick.services import lifecycle, seed
 
 pytestmark = pytest.mark.lab
 
-SRL1, FRR1 = "172.30.30.11", "172.30.30.21"
+NET = lab_consts.mgmt_prefix()  # this lab instance's management subnet
+SRL1, SRL2, FRR1 = f"{NET}.11", f"{NET}.12", f"{NET}.21"
 
 
 @pytest.fixture(scope="module")
@@ -64,9 +65,9 @@ def test_polls_sr_linux_and_frr(librenms: seed.RestClient) -> None:
 
 
 def test_dispatcher_discovers_a_new_device_on_its_own(librenms: seed.RestClient) -> None:
-    add(librenms, "172.30.30.12")
+    add(librenms, SRL2)
     assert wait_for(
-        lambda: bool(librenms.get("devices/172.30.30.12")["devices"][0].get("last_discovered")),
+        lambda: bool(librenms.get(f"devices/{SRL2}")["devices"][0].get("last_discovered")),
         timeout=90, interval=3,
     )  # fmt: skip
 
@@ -97,9 +98,9 @@ def test_reset_restores_the_empty_baseline(librenms: seed.RestClient) -> None:
 
 
 def test_reachable_from_the_lab_network(librenms: seed.RestClient) -> None:
-    url = f"http://{lab_consts.SERVICE_IPS['librenms']}:8000/api/v0/system"
+    url = f"http://{lab_consts.service_ip('librenms')}:8000/api/v0/system"
     res = subprocess.run(
-        ["docker", "exec", "clab-stick-base-h1", "curl", "-sf", "-o", "/dev/null", "-w", "%{http_code}",
+        ["docker", "exec", PREFIX + "h1", "curl", "-sf", "-o", "/dev/null", "-w", "%{http_code}",
          "-H", f"X-Auth-Token: {librenms.headers['X-Auth-Token']}", url],
         capture_output=True, text=True, check=False,
     )  # fmt: skip

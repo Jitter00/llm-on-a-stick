@@ -156,7 +156,7 @@ librenms_api() {
     printf '%s\n' "$out"
 }
 # Run `lnms <args>` in the LibreNMS container.
-librenms_lnms() { docker exec stick-librenms-librenms-1 lnms "$@"; }
+librenms_lnms() { docker exec "${STICK_NAME:-stick}-librenms-librenms-1" lnms "$@"; }
 # librenms_poll <hostname|all>: discover and poll now, instead of waiting for the dispatcher. A device that
 # doesn't answer makes lnms exit non-zero, which is fine here.
 librenms_poll() {
@@ -180,7 +180,7 @@ librenms_wait_snmp() {
     for _ in $(seq 1 60); do
         for oid in SNMPv2-MIB::sysName IF-MIB::ifAlias; do
             # Into a variable, not a pipe: `grep -q` would close the pipe early and, with pipefail, fail.
-            out=$(docker exec stick-librenms-librenms-1 snmpbulkwalk -v2c -c "$2" -t 2 -r 0 -OQv "$1" "$oid" \
+            out=$(docker exec "${STICK_NAME:-stick}-librenms-librenms-1" snmpbulkwalk -v2c -c "$2" -t 2 -r 0 -OQv "$1" "$oid" \
                 2>/dev/null || true)
             grep -qF -- "$3" <<<"$out" && return 0
         done
@@ -226,7 +226,7 @@ zabbix_api() {
     jq -c .result <<<"$out"
 }
 # Have the server read new configuration (hosts, items, triggers) now instead of within a few seconds.
-zabbix_reload() { docker exec stick-zabbix-server-1 zabbix_server -R config_cache_reload >/dev/null; sleep 1; }
+zabbix_reload() { docker exec "${STICK_NAME:-stick}-zabbix-server-1" zabbix_server -R config_cache_reload >/dev/null; sleep 1; }
 # zabbix_group_id <name>: the host group's id; the group is created if it isn't there.
 zabbix_group_id() {
     local id

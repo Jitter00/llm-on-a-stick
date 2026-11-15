@@ -16,13 +16,51 @@ uv run stick svc down netbox      # stop; add --volumes to delete data and the s
 
 `stick svc up a b c` starts services one after another, so a small machine never boots them all at once.
 
+## Several lab instances on one machine
+
+Everything on this page describes **instance 0**, the default. A machine with enough memory can run up to four
+instances side by side: each is a whole lab with its own copy of every service, so two runs (or the lab tests of
+two checkouts) don't reset each other's routers and data.
+
+```bash
+uv run stick --instance 1 run --section netbox --model anthropic/claude-haiku-5-5
+STICK_INSTANCE=1 uv run pytest -m lab        # the same, as an environment variable (or a line in .env)
+uv run stick --instance 1 env down           # stop that instance; `stick env down --all` stops every one
+```
+
+| | Instance 0 | Instance N (1 to 3) |
+|---|---|---|
+| Lab and its containers | `stick-base`, `clab-stick-base-srl1` | `stickN-base`, `clab-stickN-base-srl1` |
+| Management network | `stick-mgmt`, 172.30.30.0/24 | `stickN-mgmt`, 172.30.(30+N).0/24, the same host numbers |
+| Compose projects and volumes | `stick-netbox`, ... | `stickN-netbox`, ... |
+| Ports on the host | 8081 to 8088, 8888 | each + 100 x N (NetBox of instance 1: 8181) |
+
+- `--instance` goes before the command (`stick --instance 1 svc status`) and applies to every command.
+  `stick grade` uses the instance recorded in the attempt's `run.json`.
+- One command at a time per instance: `stick run`, `stick task validate` and the lab tests hold the instance
+  and a second one is refused with a message that names a free instance.
+- A model working on instance 1 sees 172.30.31.x in its prompt and tools. Task content takes addresses from
+  the lab (`{{ nodes.h1.mgmt_ip }}`, `$STICK_NODE_SRL1_IP`, `$STICK_NETBOX_URL`), never as literals.
+- The `STICK_*_PORT` variables move a port of instance 0 only; the other instances derive theirs.
+- The instances' management networks are separate Docker networks, but the host routes between them: they
+  are apart by address, not walled off from each other.
+- Memory: one lab is about 4.3 GB, with every service about 11 GB (`stick doctor`).
+
+How it works: the topology, compose and service files carry instance 0's values as defaults of environment
+variables (`${STICK_NAME:-stick}`, `${STICK_MGMT_PREFIX:-172.30.30}`, `${STICK_NETBOX_PORT:-8081}`), and
+`src/llm_on_a_stick/lab.py` sets those variables for another instance. A file read by a tool that can't expand
+variables (the SR Linux startup configs, Oxidized's `router.db`, gNMIc's targets, Grafana's datasources) is
+copied to `~/.local/state/stick/instances/N/files/` with the addresses replaced, and mounted from there. A
+new service needs its host number in `lab.SERVICE_HOSTS`, its port in `lab.PORTS`, and those variables in its
+files; a test fails on a literal 172.30.30.x.
+
 ## How a service is defined
 
 Each service is a directory under `services/`:
 
 | File | Purpose |
 |---|---|
-| `compose.yaml` | containers, health checks, fixed `stick-mgmt` address; credentials are lab defaults, overridable with `STICK_*` environment variables |
+| `compose.yaml` | containers, health checks, fixed address on the management network; credentials are lab defaults, overridable with `STICK_*` environment variables |
 | `service.yaml` | how `stick` drives it: health URL, endpoints, credentials, seed data or API settings, one-time `init` steps, snapshot/restore, and the environment variables its client tools need (`env:`, given to the toolbox and to task scripts) |
 | `seed.yaml` | baseline objects every task starts from (idempotent: existing objects are skipped) |
 

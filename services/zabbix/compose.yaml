@@ -3,7 +3,7 @@
 #   - lab-only credentials, overridable from the shell
 #   - the server joins the lab's management network at a fixed address: it polls the devices from there
 #   - the API token and the settings are created by `stick svc up zabbix` (service.yaml: init)
-name: stick-zabbix
+name: ${STICK_NAME:-stick}-zabbix
 
 x-zabbix-db: &zabbix-db
   DB_SERVER_HOST: db
@@ -44,7 +44,7 @@ services:
     networks:
       default: {}
       stick-mgmt:
-        ipv4_address: 172.30.30.106
+        ipv4_address: ${STICK_MGMT_PREFIX:-172.30.30}.106
 
   web:
     image: docker.io/zabbix/zabbix-web-nginx-mysql:alpine-8.0.0
@@ -66,7 +66,7 @@ services:
     networks:
       default: {}
       stick-mgmt:
-        ipv4_address: 172.30.30.107
+        ipv4_address: ${STICK_MGMT_PREFIX:-172.30.30}.107
 
   db:
     image: docker.io/library/mariadb:11.8
@@ -93,6 +93,7 @@ services:
 
 networks:
   stick-mgmt:
+    name: ${STICK_NAME:-stick}-mgmt
     external: true
 
 volumes:

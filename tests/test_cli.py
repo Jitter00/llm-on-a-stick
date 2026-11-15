@@ -77,3 +77,30 @@ def test_run_lists_the_sections_for_an_unknown_one() -> None:
     result = runner.invoke(cli.app, ["run", "--model", "ollama/x", "--section", "nope"])
     assert result.exit_code == 2
     assert "cfg-mgmt" in result.output
+
+
+def test_instance_option_selects_the_lab_instance(monkeypatch: pytest.MonkeyPatch) -> None:
+    import os
+
+    from llm_on_a_stick import lab
+
+    result = runner.invoke(cli.app, ["--instance", "1", "version"])
+    assert result.exit_code == 0
+    assert os.environ[lab.INSTANCE_VAR] == "1"  # what every later step reads
+    assert "lab instance 1: stick1-*, 172.30.31.0/24, host ports +100" in result.output
+    monkeypatch.delenv(lab.INSTANCE_VAR)
+
+    quiet = runner.invoke(cli.app, ["version"])  # instance 0 says nothing
+    assert "lab instance" not in quiet.output
+
+    monkeypatch.setenv(lab.INSTANCE_VAR, "2")  # the variable alone works too; the option wins over it
+    assert "lab instance 2" in runner.invoke(cli.app, ["version"]).output
+    assert "lab instance 3" in runner.invoke(cli.app, ["-i", "3", "version"]).output
+
+
+def test_instance_out_of_range_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    assert runner.invoke(cli.app, ["--instance", "4", "version"]).exit_code == 2
+    monkeypatch.setenv("STICK_INSTANCE", "nine")
+    result = runner.invoke(cli.app, ["version"])
+    assert result.exit_code == 2
+    assert "must be a number from 0 to 3" in result.output

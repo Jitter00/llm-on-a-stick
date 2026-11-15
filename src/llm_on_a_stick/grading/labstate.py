@@ -14,6 +14,7 @@ from typing import Literal, Protocol
 import yaml
 
 from llm_on_a_stick import paths
+from llm_on_a_stick.services.spec import expand
 
 NodeOS = Literal["srlinux", "frr", "host"]
 
@@ -49,7 +50,8 @@ def load_nodes(topology: str = "base") -> dict[str, Node]:
     if topology == NO_LAB:
         return {}
     path = paths.topology_path(topology)
-    topo = yaml.safe_load(path.read_text(encoding="utf-8"))
+    # containerlab expands variables in the file before it reads it: do the same, for the same instance.
+    topo = yaml.safe_load(expand(path.read_text(encoding="utf-8")))
     lab = topo["name"]
     nodes = {}
     for name, node in topo["topology"]["nodes"].items():

@@ -12,7 +12,7 @@ from collections.abc import Iterator
 from typing import Any
 
 import pytest
-from labutil import check_mcp_server, service_session, wait_for
+from labutil import PREFIX, check_mcp_server, service_session, wait_for
 
 from llm_on_a_stick import lab as lab_consts
 from llm_on_a_stick import services
@@ -21,7 +21,8 @@ from llm_on_a_stick.services import lifecycle, seed
 
 pytestmark = pytest.mark.lab
 
-SRL1, FRR1 = "172.30.30.11", "172.30.30.21"
+NET = lab_consts.mgmt_prefix()  # this lab instance's management subnet
+SRL1, SRL2, FRR1 = f"{NET}.11", f"{NET}.12", f"{NET}.21"
 TEMPLATE = "Network Generic Device by SNMP"
 
 
@@ -67,7 +68,7 @@ def test_errors_come_with_http_200(zabbix: seed.RestClient) -> None:
 
 
 def test_polls_sr_linux_and_frr_and_notices_a_wrong_community(zabbix: seed.RestClient) -> None:
-    ids = [add(zabbix, "srl1", SRL1), add(zabbix, "frr1", FRR1), add(zabbix, "srl2", "172.30.30.12", "wrong")]
+    ids = [add(zabbix, "srl1", SRL1), add(zabbix, "frr1", FRR1), add(zabbix, "srl2", SRL2, "wrong")]
     state.refresh(zabbix, ids)
     # Zabbix takes any community: a wrong one only shows as an interface it can't reach.
     assert wait_for(
@@ -136,10 +137,10 @@ def test_reset_restores_the_empty_baseline(zabbix: seed.RestClient) -> None:
 
 
 def test_reachable_from_the_lab_network(zabbix: seed.RestClient) -> None:
-    url = f"http://{lab_consts.SERVICE_EXTRA_IPS['zabbix'][0]}:8080/api_jsonrpc.php"
+    url = f"http://{lab_consts.service_ips('zabbix')[1]}:8080/api_jsonrpc.php"
     body = '{"jsonrpc": "2.0", "method": "apiinfo.version", "params": {}, "id": 1}'
     res = subprocess.run(
-        ["docker", "exec", "clab-stick-base-h1", "curl", "-sf", "-H", "Content-Type: application/json",
+        ["docker", "exec", PREFIX + "h1", "curl", "-sf", "-H", "Content-Type: application/json",
          "--data", body, url],
         capture_output=True, text=True, check=False,
     )  # fmt: skip

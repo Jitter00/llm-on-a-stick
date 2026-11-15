@@ -39,9 +39,9 @@ def test_seeded_baseline(netbox: seed.RestClient) -> None:
 
 
 def test_reachable_from_lab_network(netbox: seed.RestClient) -> None:
-    ip = lab.SERVICE_IPS["netbox"]
+    ip = lab.service_ip("netbox")
     res = subprocess.run(
-        ["docker", "run", "--rm", "--network", lab.MGMT_NETWORK, "curlimages/curl:8.17.0",
+        ["docker", "run", "--rm", "--network", lab.mgmt_network(), "curlimages/curl:8.17.0",
          "-s", "-o", "/dev/null", "-w", "%{http_code}", f"http://{ip}:8080/login/"],
         capture_output=True, text=True, check=False,
     )  # fmt: skip

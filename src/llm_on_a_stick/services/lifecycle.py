@@ -34,7 +34,7 @@ def _noop(_: str) -> None:
 
 def _run(argv: list[str], *, capture: bool = True, check: bool = True) -> subprocess.CompletedProcess[str]:
     try:
-        res = subprocess.run(argv, capture_output=capture, text=True, check=False)
+        res = subprocess.run(argv, capture_output=capture, text=True, check=False, env=lab.env())
     except FileNotFoundError as exc:
         raise ServiceError(f"{argv[0]} is not installed") from exc
     if check and res.returncode != 0:
@@ -53,9 +53,16 @@ def ensure_mgmt_network() -> bool:
 
     Returns True if this call created it.
     """
-    if _run(["docker", "network", "inspect", lab.MGMT_NETWORK], check=False).returncode == 0:
+    network, subnet = lab.mgmt_network(), lab.mgmt_subnet()
+    if _run(["docker", "network", "inspect", network], check=False).returncode == 0:
         return False
-    _run(["docker", "network", "create", "--subnet", lab.MGMT_SUBNET, lab.MGMT_NETWORK])
+    try:
+        _run(["docker", "network", "create", "--subnet", subnet, network])
+    except ServiceError as exc:
+        raise ServiceError(
+            f"cannot create the lab network {network} ({subnet}): is the subnet in use by another Docker "
+            f"network? (`docker network ls`) [{exc}]"
+        ) from exc
     return True
 
 
@@ -196,9 +203,10 @@ class UpResult:
 
 
 def up(spec: ServiceSpec, *, seed: bool = True, log: Log = _noop) -> UpResult:
+    lab.render_instance_files()
     created = ensure_mgmt_network()
     if created:
-        log(f"created network {lab.MGMT_NETWORK} ({lab.MGMT_SUBNET})")
+        log(f"created network {lab.mgmt_network()} ({lab.mgmt_subnet()})")
     log(f"starting {spec.project} (first boot can take a few minutes)")
     _run(compose_argv(spec, "up", "-d", "--wait", "--wait-timeout", str(spec.wait_timeout_s)))
     if spec.init is not None and not healthy(spec):  # first boot: create what compose can't

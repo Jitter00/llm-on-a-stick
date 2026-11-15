@@ -3,7 +3,7 @@
 name: nautobot
 description: Nautobot 3.2 source of truth (DCIM/IPAM, REST and GraphQL)
 compose: compose.yaml
-project: stick-nautobot
+project: ${STICK_NAME:-stick}-nautobot
 wait_timeout_s: 720  # first boot runs migrations: ~2.5 min on a desktop; every start runs post_upgrade (~20 s)
 
 health:
@@ -13,8 +13,8 @@ health:
 
 endpoints:
   web (host): http://127.0.0.1:${STICK_NAUTOBOT_PORT:-8082}
-  api (lab mgmt network): http://172.30.30.102:8080/api/
-  graphql (lab mgmt network): http://172.30.30.102:8080/api/graphql/
+  api (lab mgmt network): http://${STICK_MGMT_PREFIX:-172.30.30}.102:8080/api/
+  graphql (lab mgmt network): http://${STICK_MGMT_PREFIX:-172.30.30}.102:8080/api/graphql/
 
 credentials:
   username: ${STICK_NAUTOBOT_USER:-admin}

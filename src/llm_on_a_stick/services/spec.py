@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import re
 from pathlib import Path
 from typing import Annotated, Any, Literal
@@ -10,14 +9,15 @@ from typing import Annotated, Any, Literal
 import yaml
 from pydantic import BaseModel, Field
 
-from llm_on_a_stick import paths
+from llm_on_a_stick import lab, paths
 
-_VAR = re.compile(r"\$\{([A-Z0-9_]+)(?::-([^}]*))?\}")
+_VAR = re.compile(r"\$\{([A-Z0-9_]+)(?::[-=]([^}]*))?\}")
 
 
 def expand(value: Any, env: dict[str, str] | None = None) -> Any:
-    """Expand ${VAR} / ${VAR:-default} in every string, like docker compose does."""
-    env = dict(os.environ) if env is None else env
+    """Expand ${VAR} / ${VAR:-default} in every string, like docker compose does (and ${VAR:=default},
+    containerlab's spelling). Without `env`: the environment of the current lab instance."""
+    env = lab.env() if env is None else env
     if isinstance(value, str):
         return _VAR.sub(lambda m: env.get(m.group(1)) or (m.group(2) or ""), value)
     if isinstance(value, list):

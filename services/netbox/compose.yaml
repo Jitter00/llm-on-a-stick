@@ -3,7 +3,7 @@
 #   - environment set inline (no env files), lab-only credentials, overridable from the shell
 #   - NetBox joins the lab's management network at a fixed address so devices and agents can reach it
 # Start it with `stick svc up netbox`, which also creates the network if the lab isn't running.
-name: stick-netbox
+name: ${STICK_NAME:-stick}-netbox
 
 x-netbox-env: &netbox-env
   DB_HOST: postgres
@@ -47,7 +47,7 @@ services:
     networks:
       default: {}
       stick-mgmt:
-        ipv4_address: 172.30.30.100
+        ipv4_address: ${STICK_MGMT_PREFIX:-172.30.30}.100
     volumes:
       - netbox-media:/opt/netbox/netbox/media:rw
 
@@ -100,6 +100,7 @@ services:
 
 networks:
   stick-mgmt:
+    name: ${STICK_NAME:-stick}-mgmt
     external: true
 
 volumes:

@@ -46,14 +46,18 @@ def test_every_service_has_a_footprint() -> None:
 
 def test_lab_constants_match_topology() -> None:
     topo = yaml.safe_load(paths.topology_path("base").read_text(encoding="utf-8"))
-    assert topo["mgmt"]["network"] == lab.MGMT_NETWORK
-    assert topo["mgmt"]["ipv4-subnet"] == lab.MGMT_SUBNET
+    assert topo["name"] == "${STICK_NAME:=stick}-base"
+    for n in (0, 1):  # the file's defaults are instance 0; another instance comes from the variables
+        mgmt = expand(topo["mgmt"], lab.env({}, n))
+        assert mgmt == {"network": lab.mgmt_network(n), "ipv4-subnet": lab.mgmt_subnet(n)}
+    assert (lab.mgmt_network(0), lab.mgmt_subnet(0)) == ("stick-mgmt", "172.30.30.0/24")
 
 
 def test_service_ips_dont_collide_with_lab_nodes() -> None:
     topo = yaml.safe_load(paths.topology_path("base").read_text(encoding="utf-8"))
-    node_ips = {n["mgmt-ipv4"] for n in topo["topology"]["nodes"].values()}
-    assert not node_ips & set(lab.SERVICE_IPS.values())
+    node_ips = {expand(n["mgmt-ipv4"], {}) for n in topo["topology"]["nodes"].values()}
+    assert len(node_ips) == 6
+    assert not node_ips & {ip for name in lab.SERVICE_HOSTS for ip in lab.service_ips(name, 0)}
 
 
 def test_compose_argv() -> None:
@@ -113,18 +117,23 @@ def test_nautobot_seed_creates_what_it_refers_to_first() -> None:
 
 def test_every_service_joins_the_lab_network_at_its_fixed_ip() -> None:
     for name in services.available():
-        compose = yaml.safe_load(services.load(name, env={}).compose_file.read_text(encoding="utf-8"))
-        assert compose["networks"][lab.MGMT_NETWORK]["external"] is True, name
-        ips = [
-            svc["networks"][lab.MGMT_NETWORK]["ipv4_address"]
-            for svc in compose["services"].values()
-            if isinstance(svc.get("networks"), dict) and lab.MGMT_NETWORK in svc["networks"]
-        ]
-        assert ips == [lab.SERVICE_IPS[name], *lab.SERVICE_EXTRA_IPS.get(name, [])], name
+        raw = yaml.safe_load(services.load(name, env={}).compose_file.read_text(encoding="utf-8"))
+        for n in (0, 1):
+            compose = expand(raw, lab.env({}, n))
+            assert compose["name"] == f"{lab.name(n)}-{name}" == services.load(name, lab.env({}, n)).project
+            # The key stays `stick-mgmt` (compose can't expand a key); `name:` is the instance's network.
+            assert compose["networks"]["stick-mgmt"] == {"name": lab.mgmt_network(n), "external": True}, name
+            ips = [
+                svc["networks"]["stick-mgmt"]["ipv4_address"]
+                for svc in compose["services"].values()
+                if isinstance(svc.get("networks"), dict) and "stick-mgmt" in svc["networks"]
+            ]
+            assert ips == lab.service_ips(name, n), name
 
 
 def test_service_ips_are_unique() -> None:
-    ips = [*lab.SERVICE_IPS.values(), *(ip for extra in lab.SERVICE_EXTRA_IPS.values() for ip in extra)]
+    assert set(lab.SERVICE_HOSTS) == set(services.available())
+    ips = [ip for name in lab.SERVICE_HOSTS for ip in lab.service_ips(name)]
     assert len(set(ips)) == len(ips)
 
 
@@ -139,7 +148,7 @@ def _router_db() -> list[list[str]]:
 def test_oxidized_inventory_matches_topology() -> None:
     topo = yaml.safe_load(paths.topology_path("base").read_text(encoding="utf-8"))["topology"]["nodes"]
     expected = {
-        name: (node["mgmt-ipv4"], "srlinux" if node["kind"] == "nokia_srlinux" else "frr")
+        name: (expand(node["mgmt-ipv4"], {}), "srlinux" if node["kind"] == "nokia_srlinux" else "frr")
         for name, node in topo.items()
         if not name.startswith("h")  # hosts aren't backed up
     }

@@ -69,7 +69,7 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
       effort, with/without docs.
 - [ ] **Scheduler.** Group tasks by shared services, bin-pack parallel lab instances under the doctor RAM budget
       (minus local model RAM), limit API concurrency per provider; `stick run --dry-run` prints the plan.
-      Parallel labs need per-instance lab names and mgmt subnets (today both are fixed).
+      Lab instances exist (`stick --instance N`, docs/services.md); what is left is choosing them automatically.
 
 ## Later
 

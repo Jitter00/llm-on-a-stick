@@ -13,12 +13,12 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from llm_on_a_stick import services
+from llm_on_a_stick import lab, services
 from llm_on_a_stick.runner import mcp
 from llm_on_a_stick.services import lifecycle
 from llm_on_a_stick.services.spec import ServiceSpec
 
-PREFIX = "clab-stick-base-"
+PREFIX = f"clab-{lab.name()}-base-"  # the base lab of this lab instance (STICK_INSTANCE)
 
 
 def dexec(node: str, *cmd: str) -> subprocess.CompletedProcess[str]:

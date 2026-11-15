@@ -3,7 +3,7 @@
 name: zabbix
 description: Zabbix 8.0 network monitoring (SNMP polling, triggers, maintenance; JSON-RPC API)
 compose: compose.yaml
-project: stick-zabbix
+project: ${STICK_NAME:-stick}-zabbix
 wait_timeout_s: 600
 
 # Healthy = the API answers a request made with the token, which only exists once `init` below has run.
@@ -18,7 +18,7 @@ health:
 endpoints:
   web (host): http://127.0.0.1:${STICK_ZABBIX_PORT:-8085}
   api (host): http://127.0.0.1:${STICK_ZABBIX_PORT:-8085}/api_jsonrpc.php
-  api (lab mgmt network): http://172.30.30.107:8080/api_jsonrpc.php
+  api (lab mgmt network): http://${STICK_MGMT_PREFIX:-172.30.30}.107:8080/api_jsonrpc.php
 
 credentials:
   username: Admin

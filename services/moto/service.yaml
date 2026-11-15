@@ -2,7 +2,7 @@
 name: moto
 description: moto 5.2 AWS API emulator (EC2, VPC, IAM, S3...) for the aws CLI, boto3 and Terraform
 compose: compose.yaml
-project: stick-moto
+project: ${STICK_NAME:-stick}-moto
 wait_timeout_s: 120
 
 health:
@@ -10,7 +10,7 @@ health:
 
 endpoints:
   aws api (host): http://127.0.0.1:${STICK_MOTO_PORT:-8083}
-  aws api (lab mgmt network): http://172.30.30.103:5000
+  aws api (lab mgmt network): http://${STICK_MGMT_PREFIX:-172.30.30}.103:5000
   dashboard: http://127.0.0.1:${STICK_MOTO_PORT:-8083}/moto-api/
 
 credentials:
