@@ -56,6 +56,7 @@ def _load() -> None:
         gitea,
         librenms,
         netbox,
+        powerdns,
         retrieval,
         zabbix,
     )

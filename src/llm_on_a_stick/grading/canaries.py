@@ -21,6 +21,9 @@ _KINDS: dict[str, Callable[[random.Random], str]] = {
     # The first two octets of a /16, for a VPC: "{{ canaries.vpc }}.0.0/16". Private space (10.64-10.127), as
     # a VPC needs, and away from the 10.0 and 10.1 that every example uses.
     "net16": lambda r: f"10.{r.randint(64, 127)}",
+    # The last octet of a host address, for names that need it apart (a PTR record's name:
+    # "{{ canaries.host }}.{{ canaries.third }}.19.198.in-addr.arpa."). From 20: lower ones are for a setup.
+    "octet": lambda r: str(r.randint(20, 250)),
     # How many times a setup repeats something (failed logins, link flaps) that the answer has to count.
     "count": lambda r: str(r.randint(3, 7)),
 }

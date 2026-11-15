@@ -214,6 +214,18 @@ def test_json_file_matches(tmp_path: Path) -> None:
     assert check(ctx, "json_file_matches", path="facts.json", expected={"asn": 1}).hints == ["wrong-format"]
 
 
+def test_json_file_matches_compares_dns_names_without_case_or_the_last_dot(tmp_path: Path) -> None:
+    ctx = make_ctx(tmp_path)
+    (ctx.run.workspace / "answer.json").write_text(
+        json.dumps({"names": ["Web.stick.lab.", "db.oob.example"]})
+    )
+    params = {"path": "answer.json", "expected": {"names": ["db.oob.example", "web.stick.lab"]}}
+    assert check(ctx, "json_file_matches", **params).status == "fail"  # other values stay exact
+    assert check(ctx, "json_file_matches", **params, dns_names=["names"]).status == "pass"
+    params["expected"] = {"names": ["db.oob.example", "www.stick.lab"]}
+    assert check(ctx, "json_file_matches", **params, dns_names=["names"]).hints == ["hallucinated-value"]
+
+
 def test_bgp_session(tmp_path: Path) -> None:
     ctx = make_ctx(tmp_path)
     assert check(ctx, "bgp_session", node="frr1", peer="10.0.1.0").status == "pass"

@@ -1,0 +1,36 @@
+# The task's reference steps as MCP calls: stick run powerdns-router-audit --model script/<this file>
+# A script can't choose, so it reads the three routers whose records are wrong and writes those; a model has
+# to compare all four with the zone first.
+steps:
+  - tool: routers__send_show_command
+    args: {device_name: frr2, command: 'vtysh -c "show running-config"'}
+    capture:
+      frr2: 'ip address (198\.18\.[0-9.]+)/32'
+  - tool: routers__send_show_command
+    args: {device_name: srl1, command: info flat interface lo0}
+    capture:
+      srl1: 'address (198\.18\.[0-9.]+)/32'
+  - tool: routers__send_show_command
+    args: {device_name: srl2, command: info flat interface lo0}
+    capture:
+      srl2: 'address (198\.18\.[0-9.]+)/32'
+  - tool: powerdns__patchZone
+    args:
+      server_id: localhost
+      zone_id: stick.lab.
+      rrsets:
+        - name: frr2.stick.lab.
+          type: A
+          ttl: 300
+          changetype: REPLACE
+          records: [{content: "{{ captured.frr2 }}", disabled: false}]
+        - name: srl1.stick.lab.
+          type: A
+          ttl: 300
+          changetype: REPLACE
+          records: [{content: "{{ captured.srl1 }}", disabled: false}]
+        - name: srl2.stick.lab.
+          type: A
+          ttl: 300
+          changetype: REPLACE
+          records: [{content: "{{ captured.srl2 }}", disabled: false}]

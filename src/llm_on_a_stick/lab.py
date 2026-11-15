@@ -36,6 +36,7 @@ SERVICE_HOSTS = {
     "loki": 108,  # Alloy, the syslog receiver; Loki and Grafana are reached from the host
     "telemetry": 109,  # gNMIc, which subscribes to the SR Linux routers
     "gitea": 112,
+    "powerdns": 113,
 }
 # Further containers of a service that need the management network (LibreNMS's dispatcher polls from it;
 # Zabbix's server polls from the first address, its web frontend has the API).
@@ -57,6 +58,8 @@ PORTS = {
     "STICK_LOKI_PORT": 8087,
     "STICK_PROMETHEUS_PORT": 8088,
     "STICK_GITEA_PORT": 8089,
+    "STICK_POWERDNS_PORT": 8090,
+    "STICK_DNS_PORT": 8091,
     "STICK_OXIDIZED_PORT": 8888,
 }
 
@@ -89,6 +92,17 @@ def _n(n: int | None) -> int:
 def name(n: int | None = None) -> str:
     """The prefix of everything the instance creates: `stick`, `stick1`, ..."""
     return BASE_NAME if _n(n) == 0 else f"{BASE_NAME}{_n(n)}"
+
+
+def instances_of(containers: list[str]) -> set[int]:
+    """The lab instances these container names belong to: `clab-stick1-base-srl1` and `stick1-netbox-netbox-1`
+    are instance 1, `clab-stick-base-srl1` instance 0. Other names are nobody's."""
+    found = set()
+    for container in containers:
+        for n in range(MAX_INSTANCES):
+            if container.startswith((f"clab-{name(n)}-", f"{name(n)}-")):
+                found.add(n)
+    return found
 
 
 def mgmt_prefix(n: int | None = None) -> str:

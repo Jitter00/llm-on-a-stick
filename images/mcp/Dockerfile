@@ -7,7 +7,7 @@ FROM python:3.13-slim-bookworm
 # Each server comes from a hash-pinned list: requirements/<server>.in names the server and its version,
 # requirements/<server>.txt is `uv pip compile --generate-hashes --universal --python-version 3.13` of it.
 COPY requirements /tmp/requirements
-RUN for server in netbox aws nautobot librenms zabbix grafana netmiko; do \
+RUN for server in netbox aws nautobot librenms zabbix grafana netmiko powerdns; do \
         python -m venv "/opt/mcp/$server" \
         && "/opt/mcp/$server/bin/pip" install --no-cache-dir --require-hashes -r "/tmp/requirements/$server.txt" \
         || exit 1; \
@@ -32,11 +32,16 @@ with tarfile.open(fileobj=io.BytesIO(data)) as archive:
     archive.extract("gitea-mcp", "/opt/mcp/gitea", filter="data")
 PY
 
+# PowerDNS has no MCP server of its own: awslabs.openapi-mcp-server makes one from PowerDNS's OpenAPI
+# description. This file is an unchanged copy of what the pinned PowerDNS serves at /api/docs (which needs the
+# API key, so the server can't fetch it itself); tests/integration/test_powerdns.py compares the two.
+COPY powerdns-api.yaml /opt/mcp/powerdns-api/powerdns-api.yaml
+
 COPY stick-mcp-entrypoint.sh /usr/local/bin/stick-mcp-entrypoint
 
 # Raise together with MCP_IMAGE_VERSION in src/llm_on_a_stick/runner/mcp.py when a server or its version
 # changes: `stick run` rebuilds an older stick-mcp:dev instead of running tasks against other tools.
-LABEL stick.mcp.version="4"
+LABEL stick.mcp.version="5"
 
 ENV PYTHONUNBUFFERED=1
 WORKDIR /root

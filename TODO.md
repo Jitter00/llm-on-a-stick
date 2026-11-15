@@ -33,7 +33,10 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
 - [x] **Telemetry (gNMIc + Prometheus).** gNMI subscriptions to both SR Linux routers (port and BGP states, counters), read
       through the Grafana of the `loki` service; the `telemetry` section has three tasks, MCP only. Open: FRR has no gNMI,
       so the leaves are not in it; a task on traffic counters.
-- [ ] **DDI (PowerDNS + Kea).** Authoritative zone for the lab (`stick.lab`) with API enabled; Kea DHCP on the host subnets.
+- [x] **DNS (PowerDNS).** One container (SQLite), no zones until a task's setup creates them; a reset empties it. The
+      model reaches it through an MCP server generated from PowerDNS's OpenAPI description. The `powerdns` section has
+      three tasks, MCP only. Open: a task with a delegation or a wildcard; resolving names from the lab's hosts.
+- [ ] **DHCP (Kea).** Kea DHCP on the host subnets. No MCP server is known to work with it yet.
       This means h1/h2 switch from static IPs to DHCP (a topology change, so update the integration tests).
 - [ ] **SuzieQ.** Poller against SR Linux and FRR; check which of the two it supports.
 - [ ] **Batfish.** Expected: no SR Linux support, partial FRR. Record the actual result. It becomes fully useful once cEOS or Junos are added.
@@ -45,7 +48,7 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
 
 ## Phase 1: grading and runner
 
-- [ ] More checks as tasks need them: `interface_ip`, `dns_record` (with PowerDNS), NETCONF-specific checks, gNMI-based reads.
+- [ ] More checks as tasks need them: `interface_ip`, NETCONF-specific checks, gNMI-based reads.
 - [ ] **Failure classifier** (`classify.py`): transcript plus device responses → `cli-syntax`, `wrong-dialect` (done as a hint),
       `netconf-rpc-error`, `hallucinated-api`, `hallucinated-value`, `truncated-output`, `incomplete-config`, `wrong-config`,
       `collateral-change`, `no-verification` (done as a hint), `loop`, `gave-up`, `limit-exceeded`, `env-error` (excluded from scores).

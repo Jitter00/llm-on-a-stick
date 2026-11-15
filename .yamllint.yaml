@@ -2,6 +2,7 @@ extends: default
 ignore: |
   .venv/
   clab-*/
+  images/mcp/powerdns-api.yaml
 rules:
   line-length:
     max: 140

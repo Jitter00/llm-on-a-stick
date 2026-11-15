@@ -1,0 +1,18 @@
+# The task's reference steps as MCP calls: stick run powerdns-who-points-here --model script/<this file>
+steps:
+  # Records whose content is the address, in every zone: the two A records.
+  - tool: powerdns__searchData
+    args: {server_id: localhost, q: "{{ canaries.addr }}", max: 20, object_type: record}
+    capture:
+      web: '"name":"(stick-[a-z]{6}\.stick\.lab)\."'
+      oob: '"name":"(stick-[a-z]{6}\.oob\.example)\."'
+  # A search for the address doesn't return the alias, so the zone is read: of its two aliases, a script can
+  # only tell them apart by their names (a model compares the target with the names found above).
+  - tool: powerdns__listZone
+    args: {server_id: localhost, zone_id: stick.lab.}
+    capture:
+      alias: '"name":"(stick-[a-z]{6}\.stick\.lab)\.","records":\[\{"content":"stick-[a-z]{6}\.stick\.lab\."'
+  - tool: submit_answer
+    args:
+      answer:
+        names: ["{{ captured.web }}", "{{ captured.oob }}", "{{ captured.alias }}"]

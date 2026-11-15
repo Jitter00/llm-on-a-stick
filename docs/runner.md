@@ -13,7 +13,7 @@ uv run stick report                                   # compare everything in ru
 `stick run` (and `stick vs`) first starts whatever the chosen tasks need and isn't running yet: the lab, and
 services such as Oxidized or NetBox (a first start of NetBox takes a few minutes). After starting the lab it
 waits for the routers' BGP sessions (up to five minutes), so the first attempt meets a working network. It
-leaves everything running, so the next run starts at once. `uv run stick env down` stops everything: the services, then the lab.
+leaves everything running, so the next run starts at once. `uv run stick env down` stops everything: the services, then the lab. It stops one lab instance and names the others that are still running; `stick env down --all` stops every one.
 
 ## Which models
 

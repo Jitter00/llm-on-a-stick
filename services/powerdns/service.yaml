@@ -1,0 +1,51 @@
+# How `stick svc` drives PowerDNS. ${VAR:-default} is expanded from the environment, using the same variables
+# and defaults as compose.yaml.
+name: powerdns
+description: PowerDNS Authoritative Server 5.1 (DNS zones and records; HTTP API)
+compose: compose.yaml
+project: ${STICK_NAME:-stick}-powerdns
+wait_timeout_s: 120
+
+health:
+  url: http://127.0.0.1:${STICK_POWERDNS_PORT:-8090}/api/v1/servers/localhost
+  headers:
+    X-API-Key: stick-powerdns-key
+
+endpoints:
+  api (host): http://127.0.0.1:${STICK_POWERDNS_PORT:-8090}/api/v1
+  dns (host): 127.0.0.1 port ${STICK_DNS_PORT:-8091} (UDP and TCP)
+  api (lab mgmt network): http://${STICK_MGMT_PREFIX:-172.30.30}.113:8081/api/v1
+  dns (lab mgmt network): ${STICK_MGMT_PREFIX:-172.30.30}.113 port 53
+
+credentials:
+  api key (X-API-Key): stick-powerdns-key
+
+api:
+  base_url: http://127.0.0.1:${STICK_POWERDNS_PORT:-8090}/api/v1/
+  headers:
+    X-API-Key: stick-powerdns-key
+
+# The baseline is a server without zones: reset removes the container and its volume and starts it again
+# (about 2 seconds). The tasks' setup scripts create the zones they need.
+snapshot:
+  kind: volumes
+  services: [powerdns]
+  volumes: [powerdns-data]
+
+# PowerDNS publishes no MCP server. This one is awslabs.openapi-mcp-server, which makes a tool of every
+# operation in PowerDNS's own OpenAPI description (43 of them). 6 are offered: servers, zones, record sets
+# and search. Not shown: creating a zone (its description alone is 11,000 characters), metadata, DNSSEC and
+# TSIG keys, autoprimaries, views, networks, statistics, the cache.
+mcp:
+  server: powerdns
+  version: 1.1.7
+  env:
+    POWERDNS_API_URL: http://127.0.0.1:${STICK_POWERDNS_PORT:-8090}/api/v1
+    POWERDNS_API_KEY: stick-powerdns-key
+  allow:
+    - listServers
+    - listZones
+    - listZone
+    - deleteZone
+    - patchZone
+    - searchData

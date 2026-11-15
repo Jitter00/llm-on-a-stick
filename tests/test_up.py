@@ -85,6 +85,7 @@ class _Down:
         monkeypatch.setattr(cli.lifecycle, "down", lambda spec: self.calls.append(spec.name))
         monkeypatch.setattr(containerlab, "inspect", lambda topology: [object()] if lab else [])
         monkeypatch.setattr(containerlab, "destroy", lambda topology: self.calls.append("lab"))
+        monkeypatch.setattr(cli, "_running_instances", lambda: {0})
 
 
 def test_env_down_stops_running_services_then_the_lab(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -98,6 +99,26 @@ def test_env_down_with_nothing_running(monkeypatch: pytest.MonkeyPatch) -> None:
     down = _Down(monkeypatch, running=set(), lab=False)
     result = CliRunner().invoke(cli.app, ["env", "down"])
     assert result.exit_code == 0 and down.calls == []
+
+
+def test_env_down_says_which_other_instances_it_left_running(monkeypatch: pytest.MonkeyPatch) -> None:
+    _Down(monkeypatch, running=set(), lab=True)
+    monkeypatch.setattr(cli, "_running_instances", lambda: {0, 1, 2})
+    result = CliRunner().invoke(cli.app, ["env", "down"])
+    assert result.exit_code == 0
+    assert "instances 1 and 2 are still running: stick env down --all" in result.output
+    monkeypatch.setattr(cli, "_running_instances", lambda: {2})
+    assert "instance 2 is still running" in CliRunner().invoke(cli.app, ["env", "down"]).output
+    assert "still running" not in CliRunner().invoke(cli.app, ["env", "down", "--all"]).output
+    result = CliRunner().invoke(cli.app, ["--instance", "2", "env", "down"])  # its own instance: no hint
+    assert "still running" not in result.output
+
+
+def test_containers_are_told_apart_by_instance() -> None:
+    names = ["clab-stick1-base-srl1", "stick1-gitea-gitea-1", "stick2-powerdns-powerdns-1", "browserless"]
+    assert cli.lab_mod.instances_of(names) == {1, 2}
+    assert cli.lab_mod.instances_of(["clab-stick-base-frr1", "stick-netbox-netbox-1", "sticky-thing"]) == {0}
+    assert cli.lab_mod.instances_of([]) == set()
 
 
 def test_report_name_says_what_was_run() -> None:

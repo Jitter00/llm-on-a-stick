@@ -39,5 +39,6 @@ Filled in as each service is added (Phase 0, step 3).
 | SuzieQ | ❓ | ❓ | |
 | gNMIc 0.49.1 + Prometheus 3.16.0 | ✅ gNMI 0.10.0 on port 57400 (TLS, the lab's self-signed certificate); sampled and on-change subscriptions both work | ❌ no gNMI | up; a port going down shows within two scrapes; reset verified (`tests/integration/test_telemetry.py`) |
 | Loki 3.7.9 (Alloy 1.21.3, Grafana 13.3.1) | ✅ lines arrive with `host`, `app`, `severity` and `facility` labels | ✅ the same labels | up, syslog taken at 172.30.30.108:1514; reset verified (`tests/integration/test_loki.py`). SR Linux's gRPC server logs one warning a second (no TLS profile `EDA`): real noise that a query has to filter out |
-| PowerDNS / Kea | n/a | n/a | Hosts would use Kea for DHCP |
+| PowerDNS Authoritative 5.1.5 (awslabs.openapi-mcp-server 1.1.7) | n/a | n/a | up, no lab needed; its DNS port answers what the API wrote, zones go away on reset (`tests/integration/test_powerdns.py`) |
+| Kea | n/a | n/a | Hosts would use Kea for DHCP |
 | Gitea 28.3.0 (gitea-mcp 1.13.0) | n/a | n/a | up, no lab needed; branches, commits and pull requests go away on reset (`tests/integration/test_gitea.py`) |

@@ -102,8 +102,12 @@ def file_matches_running_config(
 
 
 @check("json_file_matches")
-def json_file_matches(ctx: GradeContext, path: str, expected: dict[str, Any]) -> Verdict:
-    """The file is JSON and contains every expected key with the expected value (extra keys are fine)."""
+def json_file_matches(
+    ctx: GradeContext, path: str, expected: dict[str, Any], dns_names: list[str] | None = None
+) -> Verdict:
+    """The file is JSON and contains every expected key with the expected value (extra keys are fine).
+    `dns_names`: keys whose values are DNS names, compared without regard to case or a dot at the end
+    (`web.stick.lab.` and `Web.stick.lab` are the same name)."""
     text = _read_output(ctx, path)
     if text is None:
         return _no_output(path)
@@ -117,7 +121,11 @@ def json_file_matches(ctx: GradeContext, path: str, expected: dict[str, Any]) ->
     wrong = {}
     for key, want in expected.items():
         got = data.get(key, "<missing>")
-        if _normalise_json(got) != _normalise_json(want):
+        if key in (dns_names or []):
+            got_cmp, want = _dns_names(got), _dns_names(want)
+        else:
+            got_cmp = got
+        if _normalise_json(got_cmp) != _normalise_json(want):
             wrong[key] = got
     if wrong:
         hint: FailureHint = (
@@ -131,6 +139,13 @@ def json_file_matches(ctx: GradeContext, path: str, expected: dict[str, Any]) ->
             hints=[hint],
         )
     return Verdict("pass", f"all {len(expected)} values correct")
+
+
+def _dns_names(value: Any) -> Any:
+    """A DNS name, or a list of them, in one spelling: lower case, no dot at the end."""
+    if isinstance(value, list):
+        return [_dns_names(v) for v in value]
+    return value.strip().lower().rstrip(".") if isinstance(value, str) else value
 
 
 def _normalise_json(value: Any) -> Any:
