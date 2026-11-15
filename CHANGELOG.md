@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.22.0...v0.23.0) (2026-11-15)
+
+
+### Features
+
+* **lab:** run several lab instances side by side ([#61](https://github.com/Jitter00/llm-on-a-stick/issues/61)) ([4503bc8](https://github.com/Jitter00/llm-on-a-stick/commit/4503bc88ac468d218700834dcb77ca8e3da92c56))
+
 ## [0.22.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.21.1...v0.22.0) (2026-11-14)
 
 
