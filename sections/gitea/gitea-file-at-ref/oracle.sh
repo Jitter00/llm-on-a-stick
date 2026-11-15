@@ -3,7 +3,7 @@
 set -euo pipefail
 source "$STICK_LIB/common.sh"
 b="change/$STICK_CANARY_BRANCH"
-desc() { gitea_file routers/frr1.conf "$1" | awk '/^interface eth3$/ {f = 1; next} f && /description/ {print $2; exit}'; }
+desc() { gitea_file routers/frr1.conf "$1" | awk '/^interface eth3$/ {f = 1; next} f && /description/ {print $2; f = 0}'; }
 tree() {  # path -> blob id, for the commit a branch points at
     local sha
     sha=$(gitea_api GET "repos/$GITEA_REPO/branches" | jq -er --arg b "$1" '.[] | select(.name == $b) | .commit.id')

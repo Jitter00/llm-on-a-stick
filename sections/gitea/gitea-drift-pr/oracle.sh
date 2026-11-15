@@ -4,8 +4,9 @@
 set -euo pipefail
 source "$STICK_LIB/common.sh"
 live() {  # live <router name> <container>
+    # awk reads to the end: leaving at the first match can end vtysh with SIGPIPE, which pipefail reports.
     case $1 in
-        frr*) frr_cli "$2" "show running-config" | awk '/^interface eth1$/ {f = 1; next} f && /description/ {print $2; exit}' ;;
+        frr*) frr_cli "$2" "show running-config" | awk '/^interface eth1$/ {f = 1; next} f && /description/ {print $2; f = 0}' ;;
         srl*) srl_cli "$2" "info flat interface ethernet-1/1 description" | awk '{print $NF}' | tr -d '"' ;;
     esac
 }
