@@ -1,0 +1,26 @@
+# PowerDNS for llm-on-a-stick: an authoritative DNS server with an HTTP API, one container, SQLite inside.
+# Start it with `stick svc up powerdns`. It needs no lab: the tasks' setup scripts create its zones.
+name: ${STICK_NAME:-stick}-powerdns
+
+services:
+  powerdns:
+    image: docker.io/powerdns/pdns-auth-51:5.1.5
+    environment:
+      PDNS_AUTH_API_KEY: stick-powerdns-key  # the image turns the API and its web server on when this is set
+    ports:
+      - "127.0.0.1:${STICK_POWERDNS_PORT:-8090}:8081"  # the API
+      - "127.0.0.1:${STICK_DNS_PORT:-8091}:53/udp"  # DNS itself, for `dig -p` and the checks
+      - "127.0.0.1:${STICK_DNS_PORT:-8091}:53/tcp"
+    networks:
+      stick-mgmt:
+        ipv4_address: ${STICK_MGMT_PREFIX:-172.30.30}.113
+    volumes:
+      - powerdns-data:/var/lib/powerdns  # the zones (pdns.sqlite3): what a reset empties
+
+networks:
+  stick-mgmt:
+    name: ${STICK_NAME:-stick}-mgmt
+    external: true
+
+volumes:
+  powerdns-data:

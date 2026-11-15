@@ -84,6 +84,7 @@ config from memory or inventing a plausible one.
 | `ipv4` | `198.18.42.7` | an address (RFC 2544 benchmarking range, 198.18.0.0/16) |
 | `description` | `stick-3fa9c01e` | interface or neighbour descriptions |
 | `hostname` | `stick-qkzpta` | device names (NetBox, LLDP system names) |
+| `octet` | `143` | one octet (20 to 250), where an address has to be taken apart: a PTR record's name `{{ canaries.host }}.{{ canaries.third }}.19.198.in-addr.arpa` |
 | `net24` | `198.19.117` | the first three octets of a /24 pool: `{{ canaries.pool }}.0/24` (198.19.0.0/16, never overlaps `ipv4`) |
 | `net16` | `10.93` | the first two octets of a /16 for a VPC: `{{ canaries.vpc }}.0.0/16` (10.64 to 10.127) |
 | `count` | `5` | how many times a setup repeats something the answer has to count (3 to 7: failed logins, link flaps) |
@@ -218,7 +219,7 @@ Use these in a task's `checks:` list. Parameters can use `{{ canaries.<name> }}`
 | `file_exists` | `path` | The workspace file exists and isn't empty |
 | `file_contains` | `path`, `lines` | Every line appears in the file (whitespace-insensitive) |
 | `file_matches_running_config` | `node`, `path`, `format` (`flat` or `tree`, SR Linux only), `ignore` (regexes) | The file is the node's complete running config: same lines, any order |
-| `json_file_matches` | `path`, `expected` (object) | The file is a JSON object with those keys and values (extra keys allowed; list and key order don't matter) |
+| `json_file_matches` | `path`, `expected` (object), `dns_names` (keys) | The file is a JSON object with those keys and values (extra keys allowed; list and key order don't matter). The values of the keys under `dns_names` are DNS names: compared without case or a dot at the end |
 | `file_matches_config_section` | `node`, `path`, `section` | The file is exactly one section of the running config: SR Linux flat lines starting with `section`, or FRR's block starting with `section` up to its `exit` |
 | `xml_file_xpath` | `path`, `expect` (XPath → text, `"*"` = exists) | The file is a NETCONF reply (bare `<data>`, `<rpc-reply>` or a session dump) and each path finds that text; namespaces are ignored |
 | `xml_file_absent` | `path`, `xpaths` | None of the paths match: proves a NETCONF filter was really used |
@@ -245,6 +246,8 @@ Use these in a task's `checks:` list. Parameters can use `{{ canaries.<name> }}`
 | `zabbix_absent` | `ip` | Zabbix has no host with an SNMP interface there |
 | `zabbix_problem` | `trigger`, `hosts`, `severity` (0-5), `wait_s` (40) | Exactly one trigger made by hand has that name (and severity), it is enabled and on exactly those hosts, and after a poll of its items it has one open problem |
 | `zabbix_maintenance` | `name`, `hosts`, `duration_s`, `data_collection` (default false), `tolerance_s` (300), `wait_s` (100) | Exactly one maintenance has that name and type, it ends `duration_s` after it was made (between the start of the run and now), and Zabbix really has exactly those hosts in it (it works that out once a minute) |
+| `dns_record` | `name`, `values`, `type` (A), `ttl` | A DNS query to PowerDNS (its DNS port, not its API) for the name and type is answered with exactly these values, in any order; an empty list means no such record. A disabled record gives no answer. Names among the values (PTR, CNAME) are compared without case or the last dot; an alias is not followed. `ttl`: the answer has this TTL |
+| `powerdns_unchanged` | `allow_new`, `allow_changed`, `allow_deleted` | Zones and record sets match `baseline/powerdns.json`, except what the lists allow: a kind (`zones`, `rrsets`) or `kind:label` (`zones:stick.lab.`, `rrsets:web.stick.lab./A`). A record set changes with its TTL or any of its records (added, removed, disabled, enabled). SOA records are not compared: their serial moves with every change |
 | `zabbix_unchanged` | `allow_new`, `allow_changed`, `allow_deleted` | Hosts (how they are monitored), hand-made triggers, maintenances, host groups and global macros match `baseline/zabbix.json`, except what the lists allow: a kind (`hosts`) or `kind:label` (`hosts:srl1`, `triggers:my trigger`) |
 | `gitea_file` | `repo`, `path`, `ref` (default `main`), `contains`, `absent` | The file exists in the repository (`owner/name`) at that branch, tag or commit, holds every text in `contains` and none in `absent` |
 | `gitea_pull` | `repo`, `base` (default `main`), `files`, `contains`, `absent`, `max_lines` | Exactly one pull request into `base` was opened since `stick task start`; it is open (not merged, not closed) and changes exactly `files`; at its head, each file under `contains` / `absent` (path: texts) holds / lacks those texts; with `max_lines`, it adds and removes at most that many lines in all |

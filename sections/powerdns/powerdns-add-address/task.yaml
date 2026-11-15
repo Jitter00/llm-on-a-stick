@@ -1,0 +1,52 @@
+id: powerdns-add-address
+section: powerdns
+title: Add a second address to a DNS name, with its reverse record
+tier: intermediate
+tags: [tool:powerdns, iface:mcp, skill:dns-write]
+topology: none
+prompt: |
+  You reach a PowerDNS authoritative DNS server through an MCP server made from its HTTP API. The server id
+  is always "localhost".
+
+  The name {{ canaries.svc }}.stick.lab answers with one address today. A second server now runs the same
+  service on 198.19.{{ canaries.third }}.{{ canaries.host }}.
+
+  - Add that address to the name, so that DNS answers with both addresses. Keep the TTL the name has now.
+  - Add the reverse (PTR) record for the new address, pointing to the name, the way the first address
+    already has one.
+
+  Change nothing else.
+requires:
+  services: [powerdns]
+tools:
+  mcp: [powerdns]
+reset_services: [powerdns]
+canaries:
+  svc: hostname
+  db: hostname
+  third: octet
+  host: octet
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: dns_record
+    name: the name answers with both addresses, with its old TTL
+    params:
+      name: "{{ canaries.svc }}.stick.lab"
+      type: A
+      values: ["198.19.{{ canaries.third }}.10", "198.19.{{ canaries.third }}.{{ canaries.host }}"]
+      ttl: 900
+    weight: 2
+  - type: dns_record
+    name: the new address has a PTR record to the name
+    params:
+      name: "{{ canaries.host }}.{{ canaries.third }}.19.198.in-addr.arpa"
+      type: PTR
+      values: ["{{ canaries.svc }}.stick.lab"]
+    weight: 2
+  - type: powerdns_unchanged
+    name: nothing else changed in PowerDNS
+    params:
+      allow_changed: ["rrsets:{{ canaries.svc }}.stick.lab./A"]
+      allow_new: ["rrsets:{{ canaries.host }}.{{ canaries.third }}.19.198.in-addr.arpa./PTR"]
+limits: {turns: 20}

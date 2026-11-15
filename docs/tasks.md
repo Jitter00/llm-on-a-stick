@@ -23,11 +23,11 @@ Every attempt starts from the same state. The lab stays up between attempts, tas
    - FRR runs `frr-reload.py` against its startup config, `configs/frr/<node>/frr.conf`;
    - it takes about 2 s for the four routers, and the times are in the run's `restore.log`;
 2. the services the task lists under `reset_services` go back to their baseline (NetBox's seeded snapshot:
-   ~20 s, Nautobot's: ~25 s, LibreNMS's empty database: ~1 s, Zabbix's: ~10 s, Gitea's repository: ~6 s, Loki's empty store: ~5 s, Prometheus's: ~0.2 s, moto's
+   ~20 s, Nautobot's: ~25 s, LibreNMS's empty database: ~1 s, Zabbix's: ~10 s, Gitea's repository: ~6 s, Loki's empty store: ~5 s, Prometheus's: ~0.2 s, PowerDNS without zones: ~1 s, moto's
    empty account: ~0.2 s), after the routers, so that Loki doesn't keep what the restore itself logged;
 3. the task's `setup.sh` plants this run's canaries (or a fault);
 4. the baseline is taken, for `no_change_outside`, `netbox_unchanged`, `nautobot_unchanged`, `librenms_unchanged`,
-   `zabbix_unchanged`, `gitea_unchanged` and `aws_unchanged`.
+   `zabbix_unchanged`, `gitea_unchanged`, `powerdns_unchanged` and `aws_unchanged`.
 
 A task with `topology: none` (the `aws` and `terraform` sections, and the tasks that only read or change a
 source of truth, such as `netbox-lookup`) uses no lab device: step 1 is skipped, and the lab doesn't need to be running at all.
@@ -232,6 +232,26 @@ branch, a pull request or a repository the task didn't ask for; a commit shows a
 Answers of the two read-only tasks go through `submit_answer`; each task has a `script.yaml` with its
 reference solution as MCP calls. These tasks have no judge check.
 
+## powerdns: DNS zones and records
+
+PowerDNS is an authoritative DNS server with an HTTP API ([Services](services.md#powerdns)). It publishes no
+MCP server, so the model works through one made from PowerDNS's own API description (6 tools: servers, zones,
+one zone's records, changing record sets, deleting a zone, search). The model has **no shell and no `dig`**.
+Each setup creates the zones of its run, with names and addresses that differ every time.
+
+| Task | Tier | What the agent must do | What can go wrong (and is detected) |
+|---|---|---|---|
+| `powerdns-who-points-here` | basic | Every name that leads to one address: its A records in two zones, and the alias of one of them | Reading one zone only; missing the alias (a search for the address doesn't return it, and a search for its target with the dot at the end finds nothing); the neighbouring address; a TXT record that mentions the address; the alias of another name |
+| `powerdns-add-address` | intermediate | A name has one address: add a second one with the same TTL, and the PTR record of the new address | Replacing the record set with only the new address (the API writes whole record sets); another TTL; the PTR record in the forward zone, with the octets in the wrong order or without the dot at the end of its target; the same name in another zone; a new zone |
+| `powerdns-router-audit` | advanced | One A record per router should hold the service address on the router's loopback: compare the zone with the four routers and correct it | A record with an older address; a record that is right but disabled, so DNS doesn't answer it; a router with no record; taking the router's other loopback address; rewriting the record that was right; changing a router to match the zone |
+
+Requirements: the `powerdns` service (about 50 MB); only `powerdns-router-audit` needs the lab, and it gets
+the `routers` server as well. Every attempt starts from a PowerDNS without zones
+(`reset_services: [powerdns]`, about 1 s). The write tasks are graded by **asking the DNS server** (`dns_record`), not
+by reading the API back, and `powerdns_unchanged` fails attempts that add, change or delete a zone or a
+record set the task didn't ask for. The answer of the read-only task goes through `submit_answer`; each task
+has a `script.yaml` with its reference solution as MCP calls. These tasks have no judge check.
+
 ## loki: the routers' syslog
 
 The four routers send their syslog to Loki ([Services](services.md#loki)). The model has **no shell**: it
@@ -254,7 +274,7 @@ that needs an aggregate query, is an open item in `TODO.md`.
 Most models tested here run locally, where one attempt can take minutes, so every task has to earn its place.
 Each section (a tool such as `netbox`, or a group such as `cfg-mgmt`; the wider groupings are in
 `sections/README.md`) has **three tasks, one per tier** (basic, intermediate, advanced), and each one must tell
-models apart. Three keeps a full run short (30 tasks), at a price: with one attempt per task a section's result
+models apart. Three keeps a full run short (33 tasks), at a price: with one attempt per task a section's result
 moves in thirds, so compare sections only on runs with `--repeat 3` or more. Where the server can write, one
 of the three changes something.
 
@@ -303,7 +323,7 @@ score ([Grading](grading.md#judge-checks-in-a-task)). Scripts get these environm
 | `STICK_NODE_<NODE>` / `STICK_NODE_<NODE>_IP` | Container name / management IP of each lab node, e.g. `STICK_NODE_SRL1` |
 | `STICK_<SERVICE>_URL` / `STICK_<SERVICE>_AUTH` | A service's host URL and, if it has an API token, its `Authorization` header value, e.g. `STICK_NETBOX_URL` |
 | `AWS_ENDPOINT_URL`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION` | Only for tasks that require `moto`: what the AWS tools need to reach the emulator |
-| `STICK_LIB` | Folder with shared helpers: `source "$STICK_LIB/common.sh"` gives `srl_set`, `srl_cli`, `frr_conf`, `frr_cli`, `netconf_get_config`, `oxidized_backup_now`, `netbox_api`, `netbox_id`, `nautobot_api`, `nautobot_id`, `librenms_api`, `librenms_add_device(s)`, `librenms_poll`, `librenms_wait_snmp`, `srl_snmp_community`, `gitea_api`, `gitea_commit`, `gitea_branch`, `gitea_file`, `zabbix_api`, `zabbix_add_host`, `zabbix_group_id`, `zabbix_poll`, `zabbix_wait_available`, `zabbix_wait_items`, `snmp_wait`, `srl_commit` (several SR Linux commands in one commit), `ssh_login` (a password login from a lab node), `loki_count`, `loki_lines`, `loki_wait`, `prom_value`, `prom_labels`, `prom_wait`, `telemetry_ready` |
+| `STICK_LIB` | Folder with shared helpers: `source "$STICK_LIB/common.sh"` gives `srl_set`, `srl_cli`, `frr_conf`, `frr_cli`, `netconf_get_config`, `oxidized_backup_now`, `netbox_api`, `netbox_id`, `nautobot_api`, `nautobot_id`, `librenms_api`, `librenms_add_device(s)`, `librenms_poll`, `librenms_wait_snmp`, `srl_snmp_community`, `gitea_api`, `gitea_commit`, `gitea_branch`, `gitea_file`, `zabbix_api`, `zabbix_add_host`, `zabbix_group_id`, `zabbix_poll`, `zabbix_wait_available`, `zabbix_wait_items`, `snmp_wait`, `srl_commit` (several SR Linux commands in one commit), `ssh_login` (a password login from a lab node), `loki_count`, `loki_lines`, `loki_wait`, `prom_value`, `prom_labels`, `prom_wait`, `telemetry_ready`, `pdns_api`, `pdns_zone`, `pdns_rrset`, `pdns_delete`, `pdns_records` |
 
 Prompts can use `{{ services.<name>.url }}` and, for services with an API token, `{{ services.<name>.token }}`
 (the value after `Bearer`/`Token`, or the whole `X-Auth-Token` for LibreNMS).

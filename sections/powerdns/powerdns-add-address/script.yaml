@@ -1,0 +1,35 @@
+# The task's reference steps as MCP calls: stick run powerdns-add-address --model script/<this file>
+steps:
+  - tool: powerdns__listZone
+    args:
+      server_id: localhost
+      zone_id: stick.lab.
+      rrset_name: "{{ canaries.svc }}.stick.lab."
+      rrset_type: A
+    capture:
+      old: '"content":"([0-9.]+)"'
+      ttl: '"ttl":(\d+)'
+  # REPLACE writes the whole record set: the address the name already has goes in again.
+  - tool: powerdns__patchZone
+    args:
+      server_id: localhost
+      zone_id: stick.lab.
+      rrsets:
+        - name: "{{ canaries.svc }}.stick.lab."
+          type: A
+          ttl: "{{ captured.ttl }}"
+          changetype: REPLACE
+          records:
+            - {content: "{{ captured.old }}", disabled: false}
+            - {content: "198.19.{{ canaries.third }}.{{ canaries.host }}", disabled: false}
+  - tool: powerdns__patchZone
+    args:
+      server_id: localhost
+      zone_id: "{{ canaries.third }}.19.198.in-addr.arpa."
+      rrsets:
+        - name: "{{ canaries.host }}.{{ canaries.third }}.19.198.in-addr.arpa."
+          type: PTR
+          ttl: 3600
+          changetype: REPLACE
+          records:
+            - {content: "{{ canaries.svc }}.stick.lab.", disabled: false}

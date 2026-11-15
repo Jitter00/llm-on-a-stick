@@ -113,3 +113,12 @@ def test_the_gitea_section_and_its_service_select_each_other() -> None:
     assert s == Selection(sections={"gitea"}, services={"gitea"}, core=False)
     assert sel("tests/integration/test_gitea.py") == s
     assert sel("sections/gitea/gitea-drift-pr/oracle.sh") == Selection(sections={"gitea"}, services={"gitea"})
+
+
+def test_the_powerdns_section_and_its_service_select_each_other() -> None:
+    s = sel("services/powerdns/service.yaml")
+    assert s == Selection(sections={"powerdns"}, services={"powerdns"}, core=False)
+    assert sel("tests/integration/test_powerdns.py") == s
+    assert sel("sections/powerdns/powerdns-router-audit/oracle.sh") == Selection(
+        sections={"powerdns"}, services={"powerdns"}
+    )

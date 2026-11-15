@@ -1,0 +1,50 @@
+id: powerdns-who-points-here
+section: powerdns
+title: Find every DNS name that leads to one address
+tier: basic
+floor: true  # the section's cheap floor task: CI validates it on every shared-code change
+tags: [tool:powerdns, iface:mcp, skill:dns-read]
+topology: none
+prompt: |
+  You reach a PowerDNS authoritative DNS server through an MCP server made from its HTTP API. The server id
+  is always "localhost".
+
+  The address {{ canaries.addr }} is going to be reused. Find every name on this DNS server that leads to it
+  today: names with an A record for this address, and names that are an alias (CNAME) of such a name. Look in
+  every zone.
+
+  Give with `submit_answer`:
+    {"names": ["<each name, fully qualified>", ...]}
+
+  Do not change anything in PowerDNS.
+requires:
+  services: [powerdns]
+tools:
+  mcp: [powerdns]
+reset_services: [powerdns]
+canaries:
+  addr: ipv4
+  other: ipv4
+  web: hostname
+  oob: hostname
+  alias: hostname
+  near: hostname
+  note: hostname
+  far: hostname
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: json_file_matches
+    name: answer.json names the two A records and the alias, and nothing else
+    params:
+      path: answer.json
+      expected:
+        names:
+          - "{{ canaries.web }}.stick.lab"
+          - "{{ canaries.oob }}.oob.example"
+          - "{{ canaries.alias }}.stick.lab"
+      dns_names: [names]
+    weight: 3
+  - type: powerdns_unchanged
+    name: nothing was changed in PowerDNS
+limits: {turns: 15}

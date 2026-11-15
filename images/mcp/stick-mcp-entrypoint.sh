@@ -1,5 +1,5 @@
 #!/bin/sh
-# Start one MCP server on stdio: stick-mcp-entrypoint <netbox|aws|nautobot|librenms|zabbix|grafana|netmiko|gitea> [args...]
+# Start one MCP server on stdio: stick-mcp-entrypoint <netbox|aws|nautobot|librenms|zabbix|grafana|netmiko|gitea|powerdns> [args...]
 set -eu
 server="${1:?usage: stick-mcp-entrypoint <server>}"
 shift
@@ -20,5 +20,14 @@ case "$server" in
         exec /opt/mcp/netmiko/bin/netmiko-mcp "$@"
         ;;
     gitea) exec /opt/mcp/gitea/gitea-mcp "$@" ;;
+    # A generic OpenAPI server pointed at PowerDNS's API. --no-validate-output: PowerDNS's search answers
+    # don't match its own description, and the server would turn them into errors.
+    powerdns)
+        exec /opt/mcp/powerdns/bin/awslabs.openapi-mcp-server --api-name powerdns \
+            --api-url "${POWERDNS_API_URL:?}" --auth-type api_key --auth-api-key "${POWERDNS_API_KEY:?}" \
+            --auth-api-key-name X-API-Key --auth-api-key-in header \
+            --allow-insecure-http --allow-private-networks --no-validate-output \
+            --spec-path /opt/mcp/powerdns-api/powerdns-api.yaml --allowed-spec-dirs /opt/mcp/powerdns-api "$@"
+        ;;
     *) echo "unknown MCP server: $server" >&2; exit 64 ;;
 esac

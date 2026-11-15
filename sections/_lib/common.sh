@@ -428,3 +428,41 @@ gitea_commit() {
 }
 # gitea_file <path> [ref]: the file's text at a branch, tag or commit (main unless told otherwise).
 gitea_file() { gitea_api GET "repos/$GITEA_REPO/contents/$1?ref=${2:-main}" | jq -r '.content' | base64 -d; }
+
+# --- PowerDNS --------------------------------------------------------------
+# $STICK_POWERDNS_URL comes from `stick task start`; the API key is the one of services/powerdns/compose.yaml.
+# pdns_api <METHOD> <path> [json]   e.g. pdns_api GET zones/stick.lab.   (paths are under servers/localhost)
+pdns_api() {
+    local method=$1 path=$2 body=${3:-} out code
+    local args=(-sS -X "$method" -H "X-API-Key: stick-powerdns-key" -H "Accept: application/json")
+    [[ -n "$body" ]] && args+=(-H "Content-Type: application/json" --data "$body")
+    if ! out=$(curl "${args[@]}" -w '\n%{http_code}' "$STICK_POWERDNS_URL/api/v1/servers/localhost/${path#/}"); then
+        echo "pdns_api $method $path: request failed" >&2; return 1
+    fi
+    code=${out##*$'\n'}; out=${out%$'\n'*}
+    if (( code >= 400 )); then
+        echo "pdns_api $method $path: HTTP $code: $out" >&2; return 1
+    fi
+    printf '%s\n' "$out"
+}
+# pdns_zone <zone.>: create a native zone with one name server.
+pdns_zone() {
+    pdns_api POST zones "$(jq -n --arg z "$1" '{name: $z, kind: "Native", nameservers: ["ns1.stick.lab."]}')" >/dev/null
+}
+# pdns_rrset <zone.> <name.> <TYPE> <ttl> <content>...: create or replace a record set. A content that starts
+# with "!" is a disabled record. TXT contents need their quotes: '"some text"'.
+pdns_rrset() {
+    local zone=$1 name=$2 type=$3 ttl=$4; shift 4
+    pdns_api PATCH "zones/$zone" "$(jq -n --arg n "$name" --arg t "$type" --argjson ttl "$ttl" '
+        {rrsets: [{name: $n, type: $t, ttl: $ttl, changetype: "REPLACE",
+                   records: [$ARGS.positional[] | {content: ltrimstr("!"), disabled: startswith("!")}]}]}' \
+        --args "$@")" >/dev/null
+}
+# pdns_delete <zone.> <name.> <TYPE>: remove a record set.
+pdns_delete() {
+    pdns_api PATCH "zones/$1" "$(jq -n --arg n "$2" --arg t "$3" '{rrsets: [{name: $n, type: $t, changetype: "DELETE"}]}')" >/dev/null
+}
+# pdns_records <zone.> <name.> <TYPE>: the record set's enabled contents, one per line.
+pdns_records() {
+    pdns_api GET "zones/$1?rrset_name=$2&rrset_type=$3" | jq -r '.rrsets[].records[] | select(.disabled | not) | .content'
+}

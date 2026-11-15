@@ -1,0 +1,52 @@
+id: powerdns-router-audit
+section: powerdns
+title: Make the routers' DNS records match the routers
+tier: advanced
+tags: [tool:powerdns, vendor:srl, vendor:frr, iface:mcp, skill:dns-audit]
+prompt: |
+  You reach a PowerDNS authoritative DNS server and the lab's routers through MCP servers. The DNS server's
+  id is always "localhost". The routers' server runs one CLI command per call: srl1 and srl2 run Nokia SR
+  Linux; frr1 and frr2 run FRRouting, and their CLI commands are run as: vtysh -c "<command>"
+
+  Each of the four routers has a service address from 198.18.0.0/16 on a loopback interface (lo on FRR, lo0
+  on SR Linux). The zone stick.lab should have one A record per router, <router>.stick.lab, with that
+  address. The routers are right; the zone was last edited by hand and may not be.
+
+  Make DNS answer every one of the four names with its router's service address. Change only what is wrong
+  in the zone, and do not change any router.
+requires:
+  devices: [srl1, srl2, frr1, frr2]
+  services: [powerdns]
+tools:
+  mcp: [powerdns, routers]
+reset_services: [powerdns]
+canaries:
+  a_srl1: ipv4
+  a_srl2: ipv4
+  a_frr1: ipv4
+  a_frr2: ipv4
+  stale: ipv4
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: dns_record
+    name: frr2's name answers with its address (the record had an old one)
+    params: {name: frr2.stick.lab, values: ["{{ canaries.a_frr2 }}"]}
+  - type: dns_record
+    name: srl1's name answers (its record was disabled)
+    params: {name: srl1.stick.lab, values: ["{{ canaries.a_srl1 }}"]}
+  - type: dns_record
+    name: srl2's name answers (it had no record)
+    params: {name: srl2.stick.lab, values: ["{{ canaries.a_srl2 }}"]}
+  - type: dns_record
+    name: frr1's name still answers with its address
+    params: {name: frr1.stick.lab, values: ["{{ canaries.a_frr1 }}"]}
+  - type: powerdns_unchanged
+    name: nothing else changed in PowerDNS
+    params:
+      allow_changed: ["rrsets:frr2.stick.lab./A", "rrsets:srl1.stick.lab./A"]
+      allow_new: ["rrsets:srl2.stick.lab./A"]
+  - type: no_change_outside
+    name: no router was changed
+    params: {allowed: []}
+limits: {turns: 30}

@@ -33,7 +33,7 @@ uv run stick --instance 1 env down           # stop that instance; `stick env do
 | Lab and its containers | `stick-base`, `clab-stick-base-srl1` | `stickN-base`, `clab-stickN-base-srl1` |
 | Management network | `stick-mgmt`, 172.30.30.0/24 | `stickN-mgmt`, 172.30.(30+N).0/24, the same host numbers |
 | Compose projects and volumes | `stick-netbox`, ... | `stickN-netbox`, ... |
-| Ports on the host | 8081 to 8088, 8888 | each + 100 x N (NetBox of instance 1: 8181) |
+| Ports on the host | 8081 to 8091, 8888 | each + 100 x N (NetBox of instance 1: 8181) |
 
 - `--instance` goes before the command (`stick --instance 1 svc status`) and applies to every command.
   `stick grade` uses the instance recorded in the attempt's `run.json`.
@@ -97,6 +97,7 @@ stdio.
 | nautobot | [nautobot-mcp](https://github.com/bsmeding/nautobot-mcp-server) | 0.2.5 | 28 of 77 | yes (`NAUTOBOT_MCP_ALLOW_WRITES`) | A young community server. Typed list and get tools, free prefixes and addresses, generic REST and GraphQL tools |
 | librenms | [librenms-mcp](https://github.com/mhajder/librenms-mcp) | 1.13.0 | 33 of 113 | yes | Hides SNMP communities in what it returns |
 | zabbix | [zabbix-mcp](https://github.com/mhajder/zabbix-mcp) | 0.8.0 | 16 of 53 | yes | Supports Zabbix up to 7.4: it only talks to 8.0 with `ZABBIX_SKIP_VERSION_CHECK`, and the calls the tasks use work |
+| powerdns | [awslabs.openapi-mcp-server](https://github.com/awslabs/mcp/tree/main/src/openapi-mcp-server) | 1.1.7 | 6 of 43 | yes | PowerDNS publishes no MCP server: this one makes a tool of every operation in an OpenAPI description, here PowerDNS's own (`images/mcp/powerdns-api.yaml`, an unchanged copy of what the server gives at `/api/docs`). Tool names are the API's operation ids (`listZone`, `patchZone`), every call takes `server_id` (`localhost`), and a change answers with an empty text. Not shown: `createZone` (11,000 characters by itself), metadata, DNSSEC and TSIG keys, autoprimaries, views, networks, statistics, the cache |
 | loki | [mcp-grafana](https://github.com/grafana/mcp-grafana) | 2.2.0 | 6 of 63 | no (started with `--disable-write`) | Grafana's own server; it reads Loki through Grafana's datasource, so a query names the datasource (`loki`). 10 lines per query unless asked for more, 100 at most; timestamps in nanoseconds. Not shown: dashboards, alerting, incidents, Prometheus, and `grafana_api_request` |
 | gitea | [gitea-mcp](https://gitea.com/gitea/gitea-mcp) | 1.13.0 | 12 of 48 | yes | Gitea's own server, a Go program: the image takes its release archive, checked against the release's checksum. It logs in with the same Basic header as the tasks' scripts (`GITEA_EXTRA_HEADERS`), since Gitea's command line can't create a token with a known value. `get_file_contents` returns base64 unless asked for numbered lines (`with_lines`). Not shown: issues, labels, milestones, releases, tags, wikis, Actions, packages, projects, notifications, time tracking |
 | telemetry | [mcp-grafana](https://github.com/grafana/mcp-grafana) | 2.2.0 | 5 of 63 | no (started with `--disable-write`) | The same server, against the same Grafana (the one the `loki` service runs), shown its Prometheus tools instead of its Loki ones. `query_prometheus` needs `endTime` even for an instant query, and every answer carries a link to Grafana's Explore page |
@@ -397,6 +398,39 @@ answers only while that service runs.
   that drop) is gone when a task's setup starts.
 - **Failed logins.** FRR's `sshd` runs with `PerSourcePenalties=no`, so that each of several failed logins
   in a row is answered and logged. SR Linux's turns a source away after a few.
+
+## PowerDNS
+
+An authoritative DNS server with an HTTP API, for the DNS tasks.
+
+| | |
+|---|---|
+| Version | PowerDNS Authoritative Server 5.1.5 (`powerdns/pdns-auth-51:5.1.5`), one container, SQLite inside |
+| API (host) | `http://127.0.0.1:8090/api/v1` (`STICK_POWERDNS_PORT`), header `X-API-Key: stick-powerdns-key`; the server id is `localhost` |
+| DNS (host) | `127.0.0.1` port 8091, UDP and TCP (`STICK_DNS_PORT`): `dig @127.0.0.1 -p 8091 web.stick.lab` |
+| Lab network | `172.30.30.113`: DNS on port 53, the API on 8081 |
+| First boot | about 1 s; no zones |
+| Reset | about 1 s (`snapshot.kind: volumes`): the container and its volume are removed and made again |
+| RAM (measured) | ~50 MiB |
+
+- **It needs no lab and starts empty.** The tasks' setup scripts create the zones (`pdns_zone`, `pdns_rrset`
+  in `sections/_lib/common.sh`).
+- **Grading asks the DNS port.** `dns_record` sends a real query (the `dnspython` package), so what counts is
+  what a client would be answered, not what the API stores.
+- **The MCP server is generated.** `awslabs.openapi-mcp-server` reads PowerDNS's OpenAPI description from a
+  file in the stick-mcp image, because `/api/docs` needs the API key and the server can't send one when it
+  fetches a description. `tests/integration/test_powerdns.py` fails when the file and the running PowerDNS
+  disagree: copy the new one after a version change.
+- Pitfalls:
+    - names in the API end with a dot (`web.stick.lab.`), also the target of a CNAME or PTR record; without it
+      the API answers 422;
+    - `PATCH` with `changetype: REPLACE` writes a whole record set (a name and a type): records left out are gone;
+    - a record can be `disabled`: it stays in the API and DNS stops answering it;
+    - the search (`search-data`) compares names without the dot at the end: `web.stick.lab.` finds nothing,
+      `web.stick.lab` finds the name and the CNAME records that point to it;
+    - the generated server checks answers against the description and PowerDNS's search answers don't match
+      it, so the server runs with `--no-validate-output`;
+    - every change raises the zone's SOA serial, which is why `powerdns_unchanged` leaves SOA records out.
 
 ## Oxidized
 

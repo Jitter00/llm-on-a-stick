@@ -35,4 +35,5 @@ services:
   gitea: {ram_mb: 192, measured: true}  # 100 MiB idle, one container (SQLite inside)
   telemetry: {ram_mb: 128, measured: true}  # 77 MiB with 2 routers streaming: gnmic 40 + prometheus 37
   loki: {ram_mb: 448, measured: true}  # 358 MiB with 4 routers logging: grafana 267 + loki 47 + alloy 44
-  ddi: {ram_mb: 384, measured: false}        # PowerDNS + Kea
+  powerdns: {ram_mb: 96, measured: true}  # 48 MiB idle, one container (SQLite inside)
+  kea: {ram_mb: 256, measured: false}
