@@ -1,7 +1,8 @@
 id: gitea-blame-change
 section: gitea
 title: Find the commit that removed a BGP neighbour
-tier: intermediate
+tier: basic
+floor: true  # the section's cheap floor task: CI validates it on every shared-code change
 tags: [tool:gitea, iface:mcp, skill:git-history]
 topology: none
 prompt: |

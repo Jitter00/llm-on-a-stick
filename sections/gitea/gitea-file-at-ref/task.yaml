@@ -1,8 +1,7 @@
 id: gitea-file-at-ref
 section: gitea
 title: Read a setting on two branches of a Git repository
-tier: basic
-floor: true  # the section's cheap floor task: CI validates it on every shared-code change
+tier: intermediate
 tags: [tool:gitea, iface:mcp, skill:git-read]
 topology: none
 prompt: |

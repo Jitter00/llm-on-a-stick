@@ -221,8 +221,8 @@ fixed authors and dates, so a history reads the same every time and only the can
 
 | Task | Tier | What the agent must do | What can go wrong (and is detected) |
 |---|---|---|---|
-| `gitea-file-at-ref` | basic | A description in one file on `main` and on a named branch, and the files that differ between the two | Reading the default branch twice; another branch with a similar name that changes the same line; listing the files of that other branch; missing the file the branch adds |
-| `gitea-blame-change` | intermediate | A BGP neighbour is gone from a file: the ticket and author of the commit that removed it | The commit whose message says it removes a neighbour removes another one; the right commit's message is about timers; commits to the other router's file with the same wording; answering from messages without reading a diff |
+| `gitea-blame-change` | basic | A BGP neighbour is gone from a file: the ticket and author of the commit that removed it | The commit whose message says it removes a neighbour removes another one; the right commit's message is about timers; commits to the other router's file with the same wording; answering from messages without reading a diff |
+| `gitea-file-at-ref` | intermediate | A description in one file on `main` and on a named branch, and the files that differ between the two | Reading the default branch twice; another branch with a similar name that changes the same line; listing the files of that other branch; missing the file the branch adds; decoding the file by hand (the server returns it as base64 unless asked for numbered lines) |
 | `gitea-drift-pr` | advanced | Four files record what four routers should run, and one is stale: find it by comparing with the routers, and open a pull request that corrects it | Committing to `main`; merging the pull request; rewriting the file instead of changing its one line; touching another file; a pull request with the stale value still in it; changing the router to match the file |
 
 Requirements: the `gitea` service (about 0.1 GB); only `gitea-drift-pr` needs the lab, and it gets the
