@@ -14,7 +14,6 @@ A run directory holds everything about one attempt:
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 import time
 from collections.abc import Callable
@@ -25,6 +24,7 @@ from urllib.parse import urlparse
 
 from pydantic import BaseModel
 
+from llm_on_a_stick import lab as lab_mod
 from llm_on_a_stick import paths, services
 from llm_on_a_stick.grading import awsstate, librenmsstate, sotstate, zabbixstate
 from llm_on_a_stick.grading import canaries as canary_mod
@@ -83,6 +83,7 @@ class RunInfo(BaseModel):
     canaries: dict[str, str]
     prompt: str
     topology: str
+    instance: int = 0  # the lab instance the attempt ran on (`stick grade` reads the same one)
 
     @property
     def workspace(self) -> Path:
@@ -139,7 +140,7 @@ def script_env(
 ) -> dict[str, str]:
     """Environment for a task's setup and oracle scripts."""
     env = {
-        **os.environ,
+        **lab_mod.env(),  # with the instance's names and ports, which sections/_lib/common.sh reads
         **canary_mod.env_vars(values),
         "STICK_RUN_DIR": str(run_dir),
         "STICK_WORKSPACE": str(workspace),
@@ -234,6 +235,7 @@ def start(
         canaries=values,
         prompt=prompt,
         topology=task.topology,
+        instance=lab_mod.instance(),
     )
     (run_dir / "run.json").write_text(info.model_dump_json(indent=2), encoding="utf-8")
     return info

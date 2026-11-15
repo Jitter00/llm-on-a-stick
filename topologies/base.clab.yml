@@ -9,12 +9,14 @@
 #
 # Point-to-point links are /31s in 10.0.<spine>.0/24; loopbacks in 10.255.0.0/24.
 # eBGP everywhere; leaves redistribute their connected host subnets.
+# The ${VAR:=default} values are those of lab instance 0; `stick --instance N` sets the variables
+# (src/llm_on_a_stick/lab.py).
 # Each node carries a `stick-os` label (srlinux | frr | host) that the grader uses to read its state.
-name: stick-base
+name: ${STICK_NAME:=stick}-base
 
 mgmt:
-  network: stick-mgmt            # the tool stack (NetBox, Oxidized, ...) joins this network later
-  ipv4-subnet: 172.30.30.0/24
+  network: ${STICK_NAME:=stick}-mgmt   # the tool stack (NetBox, Oxidized, ...) joins this network later
+  ipv4-subnet: ${STICK_MGMT_PREFIX:=172.30.30}.0/24
 
 topology:
   kinds:
@@ -28,27 +30,27 @@ topology:
     srl1:
       labels: {stick-os: srlinux}
       kind: nokia_srlinux
-      mgmt-ipv4: 172.30.30.11
-      startup-config: ../configs/srl/srl1.cli
+      mgmt-ipv4: ${STICK_MGMT_PREFIX:=172.30.30}.11
+      startup-config: ${STICK_SRL_CONFIGS:=../configs/srl}/srl1.cli
     srl2:
       labels: {stick-os: srlinux}
       kind: nokia_srlinux
-      mgmt-ipv4: 172.30.30.12
-      startup-config: ../configs/srl/srl2.cli
+      mgmt-ipv4: ${STICK_MGMT_PREFIX:=172.30.30}.12
+      startup-config: ${STICK_SRL_CONFIGS:=../configs/srl}/srl2.cli
 
     frr1:
       labels: {stick-os: frr}
       kind: linux
-      mgmt-ipv4: 172.30.30.21
-      env: {STICK_SYSLOG_TARGET: "172.30.30.108:1514"}
+      mgmt-ipv4: ${STICK_MGMT_PREFIX:=172.30.30}.21
+      env: {STICK_SYSLOG_TARGET: "${STICK_MGMT_PREFIX:=172.30.30}.108:1514"}
       binds:
         - ../configs/frr/frr1/frr.conf:/etc/stick/frr.conf:ro
         - ../configs/frr/daemons:/etc/stick/daemons:ro
     frr2:
       labels: {stick-os: frr}
       kind: linux
-      mgmt-ipv4: 172.30.30.22
-      env: {STICK_SYSLOG_TARGET: "172.30.30.108:1514"}
+      mgmt-ipv4: ${STICK_MGMT_PREFIX:=172.30.30}.22
+      env: {STICK_SYSLOG_TARGET: "${STICK_MGMT_PREFIX:=172.30.30}.108:1514"}
       binds:
         - ../configs/frr/frr2/frr.conf:/etc/stick/frr.conf:ro
         - ../configs/frr/daemons:/etc/stick/daemons:ro
@@ -57,7 +59,7 @@ topology:
       labels: {stick-os: host}
       kind: linux
       image: ghcr.io/hellt/network-multitool@sha256:a8d96c19e593e227d7b16d320a04256ba00434028f0adb9f7da206bf098c7140
-      mgmt-ipv4: 172.30.30.31
+      mgmt-ipv4: ${STICK_MGMT_PREFIX:=172.30.30}.31
       exec:
         - ip addr add 10.1.1.10/24 dev eth1
         - ip route replace 10.0.0.0/8 via 10.1.1.1
@@ -65,7 +67,7 @@ topology:
       labels: {stick-os: host}
       kind: linux
       image: ghcr.io/hellt/network-multitool@sha256:a8d96c19e593e227d7b16d320a04256ba00434028f0adb9f7da206bf098c7140
-      mgmt-ipv4: 172.30.30.32
+      mgmt-ipv4: ${STICK_MGMT_PREFIX:=172.30.30}.32
       exec:
         - ip addr add 10.1.2.10/24 dev eth1
         - ip route replace 10.0.0.0/8 via 10.1.2.1

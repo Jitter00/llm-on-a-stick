@@ -70,7 +70,15 @@ def test_restore_config_undoes_changes(lab: None) -> None:
 def test_srl_snmp_answers(lab: None) -> None:
     """SR Linux answers SNMPv2c with the lab community (set in its startup config) and its host name."""
     res = dexec(
-        "frr1", "snmpget", "-v2c", "-c", "stick-ro", "-t", "5", "172.30.30.11", "SNMPv2-MIB::sysName.0"
+        "frr1",
+        "snmpget",
+        "-v2c",
+        "-c",
+        "stick-ro",
+        "-t",
+        "5",
+        DockerLabState().nodes()["srl1"].mgmt_ipv4,
+        "SNMPv2-MIB::sysName.0",
     )
     assert "srl1" in res.stdout, res.stdout + res.stderr
 

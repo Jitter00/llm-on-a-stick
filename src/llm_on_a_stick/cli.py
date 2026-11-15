@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
@@ -15,6 +16,7 @@ from rich.console import Console
 from rich.table import Table
 
 from llm_on_a_stick import __version__, doctor, dotenv, paths, services, tasks
+from llm_on_a_stick import lab as lab_mod
 from llm_on_a_stick.env import containerlab
 from llm_on_a_stick.grading import grade as grade_mod
 from llm_on_a_stick.grading import run as run_mod
@@ -56,12 +58,54 @@ TopologyOpt = Annotated[
 ENV_FILE = ".env"
 
 
+_held = contextlib.ExitStack()  # the instance lock, kept until the command ends
+
+
+def _claim_instance() -> None:
+    """This command resets the lab and its services: no second one on the same instance meanwhile."""
+    try:
+        _held.enter_context(lab_mod.lock())
+    except lab_mod.InstanceError as exc:
+        err.print(f"[red]{exc}[/]")
+        raise typer.Exit(2) from exc
+
+
+def _stick() -> str:
+    """How to call `stick` for the current instance, for the hints we print."""
+    n = lab_mod.instance()
+    return f"stick --instance {n}" if n else "stick"
+
+
 @app.callback()
-def _main() -> None:
+def _main(
+    instance: Annotated[
+        int | None,
+        typer.Option(
+            "--instance",
+            "-i",
+            min=0,
+            max=lab_mod.MAX_INSTANCES - 1,
+            help="Which lab instance to work on, when several run side by side (default 0, or "
+            f"{lab_mod.INSTANCE_VAR}). Instance N has its own lab, services, subnet and ports (+100*N).",
+        ),
+    ] = None,
+) -> None:
     env_file = Path(ENV_FILE)
     added = dotenv.load(env_file)
     if added:  # say so: a .env in an unfamiliar folder must not redirect API calls unnoticed
         err.print(f"[dim]{env_file.resolve()}: using {', '.join(added)}[/]", highlight=False, soft_wrap=True)
+    if instance is not None:
+        os.environ[lab_mod.INSTANCE_VAR] = str(instance)
+    try:
+        n = lab_mod.instance()
+    except lab_mod.InstanceError as exc:
+        err.print(f"[red]{exc}[/]")
+        raise typer.Exit(2) from exc
+    if n:
+        err.print(
+            f"[dim]lab instance {n}: {lab_mod.name()}-*, {lab_mod.mgmt_subnet()}, host ports +{100 * n}[/]",
+            highlight=False,
+        )
 
 
 @app.command()
@@ -126,25 +170,36 @@ def env_up(
 
 
 @env_app.command("down")
-def env_down(topology: TopologyOpt = "base") -> None:
+def env_down(
+    topology: TopologyOpt = "base",
+    all_: Annotated[
+        bool, typer.Option("--all", help="Every lab instance, not only the current one.")
+    ] = False,
+) -> None:
     """Stop everything: the tool-stack services that are running, then the lab.
 
     Services keep their data (`stick svc down <name> --volumes` deletes it), so the next start is quick.
     """
+    current = lab_mod.instance()
     try:
-        for name in services.available():  # first: they are attached to the lab's network
-            spec = services.load(name)
-            if lifecycle.status(spec):
-                lifecycle.down(spec)
-                console.print(f"[green]stopped[/] {spec.name}")
-        if containerlab.inspect(topology):
-            containerlab.destroy(topology)
-            console.print("[green]destroyed[/] the lab")
-        else:
-            console.print("[dim]the lab wasn't running[/]")
+        for n in range(lab_mod.MAX_INSTANCES) if all_ else [current]:
+            os.environ[lab_mod.INSTANCE_VAR] = str(n)  # the service and topology files are read per instance
+            of = f" of instance {n}" if all_ else ""
+            for name in services.available():  # first: they are attached to the lab's network
+                spec = services.load(name)
+                if lifecycle.status(spec):
+                    lifecycle.down(spec)
+                    console.print(f"[green]stopped[/] {spec.name}{of}")
+            if containerlab.inspect(topology):
+                containerlab.destroy(topology)
+                console.print(f"[green]destroyed[/] the lab{of}")
+            elif n == current:
+                console.print("[dim]the lab wasn't running[/]")
     except (containerlab.ContainerlabError, lifecycle.ServiceError, FileNotFoundError) as exc:
         err.print(f"[red]{exc}[/]")
         raise typer.Exit(1) from exc
+    finally:
+        os.environ[lab_mod.INSTANCE_VAR] = str(current)
 
 
 @env_app.command("status")
@@ -155,7 +210,7 @@ def env_status(topology: TopologyOpt = "base") -> None:
     except (containerlab.ContainerlabError, FileNotFoundError) as exc:
         err.print(f"[red]{exc}[/]")
         raise typer.Exit(1) from exc
-    table = Table("node", "kind", "state", "mgmt ipv4", "image")
+    table = Table("node", "kind", "state", "mgmt ipv4", "image", title=f"lab instance {lab_mod.instance()}")
     for n in nodes:
         table.add_row(n.name, n.kind, n.state, n.mgmt_ipv4, n.image)
     console.print(table)
@@ -261,6 +316,7 @@ def task_validate(
     except tasks.TaskError as exc:
         err.print(f"[red]{exc}[/]")
         raise typer.Exit(2) from exc
+    _claim_instance()
     table = Table("task", "oracle", "do nothing", "verdict")
     failures = 0
     for t in selected:
@@ -335,6 +391,8 @@ def grade_cmd(
     """
     try:
         target = run_dir or run_mod.latest(runs_dir)
+        if lab_mod.INSTANCE_VAR not in os.environ:  # grade against the lab the attempt ran on
+            os.environ[lab_mod.INSTANCE_VAR] = str(run_mod.load(target).instance)
         judge_client = _judge_client(judge_model, judge_base_url, []) if judge_model else None
         result = grade_mod.grade(target)
     except (run_mod.RunError, tasks.TaskError, LabStateError) as exc:
@@ -421,7 +479,9 @@ def svc_status(
     names: Annotated[list[str] | None, typer.Argument(help="Services (default: all).")] = None,
 ) -> None:
     """Show container state and whether each service answers its health check."""
-    table = Table("service", "container", "state", "health", "api")
+    table = Table(
+        "service", "container", "state", "health", "api", title=f"lab instance {lab_mod.instance()}"
+    )
     for spec in _load_services(names or services.available()):
         try:
             rows = lifecycle.status(spec)
@@ -712,6 +772,7 @@ def _run_models(
     if not selected:
         err.print("[red]no tasks matched[/]")
         raise typer.Exit(2)
+    _claim_instance()
     _bring_up(selected)
 
     free = loop.available_ram_mb()
@@ -788,7 +849,9 @@ def _bring_up(selected: list[tasks.Task]) -> None:
         err.print(f"[red]{exc}[/]")
         raise typer.Exit(2) from exc
     if stop:
-        console.print("[dim]left running afterwards; to stop everything: stick env down[/]", highlight=False)
+        console.print(
+            f"[dim]left running afterwards; to stop everything: {_stick()} env down[/]", highlight=False
+        )
 
 
 def _print_report(rows: list[Any]) -> None:

@@ -1,7 +1,7 @@
 # moto for llm-on-a-stick: an emulated AWS API (EC2, IAM, S3...) for the aws and terraform sections.
 # It keeps everything in memory and enforces nothing (no packets, no IAM): tasks are graded on resource state.
 # Start it with `stick svc up moto`; it doesn't need the lab.
-name: stick-moto
+name: ${STICK_NAME:-stick}-moto
 
 services:
   moto:
@@ -10,7 +10,7 @@ services:
       - "127.0.0.1:${STICK_MOTO_PORT:-8083}:5000"
     networks:
       stick-mgmt:
-        ipv4_address: 172.30.30.103
+        ipv4_address: ${STICK_MGMT_PREFIX:-172.30.30}.103
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:5000/moto-api/')"]
       interval: 2s
@@ -19,4 +19,5 @@ services:
 
 networks:
   stick-mgmt:
+    name: ${STICK_NAME:-stick}-mgmt
     external: true

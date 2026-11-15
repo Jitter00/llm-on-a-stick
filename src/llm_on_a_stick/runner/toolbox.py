@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from types import TracebackType
 
+from llm_on_a_stick import lab
 from llm_on_a_stick.env import containerlab
 
 IMAGE = os.environ.get("STICK_TOOLBOX_IMAGE", "stick-toolbox:dev")
@@ -137,6 +138,8 @@ class Toolbox:
                 "host",
                 "--label",
                 "stick-toolbox=1",
+                "--label",
+                f"stick-instance={lab.instance()}",  # whose it is, when several labs run side by side
                 *_env_args(self.env),
                 "-v",
                 f"{ws}:{WORKDIR}",

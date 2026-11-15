@@ -7,12 +7,13 @@ from pathlib import Path
 import yaml
 
 from llm_on_a_stick import footprints, paths
+from llm_on_a_stick.services.spec import expand
 
 TOPO = paths.topology_path("base")
 
 
 def load_topology() -> dict:  # type: ignore[type-arg]
-    return yaml.safe_load(TOPO.read_text(encoding="utf-8"))
+    return yaml.safe_load(expand(TOPO.read_text(encoding="utf-8"), {}))  # as lab instance 0 reads it
 
 
 def test_every_link_endpoint_is_a_defined_node() -> None:

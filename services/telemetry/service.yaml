@@ -4,7 +4,7 @@
 name: telemetry
 description: Streaming telemetry from the SR Linux routers (gNMIc 0.49) kept in Prometheus 3.16
 compose: compose.yaml
-project: stick-telemetry
+project: ${STICK_NAME:-stick}-telemetry
 wait_timeout_s: 120
 
 health:
@@ -12,8 +12,8 @@ health:
 
 endpoints:
   prometheus (host): http://127.0.0.1:${STICK_PROMETHEUS_PORT:-8088}
-  prometheus (lab mgmt network): http://172.30.30.110:9090
-  gnmic metrics (lab mgmt network): http://172.30.30.109:9804/metrics
+  prometheus (lab mgmt network): http://${STICK_MGMT_PREFIX:-172.30.30}.110:9090
+  gnmic metrics (lab mgmt network): http://${STICK_MGMT_PREFIX:-172.30.30}.109:9804/metrics
 
 credentials:
   prometheus: none

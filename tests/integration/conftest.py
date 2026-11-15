@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 from labutil import frr_established_peers, wait_for
 
+from llm_on_a_stick import lab as instances
 from llm_on_a_stick import paths, services, tasks
 from llm_on_a_stick.env import containerlab
 from llm_on_a_stick.labselect import Selection
@@ -57,12 +58,13 @@ def lab() -> Iterator[None]:
 
     A lab that was already running before the tests (you were using it) is left running afterwards;
     one the tests deployed themselves is destroyed again."""
-    was_running = _base_lab_running()
-    containerlab.deploy("base", reconfigure=True)
-    try:
-        converged = wait_for(lambda: all(frr_established_peers(n) == 2 for n in ("frr1", "frr2")))
-        assert converged, "base lab BGP did not converge"
-        yield
-    finally:
-        if not was_running:
-            containerlab.destroy("base")
+    with instances.lock():  # the tests redeploy and reset: nobody else on this instance meanwhile
+        was_running = _base_lab_running()
+        containerlab.deploy("base", reconfigure=True)
+        try:
+            converged = wait_for(lambda: all(frr_established_peers(n) == 2 for n in ("frr1", "frr2")))
+            assert converged, "base lab BGP did not converge"
+            yield
+        finally:
+            if not was_running:
+                containerlab.destroy("base")

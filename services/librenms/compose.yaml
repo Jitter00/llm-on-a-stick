@@ -3,7 +3,7 @@
 #   - lab-only credentials, overridable from the shell
 #   - LibreNMS joins the lab's management network at a fixed address: it polls the devices over SNMP from there
 #   - the admin user, the API token and the settings are created by `stick svc up librenms` (service.yaml: init)
-name: stick-librenms
+name: ${STICK_NAME:-stick}-librenms
 
 x-librenms-env: &librenms-env
   TZ: UTC
@@ -33,7 +33,7 @@ services:
     networks:
       default: {}
       stick-mgmt:
-        ipv4_address: 172.30.30.104
+        ipv4_address: ${STICK_MGMT_PREFIX:-172.30.30}.104
     volumes:
       - librenms-data:/data
 
@@ -50,7 +50,7 @@ services:
       default: {}
       # It is the one that sends the SNMP requests. A fixed address too: a dynamic one could take a lab node's.
       stick-mgmt:
-        ipv4_address: 172.30.30.105
+        ipv4_address: ${STICK_MGMT_PREFIX:-172.30.30}.105
     volumes:
       - librenms-data:/data
 
@@ -82,6 +82,7 @@ services:
 
 networks:
   stick-mgmt:
+    name: ${STICK_NAME:-stick}-mgmt
     external: true
 
 volumes:

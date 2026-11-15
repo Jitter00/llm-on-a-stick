@@ -49,8 +49,11 @@ stick env down                                             # stop everything whe
   RAM. `stick vs` refuses two local models. Run the first with `stick run`, have the user stop it and start the
   second, run that one into another folder, then compare with
   `stick report <folder-a> <folder-b> --html --out <file>.html`.
-- **One `stick run` at a time.** There is one lab, and every attempt resets it.
-- **Don't run `stick task validate` during a model run**: both use the same emulated AWS account.
+- **One `stick run` at a time per lab instance.** Every attempt resets the lab and its services. A second
+  run, `stick task validate` or `pytest -m lab` on the same instance is refused; to work side by side, give it
+  another instance: `stick --instance 1 run ...` or `STICK_INSTANCE=1` (its own lab, services, subnet
+  172.30.31.0/24 and ports + 100; [docs/services.md](docs/services.md), "Several lab instances"). Each instance
+  takes 4 to 11 GB of RAM: check `stick doctor` first, and stop it afterwards with `stick --instance 1 env down`.
 - **Runs can be long.** A cloud model takes about 15 s per attempt, a local model several minutes, and a first
   start of NetBox or Nautobot adds about 2.5 minutes. Run anything bigger than one section in the background and
   wait for it to exit; don't cut it short with a command timeout.

@@ -414,6 +414,10 @@ stick env down
 | frr1, frr2 | 172.30.30.21, .22 | `admin` / `admin`; `netops` / `netops` | FRR leaves, AS65101 / AS65102; `admin` lands in vtysh, `netops` in a Linux shell (`lldpcli`, `vtysh -c ...`) |
 | h1, h2 | 172.30.30.31, .32 | `docker exec -it clab-stick-base-h1 sh` | hosts 10.1.1.10 and 10.1.2.10 |
 
+These are the names and addresses of the default lab. `stick --instance 1 ...` works on a second, separate lab
+with its own services (`clab-stick1-base-*`, 172.30.31.x, ports + 100):
+[docs/services.md](docs/services.md#several-lab-instances-on-one-machine).
+
 | Tool | In your browser | From the lab network | Login |
 |---|---|---|---|
 | NetBox 4.7 | <http://127.0.0.1:8081> | `http://172.30.30.100:8080` | `admin` / `admin`; API token in [docs/services.md](docs/services.md) |

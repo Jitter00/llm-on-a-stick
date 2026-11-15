@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from llm_on_a_stick import paths
+from llm_on_a_stick import lab, paths
 
 DEFAULT_FRR_IMAGE = "stick-frr:dev"
 
@@ -42,7 +42,7 @@ def lab_dir_base() -> Path:
 
 
 def _env() -> dict[str, str]:
-    env = dict(os.environ)
+    env = lab.env()
     env.setdefault("STICK_FRR_IMAGE", DEFAULT_FRR_IMAGE)
     if "CLAB_LABDIR_BASE" not in env:
         base = lab_dir_base()
@@ -70,6 +70,7 @@ def _clab(args: list[str], *, capture: bool = False) -> subprocess.CompletedProc
 
 def deploy(topology: str, *, reconfigure: bool = False) -> Path:
     topo = paths.topology_path(topology)
+    lab.render_instance_files()
     args = ["deploy", "-t", str(topo)]
     if reconfigure:
         args.append("--reconfigure")

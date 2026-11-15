@@ -1,10 +1,10 @@
 # How `stick svc` drives Loki. ${VAR:-default} is expanded from the environment, using the same variables
-# and defaults as compose.yaml. The routers send their syslog to 172.30.30.108:1514 whether this service
+# and defaults as compose.yaml. The routers send their syslog to ${STICK_MGMT_PREFIX:-172.30.30}.108:1514 whether this service
 # runs or not (topologies/base.clab.yml, configs/srl/*.cli): what they log while it is down is lost.
 name: loki
 description: Loki 3.7 with the routers' syslog (received by Alloy), read through Grafana 13.3
 compose: compose.yaml
-project: stick-loki
+project: ${STICK_NAME:-stick}-loki
 wait_timeout_s: 180
 
 # Healthy = Loki takes queries. Grafana has its own health check in compose.yaml (`up --wait`).
@@ -14,7 +14,7 @@ health:
 endpoints:
   grafana (host): http://127.0.0.1:${STICK_GRAFANA_PORT:-8086}
   loki api (host): http://127.0.0.1:${STICK_LOKI_PORT:-8087}/loki/api/v1/
-  syslog (lab mgmt network): 172.30.30.108:1514 (UDP and TCP, RFC 5424)
+  syslog (lab mgmt network): ${STICK_MGMT_PREFIX:-172.30.30}.108:1514 (UDP and TCP, RFC 5424)
 
 credentials:
   grafana username: admin

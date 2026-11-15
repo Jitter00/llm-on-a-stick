@@ -4,7 +4,7 @@
 #   - grafana has Loki as a datasource (uid `loki`): the MCP server works through it. Its second
 #     datasource is the Prometheus of the `telemetry` service (uid `prometheus`)
 #   - lab-only credentials, overridable from the shell
-name: stick-loki
+name: ${STICK_NAME:-stick}-loki
 
 services:
   loki:
@@ -28,7 +28,7 @@ services:
     networks:
       default: {}
       stick-mgmt:
-        ipv4_address: 172.30.30.108
+        ipv4_address: ${STICK_MGMT_PREFIX:-172.30.30}.108
     volumes:
       - ./config.alloy:/etc/alloy/config.alloy:ro
 
@@ -53,13 +53,14 @@ services:
     networks:  # the lab's management network: the `telemetry` service's Prometheus is a datasource there
       default: {}
       stick-mgmt:
-        ipv4_address: 172.30.30.111
+        ipv4_address: ${STICK_MGMT_PREFIX:-172.30.30}.111
     volumes:
-      - ./grafana/datasources.yaml:/etc/grafana/provisioning/datasources/stick.yaml:ro
+      - ${STICK_GRAFANA_DATASOURCES:-./grafana/datasources.yaml}:/etc/grafana/provisioning/datasources/stick.yaml:ro
       - grafana-data:/var/lib/grafana
 
 networks:
   stick-mgmt:
+    name: ${STICK_NAME:-stick}-mgmt
     external: true
 
 volumes:

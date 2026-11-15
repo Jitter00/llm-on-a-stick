@@ -47,9 +47,9 @@ def test_api_wants_token_not_bearer(nautobot: seed.RestClient) -> None:
 
 
 def test_reachable_from_lab_network(nautobot: seed.RestClient) -> None:
-    ip = lab.SERVICE_IPS["nautobot"]
+    ip = lab.service_ip("nautobot")
     res = subprocess.run(
-        ["docker", "run", "--rm", "--network", lab.MGMT_NETWORK, "curlimages/curl:8.17.0",
+        ["docker", "run", "--rm", "--network", lab.mgmt_network(), "curlimages/curl:8.17.0",
          "-s", "-o", "/dev/null", "-w", "%{http_code}", f"http://{ip}:8080/health/"],
         capture_output=True, text=True, check=False,
     )  # fmt: skip

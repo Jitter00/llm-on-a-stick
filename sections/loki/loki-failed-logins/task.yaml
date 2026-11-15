@@ -34,7 +34,7 @@ checks:
       path: answer.json
       expected:
         router: frr2
-        source: 172.30.30.31
+        source: "{{ nodes.h1.mgmt_ip }}"
         failed_attempts: "{{ canaries.tries }}"
     weight: 2
   - type: no_change_outside
