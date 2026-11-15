@@ -17,14 +17,14 @@ routers themselves. Only Terraform gives the model a shell. More in [MCP-first](
 > **What works today:** the virtual lab; the `stick` command; ten tools around it (NetBox, Nautobot, LibreNMS,
 > Zabbix, Oxidized, Gitea, PowerDNS, Loki with the routers' syslog, Prometheus with their streaming telemetry, and an
 > emulated AWS account for the AWS CLI and Terraform);
-> **33 tasks** in eleven sections (three each: basic, intermediate, advanced),
+> **33 tasks** in eleven sections (three each: basic, intermediate, advanced; [the list](#the-tasks)),
 > from reading router configs right across two vendors to keeping NetBox in sync and fixing monitoring,
 > **MCP-first**: all but the Terraform ones go through MCP servers instead of a shell; the
 > **grader**, which checks every attempt and explains what went wrong; and the **runner**, which lets AI models
 > attempt the tasks and compares the results in a report. Start with the [Quick start](#quick-start). What comes
 > next: [Roadmap](#roadmap).
 
-**Contents:** [Quick start](#quick-start) · [MCP-first](#mcp-first) · [What you need](#what-you-need) ·
+**Contents:** [Quick start](#quick-start) · [MCP-first](#mcp-first) · [The tasks](#the-tasks) · [What you need](#what-you-need) ·
 [Install](#install-step-by-step) ·
 [Your first lab](#your-first-lab-about-10-minutes) ·
 [Run a model](#run-a-model) · [Commands at a glance](#commands-at-a-glance) · [Cheat sheet](#cheat-sheet) ·
@@ -83,6 +83,35 @@ plus one for handing in its answer:
 
 Which servers, which versions and which of their tools:
 [docs/tasks.md](docs/tasks.md#how-the-model-reaches-the-tools) and [docs/services.md](docs/services.md).
+
+## The tasks
+
+**33 tasks in eleven sections**, three per section: one basic, one intermediate, one advanced. Run one section
+with `stick run --section <name>`, one task by its id, or everything with `--all`; `stick task list` prints them.
+
+| Section | What it covers | Basic | Intermediate | Advanced |
+|---|---|---|---|---|
+| `cfg-mgmt` | Reading configuration off routers of two vendors | Read one interface's configuration from an FRR router (`config-interface-frr`) | Report the BGP configuration of two routers from different vendors (`config-section-bgp`) | Find the BGP neighbours configured with the wrong AS, across two vendors (`bgp-peering-audit`) |
+| `netbox` | NetBox as the source of truth | Find a device by its asset tag (`netbox-lookup`) | Find where NetBox and a router disagree (`netbox-drift`) | Document a router in NetBox, with its interfaces and primary IP (`netbox-register-node`) |
+| `nautobot` | Nautobot as the source of truth | Find an interface and its IP address in Nautobot (`nautobot-query-interface`) | Reserve the first free /28 of a prefix (`nautobot-carve-prefix`) | Take the next free loopback from Nautobot and configure it on a router (`nautobot-next-ip`) |
+| `librenms` | Monitoring in LibreNMS (SNMP) | Find a port by its description in LibreNMS (`librenms-query-port`) | Get a router that LibreNMS reports down monitored again (`librenms-fix-monitoring`) | Make LibreNMS monitor the devices NetBox lists as active (`librenms-netbox-sync`) |
+| `zabbix` | Monitoring in Zabbix (SNMP) | Find a host by its tag in Zabbix (`zabbix-query-host`) | Add a router to Zabbix over SNMP (`zabbix-add-host`) | Put a NetBox tenant's devices in maintenance in Zabbix (`zabbix-netbox-maintenance`) |
+| `loki` | The routers' syslog in Loki | Find who tried to log in with an unknown account, from the routers' syslog in Loki (`loki-failed-logins`) | Find the flapping link and the BGP session it takes down, from the routers' syslog in Loki (`loki-link-flap`) | Find the configuration change behind dropped BGP sessions, from the routers' syslog in Loki (`loki-root-cause`) |
+| `telemetry` | Streaming telemetry (gNMI) in Prometheus | Count a router's ports that are enabled but have no link, from streaming telemetry in Prometheus (`telemetry-idle-ports`) | Find the port that kept going down and the BGP session it took with it, from streaming telemetry (`telemetry-port-flaps`) | Tell apart three reasons BGP sessions dropped, from the history in streaming telemetry (`telemetry-session-drops`) |
+| `gitea` | A Git repository of router configurations in Gitea | Find the commit that removed a BGP neighbour (`gitea-blame-change`) | Read a setting on two branches of a Git repository (`gitea-file-at-ref`) | Open a pull request for the file that drifted from its router (`gitea-drift-pr`) |
+| `powerdns` | DNS zones and records in PowerDNS | Find every DNS name that leads to one address (`powerdns-who-points-here`) | Add a second address to a DNS name, with its reverse record (`powerdns-add-address`) | Make the routers' DNS records match the routers (`powerdns-router-audit`) |
+| `aws` | An emulated AWS account | Find an EC2 instance's address, subnet and security group (`aws-query-instance`) | Delete a project's unused volumes, addresses and security groups (`aws-orphan-cleanup`) | Find and fix everything that keeps a web server unreachable (`aws-unreachable`) |
+| `terraform` | Terraform against the same account (the one section with a shell) | Report what a Terraform configuration change would do (`tf-plan-report`) | Repair a Terraform configuration that does not apply (`tf-debug`) | Reconcile Terraform with changes made by hand, adopting the approved ones and undoing the rest (`tf-drift`) |
+
+- **Every attempt gets new values** (names, addresses, descriptions), so an answer can't be remembered from an
+  earlier run, and tasks come with decoys: the neighbouring address, the commit whose message misleads, the
+  device that is planned but not active.
+- **Changes are graded where they land**: on the router, in the tool's own data, or by asking the DNS server,
+  never from what the model says it did. Tasks also fail when something they didn't ask for was changed.
+- **The tiers are a guide, not a measurement.** They say how much a task asks for; which tasks a given model
+  finds hard is what a run shows.
+
+What each task asks, what can go wrong and how it is detected: [docs/tasks.md](docs/tasks.md).
 
 ## The lab
 
@@ -468,7 +497,7 @@ The project checks itself with automated tests. There are two kinds.
 uv run pytest
 ```
 
-These check the code and configuration files. The last line should look like `260 passed, 85 deselected`
+These check the code and configuration files. The last line should look like `354 passed, 137 deselected`
 ("deselected" are the lab tests below, which are skipped by default).
 
 ### Lab tests (several minutes, more the first time)
@@ -482,7 +511,7 @@ stick image build frr     # only needed once, or after updating the code
 uv run pytest -m lab -v
 ```
 
-Each test prints `PASSED` or `FAILED` as it runs; the last line is the summary, for example `85 passed`. The first
+Each test prints `PASSED` or `FAILED` as it runs; the last line is the summary, for example `137 passed`. The first
 run takes longer because of image downloads and each tool's first start.
 
 To test just one area, name its file:
