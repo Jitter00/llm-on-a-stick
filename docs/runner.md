@@ -11,8 +11,9 @@ uv run stick report                                   # compare everything in ru
 ```
 
 `stick run` (and `stick vs`) first starts whatever the chosen tasks need and isn't running yet: the lab, and
-services such as Oxidized or NetBox (a first start of NetBox takes a few minutes). It leaves them running, so the
-next run starts at once. `uv run stick env down` stops everything: the services, then the lab.
+services such as Oxidized or NetBox (a first start of NetBox takes a few minutes). After starting the lab it
+waits for the routers' BGP sessions (up to five minutes), so the first attempt meets a working network. It
+leaves everything running, so the next run starts at once. `uv run stick env down` stops everything: the services, then the lab.
 
 ## Which models
 
@@ -340,12 +341,29 @@ Runs both models on the same tasks and writes the side-by-side `report.html`, in
 applies to both models, so with two providers set the address per provider instead, e.g.
 `STICK_OLLAMA_BASE_URL=http://192.168.122.1:11434/v1` (in your shell or in [`.env`](#settings-file-env)).
 
-The two models run one after the other, the first one's whole batch before the second. Two local models can't
-share the GPU and RAM, so `stick vs` refuses that pair: run each with `stick run` into its own folder and compare
-with `stick report <folder> <folder> --html`. A cloud model and a local model don't compete for the machine and
-could run at the same time, but all attempts still share the one lab (the same routers, one instance of each
-tool), and two attempts at once would undo each other's work. Running that pair in parallel needs a lab per model
-first; it's on the roadmap.
+**The two models run at the same time when they can**, each on a
+[lab instance](services.md#several-lab-instances-on-one-machine) of its own: the first on the current instance,
+the second on the lowest free one, which `stick vs` starts (with the services the tasks need) and leaves
+running. A cloud model with a local one, or two cloud models, don't compete for the machine, so the comparison
+takes about as long as the slower model alone. Every output line starts with its model's name, and the report
+at the end covers both.
+
+They run one after the other, the first one's whole batch before the second, when:
+
+- you pass `--sequential`;
+- no other lab instance is free;
+- the second lab and its services don't fit in memory: what they would take (the figures of `stick doctor`,
+  counting only what isn't running yet) is compared with the RAM that is usable now.
+
+`stick vs` says which it chose and why. The second instance is on another subnet (172.30.31.x for instance 1),
+so its model sees other management addresses than the first; every task takes its addresses from the lab, and
+each attempt's `run.json` records the instance. Stop the second lab with `stick --instance 1 env down`, or
+everything with `stick env down --all`.
+
+Two local models can't share the GPU and RAM, so `stick vs` refuses that pair: run each with `stick run` into
+its own folder and compare with `stick report <folder> <folder> --html`. The same holds across terminals and
+instances: while a run is testing a local model, a second run with a local model is refused, wherever it is
+started.
 
 ## A scripted "model"
 
@@ -374,7 +392,8 @@ steps:
 ## Local models and your machine
 
 !!! warning "Local models run one after another, never in parallel"
-    `stick run` runs one attempt at a time, model by model, and refuses two local models in one command:
+    `stick run` runs one attempt at a time, model by model, and refuses two local models in one command, or a
+    second local model while another run on this machine is testing one:
     **several local models must never run at the same time**: they
     compete for the same GPU and RAM (one may not even load), and the timings become meaningless. To compare local
     models, run one model's batch, stop that server, then run the next model's batch:

@@ -6,6 +6,8 @@ import contextlib
 import json
 import os
 import re
+import time
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any
@@ -14,6 +16,7 @@ from urllib.parse import quote
 import typer
 from rich.console import Console
 from rich.table import Table
+from rich.text import Text
 
 from llm_on_a_stick import __version__, doctor, dotenv, paths, services, tasks
 from llm_on_a_stick import lab as lab_mod
@@ -68,6 +71,21 @@ def _claim_instance() -> None:
     except lab_mod.InstanceError as exc:
         err.print(f"[red]{exc}[/]")
         raise typer.Exit(2) from exc
+
+
+@contextlib.contextmanager
+def _as_instance(n: int) -> Iterator[None]:
+    """Look at another lab instance for a moment (the lab and service helpers read the instance from the
+    environment)."""
+    before = os.environ.get(lab_mod.INSTANCE_VAR)
+    os.environ[lab_mod.INSTANCE_VAR] = str(n)
+    try:
+        yield
+    finally:
+        if before is None:
+            os.environ.pop(lab_mod.INSTANCE_VAR, None)
+        else:
+            os.environ[lab_mod.INSTANCE_VAR] = before
 
 
 def _stick() -> str:
@@ -638,6 +656,10 @@ def run_cmd(
     judge_model: JudgeModelOpt = None,
     judge_base_url: JudgeBaseUrlOpt = None,
     judge_repeats: JudgeRepeatsOpt = 3,
+    attempts_file: Annotated[
+        Path | None,
+        typer.Option(hidden=True, help="Append each attempt's folder to this file (used by `stick vs`)."),
+    ] = None,
 ) -> None:
     """Let models attempt tasks in the lab, grade each attempt and compare.
 
@@ -653,7 +675,7 @@ def run_cmd(
     _run_models(
         model, task_refs, section, all_, repeat, base_url, max_turns, timeout_s, cmd_timeout, temperature,
         effort, thinking, min_free_ram, tasks_dir, runs_dir, seed, no_report,
-        judge_model, judge_base_url, judge_repeats,
+        judge_model, judge_base_url, judge_repeats, attempts_file=attempts_file,
     )  # fmt: skip
 
 
@@ -686,11 +708,20 @@ def vs_cmd(
     judge_model: JudgeModelOpt = None,
     judge_base_url: JudgeBaseUrlOpt = None,
     judge_repeats: JudgeRepeatsOpt = 3,
+    sequential: Annotated[
+        bool,
+        typer.Option(
+            "--sequential",
+            help="Run the models one after the other on one lab, even when they could run at the same time.",
+        ),
+    ] = False,
 ) -> None:
     """Two models on the same tasks, side by side: runs both, then writes the versus report.
 
-    The models run one after the other, the first one's whole batch before the second (they share the one
-    lab). To compare runs you already have: `stick report <folder> <folder> --html`.
+    A cloud model and a local model, or two cloud models, run at the same time, each on a lab instance of
+    its own, when another instance is free and the machine has the memory for it. Otherwise, and with
+    --sequential, they run one after the other, the first one's whole batch before the second. Two local
+    models are refused. To compare runs you already have: `stick report <folder> <folder> --html`.
     """
     if model_a == model_b:
         err.print("[red]give two different models[/]")
@@ -701,7 +732,7 @@ def vs_cmd(
     _run_models(
         [model_a, model_b], task_refs, section, all_, repeat, base_url, max_turns, timeout_s, cmd_timeout,
         temperature, effort, thinking, min_free_ram, tasks_dir, runs_dir, seed, False,
-        judge_model, judge_base_url, judge_repeats,
+        judge_model, judge_base_url, judge_repeats, side_by_side=not sequential,
     )  # fmt: skip
 
 
@@ -726,10 +757,13 @@ def _run_models(
     judge_model: str | None = None,
     judge_base_url: str | None = None,
     judge_repeats: int = 3,
+    attempts_file: Path | None = None,
+    side_by_side: bool | None = None,
 ) -> None:
-    """`stick run` and `stick vs`: every model's whole batch, one model after the other."""
+    """`stick run` and `stick vs`: every model's whole batch, one model after the other, or (`stick vs`,
+    side_by_side not None) each model on its own lab instance at the same time when that is possible."""
     from llm_on_a_stick.grading import judge as judge_mod
-    from llm_on_a_stick.runner import loop, mcp, models, report, toolbox
+    from llm_on_a_stick.runner import loop, mcp, models, report, schedule, toolbox
 
     # First: a judge that is one of the tested models is refused before anything starts.
     judge_client = _judge_client(judge_model, judge_base_url, model) if judge_model else None
@@ -737,10 +771,10 @@ def _run_models(
     try:
         selected = _select_tasks(task_refs, section, all_, _task_roots(tasks_dir))
         clients = [models.make_client(m, base_url, temperature, effort, thinking=thinking) for m in model]
-        local = [c.spec.spec for c in clients if c.spec.endpoint.local and c.spec.provider != "script"]
-        if len(local) > 1:
+        both = [c.spec.spec for c in clients if c.spec.endpoint.local and c.spec.provider != "script"]
+        if len(both) > 1:
             raise models.ModelError(
-                f"{', '.join(local)} are local models: run them one after another, never together "
+                f"{', '.join(both)} are local models: run them one after another, never together "
                 "(they compete for the same GPU and RAM). One `stick run` per local model, stopping the "
                 "first model's server before the next; then `stick report` compares them."
             )
@@ -772,6 +806,23 @@ def _run_models(
     if not selected:
         err.print("[red]no tasks matched[/]")
         raise typer.Exit(2)
+    local = [c.spec.spec for c in clients if c.spec.endpoint.local and c.spec.provider != "script"]
+    if side_by_side is not None:
+        chosen = _plan_instances([c.spec.spec in local for c in clients], selected, not side_by_side)
+        if chosen.instances is not None:
+            common = _run_options(
+                task_refs, section, all_, repeat, base_url, max_turns, timeout_s, cmd_timeout, temperature,
+                effort, thinking, min_free_ram, tasks_dir, runs_dir, seed, judge_model, judge_base_url,
+                judge_repeats,
+            )  # fmt: skip
+            _run_side_by_side(model, chosen.instances, common, runs_dir, task_refs, section, all_)
+        console.print(f"[dim]the models run one after the other: {chosen.reason}[/]", highlight=False)
+    try:
+        for spec in local:  # one local model at a time on this machine, whatever the terminal or instance
+            _held.enter_context(schedule.local_model_lock(spec))
+    except schedule.ScheduleError as exc:
+        err.print(f"[red]{exc}[/]")
+        raise typer.Exit(2) from exc
     _claim_instance()
     _bring_up(selected)
 
@@ -805,6 +856,9 @@ def _run_models(
                     errors += 1
                     continue
                 done.append(info.run_dir)
+                if attempts_file is not None:
+                    with attempts_file.open("a", encoding="utf-8") as fh:
+                        fh.write(f"{info.run_dir}\n")
                 if loop.never_answered(m):
                     err.print(f"  [red]the model never answered: {m.error}[/]", highlight=False)
                     errors += 1
@@ -819,13 +873,174 @@ def _run_models(
                 if judge_client is not None:
                     _judge_attempt(info.run_dir, judge_client, judge_repeats, force=True)
     rows = report.collect(done)
-    if rows:
+    if rows and attempts_file is None:  # with an attempts file, `stick vs` reports on all its models
         console.print()
         _print_report(rows)
         if not no_report:  # this run's attempts only: the folder may hold older runs of other models
             name = _report_name(model, task_refs, section, all_)
             _write_html(done, runs_dir / name, title=None, task=None)
     raise typer.Exit(1 if errors else 0)
+
+
+def _need_mb(selected: list[tasks.Task], n: int) -> int:
+    """RAM that the lab and services these tasks need would still take on instance n: what is running
+    there already is paid for."""
+    from llm_on_a_stick import footprints
+
+    fp = footprints.load()
+    need = 0
+    with _as_instance(n):
+        for topology in sorted({t.topology for t in selected if t.requires.get("devices")}):
+            if topology in fp.topologies and not any(
+                node.state == "running" for node in containerlab.inspect(topology)
+            ):
+                need += fp.topology_ram_mb(topology)
+        names = sorted({str(s) for t in selected for s in t.requires.get("services", []) or []})
+        for spec in _load_services(names):
+            if spec.name in fp.services and not lifecycle.healthy(spec):
+                need += fp.services_ram_mb([spec.name])
+    return need
+
+
+def _instance_is_free(n: int) -> bool:
+    try:
+        with lab_mod.lock(n):
+            return True
+    except lab_mod.InstanceError:
+        return False
+
+
+def _plan_instances(local: list[bool], selected: list[tasks.Task], sequential: bool) -> Any:
+    from llm_on_a_stick.runner import schedule
+
+    if sequential:  # nothing to measure
+        return schedule.Plan(None, "--sequential")
+    usable = doctor.compute_budget(doctor.probe_host(), doctor.probe_docker()).usable_mb
+    try:
+        return schedule.plan(
+            local, lab_mod.instance(), _instance_is_free, lambda n: _need_mb(selected, n), usable
+        )
+    except (containerlab.ContainerlabError, FileNotFoundError) as exc:
+        return schedule.Plan(None, f"could not look at the other lab instances ({exc})")
+
+
+def _run_options(
+    task_refs: list[str] | None,
+    section: list[str] | None,
+    all_: bool,
+    repeat: int,
+    base_url: str | None,
+    max_turns: int | None,
+    timeout_s: int | None,
+    cmd_timeout: int,
+    temperature: float | None,
+    effort: str | None,
+    thinking: bool,
+    min_free_ram: int,
+    tasks_dir: list[Path] | None,
+    runs_dir: Path,
+    seed: int | None,
+    judge_model: str | None,
+    judge_base_url: str | None,
+    judge_repeats: int,
+) -> list[str]:
+    """The `stick run` arguments that give one model the batch this command was asked for."""
+    args = [*(task_refs or [])]
+    for name in section or []:
+        args += ["--section", name]
+    if all_:
+        args.append("--all")
+    args += ["--repeat", str(repeat), "--cmd-timeout", str(cmd_timeout), "--min-free-ram", str(min_free_ram)]
+    args.append("--thinking" if thinking else "--no-thinking")
+    optional: list[tuple[str, object]] = [
+        ("--base-url", base_url), ("--max-turns", max_turns), ("--timeout", timeout_s),
+        ("--temperature", temperature), ("--effort", effort), ("--seed", seed),
+        ("--judge-model", judge_model), ("--judge-base-url", judge_base_url),
+    ]  # fmt: skip
+    for flag, value in optional:
+        if value is not None:
+            args += [flag, str(value)]
+    if judge_model:
+        args += ["--judge-repeats", str(judge_repeats)]
+    for folder in tasks_dir or []:
+        args += ["--tasks-dir", str(folder)]
+    return [*args, "--runs-dir", str(runs_dir), "--no-report"]
+
+
+def _run_side_by_side(
+    model: list[str],
+    instances: tuple[int, ...],
+    common: list[str],
+    runs_dir: Path,
+    task_refs: list[str] | None,
+    section: list[str] | None,
+    all_: bool,
+) -> None:
+    """Every model at the same time, each as its own `stick run` on its own lab instance; then one report
+    over all their attempts. Always ends the command."""
+    from llm_on_a_stick.runner import report, schedule
+
+    runs_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    files = [runs_dir / f".attempts-{stamp}-{i}" for i in range(len(model))]
+    jobs = []
+    labels = [m if len(m) <= 32 else f"...{m[-29:]}" for m in model]  # the start of each output line
+    for m, label, n, file in zip(model, labels, instances, files, strict=True):
+        console.print(f"[bold]{m}[/] runs on lab instance {n}", highlight=False)
+        jobs.append((label, schedule.child_argv(n, ["--model", m, *common, "--attempts-file", str(file)])))
+    width = max(len(label) for label in labels)
+    styles = dict(zip(labels, ("cyan", "magenta", "yellow", "green"), strict=False))
+
+    def log(label: str, line: str) -> None:
+        console.print(Text.assemble((f"{label:<{width}} | ", styles.get(label, "")), line), soft_wrap=True)
+
+    codes = schedule.run_children(jobs, log, columns=max(60, console.width - width - 3))
+    done: list[Path] = []
+    for file in files:
+        if file.exists():
+            done += [Path(line) for line in file.read_text(encoding="utf-8").splitlines() if line]
+            file.unlink()
+    rows = report.collect(done)
+    if rows:
+        console.print()
+        _print_report(rows)
+        _write_html(done, runs_dir / _report_name(model, task_refs, section, all_), title=None, task=None)
+    others = [n for n in instances if n != lab_mod.instance()]
+    for n in others:
+        console.print(
+            f"[dim]lab instance {n} is left running; to stop it: stick --instance {n} env down[/]",
+            highlight=False,
+        )
+    raise typer.Exit(max((c if c in (0, 1, 2) else 1) for c in codes))
+
+
+def _wait_converged(topology: str, timeout_s: float = 300, step_s: float = 5) -> None:
+    """A lab that just started has no routing yet (SR Linux takes a minute or two): an attempt made now
+    would be graded against a network that is still coming up. Wait until every router's BGP sessions are
+    established; say so and go on if they never are."""
+    state = DockerLabState(topology)
+    routers = [name for name, node in state.nodes().items() if node.os != "host"]
+    console.print("  waiting for the routers' BGP sessions ...", highlight=False)
+    deadline = time.monotonic() + timeout_s
+    pending = routers
+    while True:
+        still = []
+        for name in pending:
+            try:
+                sessions = state.bgp_sessions(name)
+            except (LabStateError, ValueError):  # the router doesn't answer yet
+                sessions = {}
+            if not sessions or any(s != "established" for s in sessions.values()):
+                still.append(name)
+        pending = still
+        if not pending:
+            return
+        if time.monotonic() >= deadline:
+            err.print(
+                f"[yellow]BGP is not up on {', '.join(pending)} after {timeout_s:.0f} s; going on anyway[/]"
+            )
+            return
+        time.sleep(step_s)
 
 
 def _bring_up(selected: list[tasks.Task]) -> None:
@@ -840,6 +1055,7 @@ def _bring_up(selected: list[tasks.Task]) -> None:
             console.print(f"starting the lab ({topology}), it isn't running ...", highlight=False)
             containerlab.deploy(topology)
             stop.append(topology)
+            _wait_converged(topology)
         stopped = [spec for spec in _load_services(names) if not lifecycle.healthy(spec)]
         for spec in stopped:
             console.print(f"starting {spec.name}, it isn't running ...", highlight=False)

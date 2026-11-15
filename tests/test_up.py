@@ -25,10 +25,12 @@ class _Fakes:
     def __init__(self, monkeypatch: pytest.MonkeyPatch, *, lab_running: bool, healthy: set[str]) -> None:
         self.deployed: list[str] = []
         self.started: list[str] = []
+        self.waited: list[str] = []
         state = "running" if lab_running else "exited"
         nodes = [containerlab.LabNode("n", "linux", "x", state, "")] if lab_running else []
         monkeypatch.setattr(containerlab, "inspect", lambda topology: nodes)
         monkeypatch.setattr(containerlab, "deploy", lambda topology: self.deployed.append(topology))
+        monkeypatch.setattr(cli, "_wait_converged", lambda topology: self.waited.append(topology))
         monkeypatch.setattr(cli, "_load_services", lambda names: [SimpleNamespace(name=n) for n in names])
         monkeypatch.setattr(cli.lifecycle, "healthy", lambda spec: spec.name in healthy)
         monkeypatch.setattr(cli.lifecycle, "up", lambda spec, log: self.started.append(spec.name))
@@ -40,6 +42,7 @@ def test_up_starts_only_what_is_missing(
     fakes = _Fakes(monkeypatch, lab_running=False, healthy={"netbox"})
     cli._bring_up([_task(["oxidized", "netbox"]), _task(["oxidized"]), _task()])
     assert fakes.deployed == ["base"]
+    assert fakes.waited == ["base"]  # a lab it started: wait for its routing before the first attempt
     assert fakes.started == ["oxidized"]
     out = capsys.readouterr().out
     assert "to stop everything: stick env down" in out
@@ -50,7 +53,7 @@ def test_up_does_nothing_when_everything_runs(
 ) -> None:
     fakes = _Fakes(monkeypatch, lab_running=True, healthy={"oxidized"})
     cli._bring_up([_task(["oxidized"])])
-    assert fakes.deployed == [] and fakes.started == []
+    assert fakes.deployed == [] and fakes.started == [] and fakes.waited == []
     assert capsys.readouterr().out == ""
 
 

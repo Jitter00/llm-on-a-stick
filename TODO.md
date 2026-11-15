@@ -48,8 +48,9 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
       `netconf-rpc-error`, `hallucinated-api`, `hallucinated-value`, `truncated-output`, `incomplete-config`, `wrong-config`,
       `collateral-change`, `no-verification` (done as a hint), `loop`, `gave-up`, `limit-exceeded`, `env-error` (excluded from scores).
 - [ ] Runner follow-ups: scheduler (parallel *lab work* only: **never run several local models at the same time**;
-      local models always go one after another, and API models may run in parallel; for `stick vs`, a lab instance per
-      model so that a cloud and a local model can run at the same time), publish `stick-toolbox` to GHCR, Inspect-format log export,
+      local models always go one after another, and API models may run in parallel. Done for `stick vs`: a lab
+      instance per model, `runner/schedule.py`. Left: the same for `stick run` with several models, and packing more
+      than two), publish `stick-toolbox` to GHCR, Inspect-format log export,
       a router MCP server that speaks NETCONF or gNMI and can change SR Linux (none is published; `netmiko-mcp`
       is CLI only and has no configuration tool yet), context-window variants (`--num-ctx`), streaming for
       long Anthropic turns, macOS support for the toolbox.
@@ -69,7 +70,8 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
       effort, with/without docs.
 - [ ] **Scheduler.** Group tasks by shared services, bin-pack parallel lab instances under the doctor RAM budget
       (minus local model RAM), limit API concurrency per provider; `stick run --dry-run` prints the plan.
-      Lab instances exist (`stick --instance N`, docs/services.md); what is left is choosing them automatically.
+      Lab instances exist (`stick --instance N`, docs/services.md) and `stick vs` picks one per model
+      (`runner/schedule.py::plan`); what is left is doing so for whole batches of tasks.
 
 ## Later
 
