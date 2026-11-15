@@ -6,6 +6,7 @@ import contextlib
 import json
 import os
 import re
+import subprocess
 import time
 from collections.abc import Iterator
 from datetime import UTC, datetime
@@ -218,6 +219,31 @@ def env_down(
         raise typer.Exit(1) from exc
     finally:
         os.environ[lab_mod.INSTANCE_VAR] = str(current)
+    others = sorted(_running_instances() - {current})
+    if others and not all_:  # plain `env down` stops one instance: say what it left running
+        which = f"instance {others[0]} is" if len(others) == 1 else f"instances {_join(others)} are"
+        console.print(f"[yellow]{which} still running:[/] stick env down --all")
+
+
+def _join(numbers: list[int]) -> str:
+    """1, 2 and 3"""
+    return f"{', '.join(map(str, numbers[:-1]))} and {numbers[-1]}"
+
+
+def _running_instances() -> set[int]:
+    """The lab instances with at least one running container (a node or a service). Empty when Docker
+    can't be asked: this only feeds a hint."""
+    try:
+        res = subprocess.run(
+            ["docker", "ps", "--format", "{{.Names}}"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=20,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return set()
+    return lab_mod.instances_of(res.stdout.split()) if res.returncode == 0 else set()
 
 
 @env_app.command("status")

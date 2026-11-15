@@ -94,6 +94,17 @@ def name(n: int | None = None) -> str:
     return BASE_NAME if _n(n) == 0 else f"{BASE_NAME}{_n(n)}"
 
 
+def instances_of(containers: list[str]) -> set[int]:
+    """The lab instances these container names belong to: `clab-stick1-base-srl1` and `stick1-netbox-netbox-1`
+    are instance 1, `clab-stick-base-srl1` instance 0. Other names are nobody's."""
+    found = set()
+    for container in containers:
+        for n in range(MAX_INSTANCES):
+            if container.startswith((f"clab-{name(n)}-", f"{name(n)}-")):
+                found.add(n)
+    return found
+
+
 def mgmt_prefix(n: int | None = None) -> str:
     first, second, third = BASE_PREFIX.split(".")
     return f"{first}.{second}.{int(third) + _n(n)}"
