@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.24.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.23.0...v0.24.0) (2026-11-15)
+
+
+### Features
+
+* **runner:** stick vs runs a cloud and a local model in parallel ([#63](https://github.com/Jitter00/llm-on-a-stick/issues/63)) ([205cfbf](https://github.com/Jitter00/llm-on-a-stick/commit/205cfbf6657944ae7726523a8ef83db48366922d))
+
 ## [0.23.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.22.0...v0.23.0) (2026-11-15)
 
 
