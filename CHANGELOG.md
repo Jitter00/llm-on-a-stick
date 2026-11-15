@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.26.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.25.0...v0.26.0) (2026-11-15)
+
+
+### Features
+
+* **powerdns:** a PowerDNS service and three DNS tasks through an OpenAPI MCP server ([#67](https://github.com/Jitter00/llm-on-a-stick/issues/67)) ([c238b4f](https://github.com/Jitter00/llm-on-a-stick/commit/c238b4f83e03a679411656e47637561b81648255))
+
 ## [0.25.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.24.0...v0.25.0) (2026-11-15)
 
 
