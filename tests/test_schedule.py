@@ -99,9 +99,13 @@ def test_run_options_rebuild_the_batch(tmp_path: Path) -> None:
         "--judge-model", "anthropic/claude-haiku-5-5", "--judge-repeats", "2",
         "--runs-dir", str(tmp_path), "--no-report",
     ]  # fmt: skip
-    # `stick run` accepts every one of them (it stops at the unknown model, after parsing).
-    result = CliRunner().invoke(cli.app, ["run", "--model", "nosuch/x", *args, "--attempts-file", "x"])
-    assert result.exit_code == 2 and "No such option" not in result.output
+    # `stick run` accepts every one of them: parsed only, nothing runs (no model server is asked).
+    import typer
+
+    run = typer.main.get_command(cli.app).commands["run"]  # type: ignore[attr-defined]
+    params = run.make_context("run", ["--model", "ollama/x", *args, "--attempts-file", "x"]).params
+    assert (params["repeat"], params["seed"], params["judge_repeats"]) == (3, 7, 2)
+    assert params["section"] == ["netbox"] and params["no_report"] is True
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
