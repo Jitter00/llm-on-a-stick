@@ -1,5 +1,5 @@
 #!/bin/sh
-# Start one MCP server on stdio: stick-mcp-entrypoint <netbox|aws|nautobot|librenms|zabbix|grafana|netmiko> [args...]
+# Start one MCP server on stdio: stick-mcp-entrypoint <netbox|aws|nautobot|librenms|zabbix|grafana|netmiko|gitea> [args...]
 set -eu
 server="${1:?usage: stick-mcp-entrypoint <server>}"
 shift
@@ -19,5 +19,6 @@ case "$server" in
         export NETMIKO_MCP_INVENTORY_FILE=/root/inventory.yml NETMIKO_MCP_COMMAND_FILE=/root/commands.yml
         exec /opt/mcp/netmiko/bin/netmiko-mcp "$@"
         ;;
+    gitea) exec /opt/mcp/gitea/gitea-mcp "$@" ;;
     *) echo "unknown MCP server: $server" >&2; exit 64 ;;
 esac

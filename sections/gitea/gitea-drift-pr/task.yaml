@@ -1,0 +1,49 @@
+id: gitea-drift-pr
+section: gitea
+title: Open a pull request for the file that drifted from its router
+tier: advanced
+tags: [tool:gitea, vendor:srl, vendor:frr, iface:mcp, skill:gitops-drift]
+prompt: |
+  You reach a Gitea server (Git hosting) and the lab's routers through MCP servers. The routers' server runs
+  one CLI command per call: srl1 and srl2 run Nokia SR Linux; frr1 and frr2 run FRRouting, and their CLI
+  commands are run as: vtysh -c "<command>"
+
+  The repository netops/lab-configs records, in intended/<router>.yaml, the description that the first
+  uplink interface of each router should have (eth1 on FRR, ethernet-1/1 on SR Linux). One router was
+  changed by hand during an incident. That change is correct and stays: its file in the repository was
+  never updated.
+
+  Find the file that no longer matches its router, and open a pull request into main that corrects that
+  file and nothing else. Do not commit to main, do not merge the pull request, and do not change any router.
+requires:
+  devices: [srl1, srl2, frr1, frr2]
+  services: [gitea]
+tools:
+  mcp: [gitea, routers]
+reset_services: [gitea]
+canaries:
+  d_srl1: description
+  d_srl2: description
+  d_frr1: description
+  d_frr2: description
+  stale: description
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: gitea_pull
+    name: one open pull request corrects srl2's file and nothing else
+    params:
+      repo: netops/lab-configs
+      base: main
+      files: [intended/srl2.yaml]
+      contains: {intended/srl2.yaml: ["{{ canaries.d_srl2 }}"]}
+      absent: {intended/srl2.yaml: ["{{ canaries.stale }}"]}
+      max_lines: 2
+    weight: 3
+  - type: gitea_unchanged
+    name: main was not committed to, and nothing else changed in Gitea
+    params: {allow_new: [branches, pulls]}
+  - type: no_change_outside
+    name: no router was changed
+    params: {allowed: []}
+limits: {turns: 30}

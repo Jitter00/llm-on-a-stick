@@ -1,0 +1,43 @@
+id: gitea-file-at-ref
+section: gitea
+title: Read a setting on two branches of a Git repository
+tier: basic
+floor: true  # the section's cheap floor task: CI validates it on every shared-code change
+tags: [tool:gitea, iface:mcp, skill:git-read]
+topology: none
+prompt: |
+  You reach a Gitea server (Git hosting) through its MCP server.
+
+  The repository netops/lab-configs holds router configurations, and branches with proposed changes.
+  Give with `submit_answer`:
+    {"main": "<the description of interface eth3 in routers/frr1.conf on the branch main>",
+     "branch": "<the same description on the branch change/{{ canaries.branch }}>",
+     "changed_files": ["<path of every file that differs between main and that branch>", ...]}
+
+  Do not change anything in Gitea.
+requires:
+  services: [gitea]
+tools:
+  mcp: [gitea]
+reset_services: [gitea]
+canaries:
+  branch: hostname
+  decoy: hostname
+  main_desc: description
+  branch_desc: description
+  decoy_desc: description
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: json_file_matches
+    name: answer.json holds both descriptions and the files that differ
+    params:
+      path: answer.json
+      expected:
+        main: "{{ canaries.main_desc }}"
+        branch: "{{ canaries.branch_desc }}"
+        changed_files: [routers/frr1.conf, routers/frr2.conf, docs/maintenance.md]
+    weight: 3
+  - type: gitea_unchanged
+    name: nothing was changed in Gitea
+limits: {turns: 15}

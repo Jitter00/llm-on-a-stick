@@ -1,0 +1,32 @@
+# The task's reference steps as MCP calls: stick run gitea-blame-change --model script/<this file>
+# The five commits that touch the file, newest first, then each one's diff: `ticket` and `author` are kept
+# only from the commit whose diff takes the neighbour's line out.
+steps:
+  - tool: gitea__commit_read
+    args: {method: list, owner: netops, repo: lab-configs, path: routers/frr2.conf}
+    capture:
+      c1: '"sha":"([0-9a-f]{40})"'
+      c2: '(?:"sha":"[0-9a-f]{40}".*?){1}"sha":"([0-9a-f]{40})"'
+      c3: '(?:"sha":"[0-9a-f]{40}".*?){2}"sha":"([0-9a-f]{40})"'
+      c4: '(?:"sha":"[0-9a-f]{40}".*?){3}"sha":"([0-9a-f]{40})"'
+      c5: '(?:"sha":"[0-9a-f]{40}".*?){4}"sha":"([0-9a-f]{40})"'
+  - tool: gitea__commit_read
+    args: {method: get, owner: netops, repo: lab-configs, sha: "{{ captured.c1 }}", include_diff: true}
+    capture: &removal
+      author: '"name":"([^"]+)"\}.*?\\n- neighbor {{ canaries.gone }} '
+      ticket: '\\n- neighbor {{ canaries.gone }} .*?"message":"[^"]*ticket (stick-[0-9a-f]{8})'
+  - tool: gitea__commit_read
+    args: {method: get, owner: netops, repo: lab-configs, sha: "{{ captured.c2 }}", include_diff: true}
+    capture: *removal
+  - tool: gitea__commit_read
+    args: {method: get, owner: netops, repo: lab-configs, sha: "{{ captured.c3 }}", include_diff: true}
+    capture: *removal
+  - tool: gitea__commit_read
+    args: {method: get, owner: netops, repo: lab-configs, sha: "{{ captured.c4 }}", include_diff: true}
+    capture: *removal
+  - tool: gitea__commit_read
+    args: {method: get, owner: netops, repo: lab-configs, sha: "{{ captured.c5 }}", include_diff: true}
+    capture: *removal
+  - tool: submit_answer
+    args:
+      answer: {ticket: "{{ captured.ticket }}", author: "{{ captured.author }}"}

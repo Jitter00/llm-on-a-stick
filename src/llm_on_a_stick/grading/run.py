@@ -26,7 +26,7 @@ from pydantic import BaseModel
 
 from llm_on_a_stick import lab as lab_mod
 from llm_on_a_stick import paths, services
-from llm_on_a_stick.grading import awsstate, librenmsstate, sotstate, zabbixstate
+from llm_on_a_stick.grading import awsstate, giteastate, librenmsstate, sotstate, zabbixstate
 from llm_on_a_stick.grading import canaries as canary_mod
 from llm_on_a_stick.grading.labstate import LabState, LabStateError
 from llm_on_a_stick.grading.template import render
@@ -70,6 +70,7 @@ BASELINES: dict[str, Callable[[], Any]] = {
     "nautobot": lambda: sotstate.snapshot(rest_client("nautobot"), sotstate.ENDPOINTS["nautobot"]),
     "librenms": lambda: librenmsstate.snapshot(rest_client("librenms")),
     "zabbix": lambda: zabbixstate.snapshot(rest_client("zabbix")),
+    "gitea": lambda: giteastate.snapshot(rest_client("gitea")),
     "moto": lambda: awsstate.snapshot(),  # the emulated AWS account, through the toolbox's tools
 }
 

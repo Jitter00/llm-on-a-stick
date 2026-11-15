@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from llm_on_a_stick import lab
 from llm_on_a_stick.services import seed as seeding
 from llm_on_a_stick.services.spec import (
+    FilesSnapshot,
     HttpSnapshot,
     MysqlSnapshot,
     PostgresSnapshot,
@@ -95,7 +96,7 @@ def has_snapshot(spec: ServiceSpec) -> bool:
     snap = spec.snapshot
     if snap is None:
         return False
-    if snap.kind not in ("postgres", "mysql"):
+    if snap.kind not in ("postgres", "mysql", "files"):
         return True  # the baseline is "empty", which always exists
     res = _run(compose_argv(spec, "exec", "-T", snap.service, "test", "-f", snap.path), check=False)
     return res.returncode == 0
@@ -116,6 +117,12 @@ def take_snapshot(spec: ServiceSpec) -> None:
     if snap.kind == "mysql":
         dump = 'mariadb-dump -u"$SNAP_USER" --single-transaction --skip-lock-tables "$SNAP_DB" > "$SNAP_PATH"'
         _run(_mysql_argv(spec, snap, dump))
+        return
+    if snap.kind == "files":
+        _run(compose_argv(spec, "stop", snap.service))
+        _run(_files_argv(spec, snap, 'tar -czf "$1" -C "$0" .'))
+        _run(compose_argv(spec, "up", "-d", "--wait", "--wait-timeout", str(spec.wait_timeout_s)))
+        wait_healthy(spec, spec.wait_timeout_s)
         return
     if snap.kind != "postgres":
         raise ServiceError(f"{spec.name}: its baseline is the empty service, there is nothing to snapshot")
@@ -157,6 +164,24 @@ def _restore_mysql(spec: ServiceSpec, snap: MysqlSnapshot, log: Log) -> None:
         _run(compose_argv(spec, "exec", "-T", step.service, *step.cmd))
 
 
+def _files_argv(spec: ServiceSpec, snap: FilesSnapshot, script: str) -> list[str]:
+    """A shell command in a one-off container of the (stopped) service, with its volumes: $0 is the data
+    directory, $1 the archive."""
+    return compose_argv(
+        spec, "run", "--rm", "--no-deps", "-T", "--entrypoint", "sh", snap.service,
+        "-c", script, snap.directory, snap.path,
+    )  # fmt: skip
+
+
+def _restore_files(spec: ServiceSpec, snap: FilesSnapshot, log: Log) -> None:
+    if not has_snapshot(spec):
+        raise ServiceError(f"{spec.name}: no snapshot yet; run `stick svc up {spec.name}` first")
+    log(f"stopping {snap.service}")
+    _run(compose_argv(spec, "stop", snap.service))
+    log("restoring files")
+    _run(_files_argv(spec, snap, 'find "$0" -mindepth 1 -delete && tar -xzf "$1" -C "$0"'))
+
+
 def _restore_volumes(spec: ServiceSpec, snap: VolumesSnapshot, log: Log) -> None:
     log(f"removing {', '.join(snap.services)} and volumes {', '.join(snap.volumes)}")
     _run(compose_argv(spec, "rm", "--stop", "--force", *snap.services))
@@ -188,6 +213,8 @@ def restore_snapshot(spec: ServiceSpec, log: Log = _noop) -> None:
         if not snap.stop:  # loaded into the running service: nothing to start again
             wait_healthy(spec, spec.wait_timeout_s)
             return
+    elif snap.kind == "files":
+        _restore_files(spec, snap, log)
     else:
         _restore_volumes(spec, snap, log)
     log("starting services")

@@ -106,3 +106,10 @@ def test_a_service_selects_every_section_that_uses_it() -> None:
     assert s.services == {"netbox", "librenms", "zabbix"}
     assert sel("sections/mcp/gone/task.yaml").empty  # the former mcp section: nothing left to test
     assert sel("images/mcp/Dockerfile").core and sel("src/llm_on_a_stick/runner/mcp.py").core
+
+
+def test_the_gitea_section_and_its_service_select_each_other() -> None:
+    s = sel("services/gitea/service.yaml")
+    assert s == Selection(sections={"gitea"}, services={"gitea"}, core=False)
+    assert sel("tests/integration/test_gitea.py") == s
+    assert sel("sections/gitea/gitea-drift-pr/oracle.sh") == Selection(sections={"gitea"}, services={"gitea"})

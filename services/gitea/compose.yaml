@@ -1,0 +1,40 @@
+# Gitea for llm-on-a-stick: a Git server with pull requests, one container, SQLite inside.
+# Start it with `stick svc up gitea`. It needs no lab: the tasks' setup scripts fill its repository.
+name: ${STICK_NAME:-stick}-gitea
+
+services:
+  gitea:
+    image: docker.io/gitea/gitea:28.3.0-rootless
+    environment:
+      GITEA__security__INSTALL_LOCK: "true"  # no install page: the settings are these
+      GITEA__database__DB_TYPE: sqlite3
+      GITEA__server__ROOT_URL: http://127.0.0.1:${STICK_GITEA_PORT:-8089}/
+      GITEA__server__DISABLE_SSH: "true"
+      GITEA__server__OFFLINE_MODE: "true"
+      GITEA__service__DISABLE_REGISTRATION: "true"
+      GITEA__repository__DEFAULT_BRANCH: main
+      GITEA__actions__ENABLED: "false"
+      GITEA__cron__ENABLED: "false"
+      GITEA__log__LEVEL: Warn
+    ports:
+      - "127.0.0.1:${STICK_GITEA_PORT:-8089}:3000"
+    healthcheck:
+      test: curl -fsS -o /dev/null http://localhost:3000/api/healthz || exit 1
+      start_period: 60s
+      timeout: 5s
+      interval: 2s
+    networks:
+      stick-mgmt:
+        ipv4_address: ${STICK_MGMT_PREFIX:-172.30.30}.112
+    volumes:
+      - gitea-data:/var/lib/gitea  # the database and the repositories: what a reset puts back
+      - gitea-config:/etc/gitea  # app.ini, and the baseline archive of gitea-data
+
+networks:
+  stick-mgmt:
+    name: ${STICK_NAME:-stick}-mgmt
+    external: true
+
+volumes:
+  gitea-data:
+  gitea-config:

@@ -14,11 +14,29 @@ RUN for server in netbox aws nautobot librenms zabbix grafana netmiko; do \
     done \
     && rm -rf /tmp/requirements
 
+# gitea-mcp is a Go program: its release archive, checked against the checksum of that release
+# (gitea-mcp_<version>_checksums.txt), for the architecture the image is built for.
+RUN python - <<'PY'
+import hashlib, io, platform, tarfile, urllib.request
+
+VERSION = "1.13.0"
+ARCHIVES = {
+    "x86_64": ("x86_64", "23383ad6adbb7a8a6a848ac736c07de19417d26311c3581160b356db01b3366d"),
+    "aarch64": ("arm64", "b12335dbf1590e3f306a376789de192d37e9ae7729c28272081764d0dca87b07"),
+}
+arch, digest = ARCHIVES[platform.machine()]
+url = f"https://gitea.com/gitea/gitea-mcp/releases/download/v{VERSION}/gitea-mcp_Linux_{arch}.tar.gz"
+data = urllib.request.urlopen(url, timeout=120).read()
+assert hashlib.sha256(data).hexdigest() == digest, f"checksum mismatch for {url}"
+with tarfile.open(fileobj=io.BytesIO(data)) as archive:
+    archive.extract("gitea-mcp", "/opt/mcp/gitea", filter="data")
+PY
+
 COPY stick-mcp-entrypoint.sh /usr/local/bin/stick-mcp-entrypoint
 
 # Raise together with MCP_IMAGE_VERSION in src/llm_on_a_stick/runner/mcp.py when a server or its version
 # changes: `stick run` rebuilds an older stick-mcp:dev instead of running tasks against other tools.
-LABEL stick.mcp.version="3"
+LABEL stick.mcp.version="4"
 
 ENV PYTHONUNBUFFERED=1
 WORKDIR /root

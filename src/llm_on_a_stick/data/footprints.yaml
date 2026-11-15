@@ -32,7 +32,7 @@ services:
   moto: {ram_mb: 256, measured: true}        # 178 MiB after EC2, IAM and S3 use (one container, in memory)
   batfish: {ram_mb: 2048, measured: false}
   suzieq: {ram_mb: 512, measured: false}
-  gitea: {ram_mb: 256, measured: false}
+  gitea: {ram_mb: 192, measured: true}  # 100 MiB idle, one container (SQLite inside)
   telemetry: {ram_mb: 128, measured: true}  # 77 MiB with 2 routers streaming: gnmic 40 + prometheus 37
   loki: {ram_mb: 448, measured: true}  # 358 MiB with 4 routers logging: grafana 267 + loki 47 + alloy 44
   ddi: {ram_mb: 384, measured: false}        # PowerDNS + Kea

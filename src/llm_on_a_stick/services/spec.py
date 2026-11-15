@@ -105,8 +105,21 @@ class MysqlSnapshot(BaseModel):
     after_restore: list[ExecStep] = Field(default_factory=list)
 
 
+class FilesSnapshot(BaseModel):
+    """Baseline = an archive of a data directory, taken after init with the service stopped; reset = stop
+    the service, put the directory back, start it. For a service that keeps its state in files (Gitea: an
+    SQLite database and the repositories, which must go back together). `path` is the archive, in the same
+    container but outside `directory`."""
+
+    kind: Literal["files"]
+    service: str
+    directory: str
+    path: str
+
+
 Snapshot = Annotated[
-    PostgresSnapshot | VolumesSnapshot | HttpSnapshot | MysqlSnapshot, Field(discriminator="kind")
+    PostgresSnapshot | VolumesSnapshot | HttpSnapshot | MysqlSnapshot | FilesSnapshot,
+    Field(discriminator="kind"),
 ]
 
 

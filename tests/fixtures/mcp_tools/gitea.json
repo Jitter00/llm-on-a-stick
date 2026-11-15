@@ -1,0 +1,692 @@
+[
+ {
+  "name": "gitea__branch_read",
+  "description": "Read branches.",
+  "parameters": {
+   "properties": {
+    "branch": {
+     "description": "required for 'get'",
+     "type": "string"
+    },
+    "method": {
+     "enum": [
+      "list",
+      "get"
+     ],
+     "type": "string"
+    },
+    "owner": {
+     "type": "string"
+    },
+    "page": {
+     "type": "number"
+    },
+    "per_page": {
+     "type": "number"
+    },
+    "repo": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "method",
+    "owner",
+    "repo"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "gitea__branch_write",
+  "description": "Create, delete or rename branches.",
+  "parameters": {
+   "properties": {
+    "branch": {
+     "description": "required for 'create', 'delete', 'rename'",
+     "type": "string"
+    },
+    "method": {
+     "enum": [
+      "create",
+      "delete",
+      "rename"
+     ],
+     "type": "string"
+    },
+    "new_name": {
+     "description": "required for 'rename'",
+     "type": "string"
+    },
+    "old_branch": {
+     "description": "source for 'create' (default: repo default)",
+     "type": "string"
+    },
+    "owner": {
+     "type": "string"
+    },
+    "repo": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "method",
+    "owner",
+    "repo"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "gitea__commit_read",
+  "description": "Read commits with optional diff, combined statuses, and compare refs.",
+  "parameters": {
+   "properties": {
+    "base": {
+     "description": "branch, tag or SHA, required for 'compare'",
+     "type": "string"
+    },
+    "head": {
+     "description": "branch, tag or SHA, required for 'compare'",
+     "type": "string"
+    },
+    "include_diff": {
+     "description": "include unified diff for 'get'",
+     "type": "boolean"
+    },
+    "method": {
+     "enum": [
+      "list",
+      "get",
+      "get_status",
+      "compare"
+     ],
+     "type": "string"
+    },
+    "owner": {
+     "type": "string"
+    },
+    "page": {
+     "type": "number"
+    },
+    "path": {
+     "description": "only commits touching this path for 'list'",
+     "type": "string"
+    },
+    "per_page": {
+     "type": "number"
+    },
+    "ref": {
+     "description": "SHA, branch or tag, required for 'get_status'",
+     "type": "string"
+    },
+    "repo": {
+     "type": "string"
+    },
+    "sha": {
+     "description": "required for 'get', optional starting SHA or branch for 'list'",
+     "type": "string"
+    },
+    "wait_seconds": {
+     "description": "for 'get_status': seconds to wait while pending, max 45",
+     "type": "number"
+    }
+   },
+   "required": [
+    "method",
+    "owner",
+    "repo"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "gitea__create_or_update_file",
+  "description": "Create, update, rename or delete files in one commit.",
+  "parameters": {
+   "properties": {
+    "branch_name": {
+     "description": "branch to commit to",
+     "type": "string"
+    },
+    "content": {
+     "description": "literal file text, not base64",
+     "type": "string"
+    },
+    "edits": {
+     "items": {
+      "properties": {
+       "new_string": {
+        "type": "string"
+       },
+       "old_string": {
+        "type": "string"
+       },
+       "replace_all": {
+        "type": "boolean"
+       }
+      },
+      "required": [
+       "old_string",
+       "new_string"
+      ],
+      "type": "object"
+     },
+     "type": "array"
+    },
+    "files": {
+     "items": {
+      "properties": {
+       "content": {
+        "description": "literal file text, not base64",
+        "type": "string"
+       },
+       "delete": {
+        "type": "boolean"
+       },
+       "edits": {
+        "items": {
+         "properties": {
+          "new_string": {
+           "type": "string"
+          },
+          "old_string": {
+           "type": "string"
+          },
+          "replace_all": {
+           "type": "boolean"
+          }
+         },
+         "required": [
+          "old_string",
+          "new_string"
+         ],
+         "type": "object"
+        },
+        "type": "array"
+       },
+       "from_path": {
+        "description": "rename source",
+        "type": "string"
+       },
+       "path": {
+        "description": "path relative to repo root",
+        "type": "string"
+       },
+       "sha": {
+        "description": "existing file SHA, of from_path when renaming (omit to create)",
+        "type": "string"
+       }
+      },
+      "required": [
+       "path"
+      ],
+      "type": "object"
+     },
+     "type": "array"
+    },
+    "message": {
+     "description": "commit message",
+     "type": "string"
+    },
+    "new_branch_name": {
+     "description": "branch to create from branch_name and commit to",
+     "type": "string"
+    },
+    "owner": {
+     "type": "string"
+    },
+    "path": {
+     "description": "path relative to repo root",
+     "type": "string"
+    },
+    "repo": {
+     "type": "string"
+    },
+    "sha": {
+     "description": "existing file SHA (omit to create)",
+     "type": "string"
+    }
+   },
+   "required": [
+    "owner",
+    "repo",
+    "message",
+    "branch_name"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "gitea__get_file_contents",
+  "description": "Get a file or list a directory.",
+  "parameters": {
+   "properties": {
+    "end_line": {
+     "type": "number"
+    },
+    "owner": {
+     "type": "string"
+    },
+    "path": {
+     "description": "path relative to repo root",
+     "type": "string"
+    },
+    "ref": {
+     "description": "branch, tag, or commit SHA, defaults to the default branch",
+     "type": "string"
+    },
+    "repo": {
+     "type": "string"
+    },
+    "sha": {
+     "description": "commit SHA, overrides ref",
+     "type": "string"
+    },
+    "start_line": {
+     "type": "number"
+    },
+    "with_lines": {
+     "description": "return numbered lines",
+     "type": "boolean"
+    }
+   },
+   "required": [
+    "owner",
+    "repo"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "gitea__get_me",
+  "description": "Get the authenticated user.",
+  "parameters": {
+   "properties": {},
+   "type": "object"
+  }
+ },
+ {
+  "name": "gitea__get_repository_tree",
+  "description": "Get a repository's file tree.",
+  "parameters": {
+   "properties": {
+    "owner": {
+     "type": "string"
+    },
+    "page": {
+     "type": "number"
+    },
+    "per_page": {
+     "type": "number"
+    },
+    "recursive": {
+     "type": "boolean"
+    },
+    "repo": {
+     "type": "string"
+    },
+    "tree_sha": {
+     "description": "SHA, branch, or tag",
+     "type": "string"
+    }
+   },
+   "required": [
+    "owner",
+    "repo",
+    "tree_sha"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "gitea__list_pull_requests",
+  "description": "List repository pull requests, filterable by state and milestone.",
+  "parameters": {
+   "properties": {
+    "milestone": {
+     "type": "number"
+    },
+    "owner": {
+     "type": "string"
+    },
+    "page": {
+     "type": "number"
+    },
+    "per_page": {
+     "type": "number"
+    },
+    "repo": {
+     "type": "string"
+    },
+    "sort": {
+     "enum": [
+      "oldest",
+      "recentupdate",
+      "leastupdate",
+      "mostcomment",
+      "leastcomment",
+      "priority"
+     ],
+     "type": "string"
+    },
+    "state": {
+     "enum": [
+      "open",
+      "closed",
+      "all"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "owner",
+    "repo"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "gitea__pull_request_read",
+  "description": "Read a pull request with its diff, files, commits, status, reviews, inline review comments and discussion comments, list reviewer candidates, or find one by branches or commit.",
+  "parameters": {
+   "properties": {
+    "base": {
+     "description": "base branch (for 'get_by_branches')",
+     "type": "string"
+    },
+    "binary": {
+     "description": "include binary diff",
+     "type": "boolean"
+    },
+    "head": {
+     "description": "head branch (for 'get_by_branches')",
+     "type": "string"
+    },
+    "method": {
+     "enum": [
+      "get",
+      "get_diff",
+      "get_files",
+      "get_commits",
+      "get_status",
+      "get_reviews",
+      "get_review",
+      "get_review_comments",
+      "get_comments",
+      "get_by_branches",
+      "get_by_commit",
+      "get_reviewer_candidates"
+     ],
+     "type": "string"
+    },
+    "owner": {
+     "type": "string"
+    },
+    "page": {
+     "type": "number"
+    },
+    "path": {
+     "description": "for 'get_diff': only this file's diff",
+     "type": "string"
+    },
+    "per_page": {
+     "type": "number"
+    },
+    "pull_number": {
+     "description": "required except for 'get_by_branches'/'get_by_commit'/'get_reviewer_candidates'",
+     "type": "number"
+    },
+    "repo": {
+     "type": "string"
+    },
+    "review_id": {
+     "description": "for 'get_review'; optional for 'get_review_comments', omit to list all",
+     "type": "number"
+    },
+    "sha": {
+     "description": "commit SHA (for 'get_by_commit')",
+     "type": "string"
+    },
+    "wait_seconds": {
+     "description": "for 'get_status': seconds to wait while pending, max 45",
+     "type": "number"
+    }
+   },
+   "required": [
+    "method",
+    "owner",
+    "repo"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "gitea__pull_request_write",
+  "description": "Create, update, merge, close or reopen pull requests, update their branch from base, manage reviewers.",
+  "parameters": {
+   "properties": {
+    "allow_maintainer_edit": {
+     "description": "for 'update'",
+     "type": "boolean"
+    },
+    "assignee": {
+     "description": "for 'create'/'update'",
+     "type": "string"
+    },
+    "assignees": {
+     "description": "for 'create'/'update'",
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "base": {
+     "description": "base branch (required for 'create')",
+     "type": "string"
+    },
+    "body": {
+     "type": "string"
+    },
+    "deadline": {
+     "description": "ISO 8601",
+     "type": "string"
+    },
+    "delete_branch": {
+     "description": "for 'merge'",
+     "type": "boolean"
+    },
+    "draft": {
+     "description": "uses 'WIP: ' title prefix",
+     "type": "boolean"
+    },
+    "force_merge": {
+     "description": "merge even if checks fail",
+     "type": "boolean"
+    },
+    "head": {
+     "description": "head branch (required for 'create')",
+     "type": "string"
+    },
+    "head_commit_id": {
+     "description": "expected head SHA for conflict detection",
+     "type": "string"
+    },
+    "labels": {
+     "description": "label names or IDs",
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "merge_style": {
+     "description": "for 'merge'",
+     "enum": [
+      "merge",
+      "rebase",
+      "rebase-merge",
+      "squash",
+      "fast-forward-only"
+     ],
+     "type": "string"
+    },
+    "merge_when_checks_succeed": {
+     "description": "for 'merge'",
+     "type": "boolean"
+    },
+    "message": {
+     "description": "merge commit message or dismissal reason",
+     "type": "string"
+    },
+    "method": {
+     "enum": [
+      "create",
+      "update",
+      "close",
+      "reopen",
+      "merge",
+      "update_branch",
+      "add_reviewers",
+      "remove_reviewers"
+     ],
+     "type": "string"
+    },
+    "milestone": {
+     "description": "for 'create'/'update'",
+     "type": "number"
+    },
+    "owner": {
+     "type": "string"
+    },
+    "pull_number": {
+     "description": "required except for 'create'",
+     "type": "number"
+    },
+    "remove_deadline": {
+     "description": "for 'update'",
+     "type": "boolean"
+    },
+    "repo": {
+     "type": "string"
+    },
+    "reviewers": {
+     "description": "for 'create'/'add_reviewers'/'remove_reviewers'",
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "state": {
+     "description": "for 'update'",
+     "enum": [
+      "open",
+      "closed"
+     ],
+     "type": "string"
+    },
+    "team_reviewers": {
+     "description": "for 'create'/'add_reviewers'/'remove_reviewers'",
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "title": {
+     "description": "required for 'create'; optional for 'update'/'merge'",
+     "type": "string"
+    }
+   },
+   "required": [
+    "method",
+    "owner",
+    "repo"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "gitea__repo_read",
+  "description": "Read a repository, list yours or an org's, and read branch protections.",
+  "parameters": {
+   "properties": {
+    "method": {
+     "enum": [
+      "get",
+      "list_my_repos",
+      "list_org_repos",
+      "list_branch_protections",
+      "get_branch_protection"
+     ],
+     "type": "string"
+    },
+    "org": {
+     "description": "for \"list_org_repos\"",
+     "type": "string"
+    },
+    "owner": {
+     "description": "required except list_my_repos/list_org_repos",
+     "type": "string"
+    },
+    "page": {
+     "type": "number"
+    },
+    "per_page": {
+     "type": "number"
+    },
+    "repo": {
+     "description": "required for get and branch protections",
+     "type": "string"
+    },
+    "rule_name": {
+     "description": "required for get_branch_protection",
+     "type": "string"
+    }
+   },
+   "required": [
+    "method"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "gitea__search_repos",
+  "description": "Search repositories by keyword.",
+  "parameters": {
+   "properties": {
+    "is_archived": {
+     "type": "boolean"
+    },
+    "is_private": {
+     "type": "boolean"
+    },
+    "keyword_in_description": {
+     "type": "boolean"
+    },
+    "keyword_is_topic": {
+     "type": "boolean"
+    },
+    "order": {
+     "type": "string"
+    },
+    "owner_id": {
+     "type": "number"
+    },
+    "page": {
+     "type": "number"
+    },
+    "per_page": {
+     "type": "number"
+    },
+    "query": {
+     "type": "string"
+    },
+    "sort": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "query"
+   ],
+   "type": "object"
+  }
+ }
+]

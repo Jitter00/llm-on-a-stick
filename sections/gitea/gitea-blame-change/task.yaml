@@ -1,0 +1,42 @@
+id: gitea-blame-change
+section: gitea
+title: Find the commit that removed a BGP neighbour
+tier: intermediate
+tags: [tool:gitea, iface:mcp, skill:git-history]
+topology: none
+prompt: |
+  You reach a Gitea server (Git hosting) through its MCP server.
+
+  The BGP neighbour {{ canaries.gone }} used to be configured in routers/frr2.conf of the repository
+  netops/lab-configs (branch main), and no longer is. Nobody remembers taking it out. Find the commit that
+  removed it and give with `submit_answer`:
+    {"ticket": "<the ticket id in that commit's message>", "author": "<the name of that commit's author>"}
+
+  Do not change anything in Gitea.
+requires:
+  services: [gitea]
+tools:
+  mcp: [gitea]
+reset_services: [gitea]
+canaries:
+  gone: ipv4
+  gone_as: asn
+  other: ipv4
+  other_as: asn
+  ticket: description
+  t_describe: description
+  t_decom: description
+  t_frr1: description
+  t_typo: description
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: json_file_matches
+    name: answer.json names the commit's ticket and author
+    params:
+      path: answer.json
+      expected: {ticket: "{{ canaries.ticket }}", author: Dana Petrov}
+    weight: 3
+  - type: gitea_unchanged
+    name: nothing was changed in Gitea
+limits: {turns: 20}

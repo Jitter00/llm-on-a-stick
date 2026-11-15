@@ -23,11 +23,11 @@ Every attempt starts from the same state. The lab stays up between attempts, tas
    - FRR runs `frr-reload.py` against its startup config, `configs/frr/<node>/frr.conf`;
    - it takes about 2 s for the four routers, and the times are in the run's `restore.log`;
 2. the services the task lists under `reset_services` go back to their baseline (NetBox's seeded snapshot:
-   ~20 s, Nautobot's: ~25 s, LibreNMS's empty database: ~1 s, Zabbix's: ~10 s, Loki's empty store: ~5 s, Prometheus's: ~0.2 s, moto's
+   ~20 s, Nautobot's: ~25 s, LibreNMS's empty database: ~1 s, Zabbix's: ~10 s, Gitea's repository: ~6 s, Loki's empty store: ~5 s, Prometheus's: ~0.2 s, moto's
    empty account: ~0.2 s), after the routers, so that Loki doesn't keep what the restore itself logged;
 3. the task's `setup.sh` plants this run's canaries (or a fault);
 4. the baseline is taken, for `no_change_outside`, `netbox_unchanged`, `nautobot_unchanged`, `librenms_unchanged`,
-   `zabbix_unchanged` and `aws_unchanged`.
+   `zabbix_unchanged`, `gitea_unchanged` and `aws_unchanged`.
 
 A task with `topology: none` (the `aws` and `terraform` sections, and the tasks that only read or change a
 source of truth, such as `netbox-lookup`) uses no lab device: step 1 is skipped, and the lab doesn't need to be running at all.
@@ -212,6 +212,26 @@ Requirements: the lab, the `telemetry` service (gNMIc, Prometheus: about 0.1 GB)
 its Grafana. Answers go through `submit_answer`; each task has a `script.yaml` with its reference solution
 as MCP calls. These tasks have no judge check. Only the SR Linux routers stream: FRR has no gNMI.
 
+## gitea: a Git repository of router configurations
+
+Gitea hosts the repository `netops/lab-configs` ([Services](services.md#gitea)). The model has **no shell
+and no `git`**: it works through Gitea's own MCP server (12 of its tools: repositories, branches, commits,
+files, pull requests). Each setup writes the repository's history for this run through Gitea's API, with
+fixed authors and dates, so a history reads the same every time and only the canary values differ.
+
+| Task | Tier | What the agent must do | What can go wrong (and is detected) |
+|---|---|---|---|
+| `gitea-file-at-ref` | basic | A description in one file on `main` and on a named branch, and the files that differ between the two | Reading the default branch twice; another branch with a similar name that changes the same line; listing the files of that other branch; missing the file the branch adds |
+| `gitea-blame-change` | intermediate | A BGP neighbour is gone from a file: the ticket and author of the commit that removed it | The commit whose message says it removes a neighbour removes another one; the right commit's message is about timers; commits to the other router's file with the same wording; answering from messages without reading a diff |
+| `gitea-drift-pr` | advanced | Four files record what four routers should run, and one is stale: find it by comparing with the routers, and open a pull request that corrects it | Committing to `main`; merging the pull request; rewriting the file instead of changing its one line; touching another file; a pull request with the stale value still in it; changing the router to match the file |
+
+Requirements: the `gitea` service (about 0.1 GB); only `gitea-drift-pr` needs the lab, and it gets the
+`routers` server as well. Every attempt starts from the repository with one commit
+(`reset_services: [gitea]`, about 6 s), and `gitea_unchanged` fails attempts that add, change or delete a
+branch, a pull request or a repository the task didn't ask for; a commit shows as its branch changed.
+Answers of the two read-only tasks go through `submit_answer`; each task has a `script.yaml` with its
+reference solution as MCP calls. These tasks have no judge check.
+
 ## loki: the routers' syslog
 
 The four routers send their syslog to Loki ([Services](services.md#loki)). The model has **no shell**: it
@@ -234,7 +254,7 @@ that needs an aggregate query, is an open item in `TODO.md`.
 Most models tested here run locally, where one attempt can take minutes, so every task has to earn its place.
 Each section (a tool such as `netbox`, or a group such as `cfg-mgmt`; the wider groupings are in
 `sections/README.md`) has **three tasks, one per tier** (basic, intermediate, advanced), and each one must tell
-models apart. Three keeps a full run short (27 tasks), at a price: with one attempt per task a section's result
+models apart. Three keeps a full run short (30 tasks), at a price: with one attempt per task a section's result
 moves in thirds, so compare sections only on runs with `--repeat 3` or more. Where the server can write, one
 of the three changes something.
 
@@ -283,7 +303,7 @@ score ([Grading](grading.md#judge-checks-in-a-task)). Scripts get these environm
 | `STICK_NODE_<NODE>` / `STICK_NODE_<NODE>_IP` | Container name / management IP of each lab node, e.g. `STICK_NODE_SRL1` |
 | `STICK_<SERVICE>_URL` / `STICK_<SERVICE>_AUTH` | A service's host URL and, if it has an API token, its `Authorization` header value, e.g. `STICK_NETBOX_URL` |
 | `AWS_ENDPOINT_URL`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION` | Only for tasks that require `moto`: what the AWS tools need to reach the emulator |
-| `STICK_LIB` | Folder with shared helpers: `source "$STICK_LIB/common.sh"` gives `srl_set`, `srl_cli`, `frr_conf`, `frr_cli`, `netconf_get_config`, `oxidized_backup_now`, `netbox_api`, `netbox_id`, `nautobot_api`, `nautobot_id`, `librenms_api`, `librenms_add_device(s)`, `librenms_poll`, `librenms_wait_snmp`, `srl_snmp_community`, `zabbix_api`, `zabbix_add_host`, `zabbix_group_id`, `zabbix_poll`, `zabbix_wait_available`, `zabbix_wait_items`, `snmp_wait`, `srl_commit` (several SR Linux commands in one commit), `ssh_login` (a password login from a lab node), `loki_count`, `loki_lines`, `loki_wait`, `prom_value`, `prom_labels`, `prom_wait`, `telemetry_ready` |
+| `STICK_LIB` | Folder with shared helpers: `source "$STICK_LIB/common.sh"` gives `srl_set`, `srl_cli`, `frr_conf`, `frr_cli`, `netconf_get_config`, `oxidized_backup_now`, `netbox_api`, `netbox_id`, `nautobot_api`, `nautobot_id`, `librenms_api`, `librenms_add_device(s)`, `librenms_poll`, `librenms_wait_snmp`, `srl_snmp_community`, `gitea_api`, `gitea_commit`, `gitea_branch`, `gitea_file`, `zabbix_api`, `zabbix_add_host`, `zabbix_group_id`, `zabbix_poll`, `zabbix_wait_available`, `zabbix_wait_items`, `snmp_wait`, `srl_commit` (several SR Linux commands in one commit), `ssh_login` (a password login from a lab node), `loki_count`, `loki_lines`, `loki_wait`, `prom_value`, `prom_labels`, `prom_wait`, `telemetry_ready` |
 
 Prompts can use `{{ services.<name>.url }}` and, for services with an API token, `{{ services.<name>.token }}`
 (the value after `Bearer`/`Token`, or the whole `X-Auth-Token` for LibreNMS).

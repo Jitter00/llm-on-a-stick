@@ -35,6 +35,7 @@ SERVICE_HOSTS = {
     "zabbix": 106,
     "loki": 108,  # Alloy, the syslog receiver; Loki and Grafana are reached from the host
     "telemetry": 109,  # gNMIc, which subscribes to the SR Linux routers
+    "gitea": 112,
 }
 # Further containers of a service that need the management network (LibreNMS's dispatcher polls from it;
 # Zabbix's server polls from the first address, its web frontend has the API).
@@ -55,6 +56,7 @@ PORTS = {
     "STICK_GRAFANA_PORT": 8086,
     "STICK_LOKI_PORT": 8087,
     "STICK_PROMETHEUS_PORT": 8088,
+    "STICK_GITEA_PORT": 8089,
     "STICK_OXIDIZED_PORT": 8888,
 }
 
