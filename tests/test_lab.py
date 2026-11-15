@@ -116,6 +116,7 @@ def test_nodes_and_compose_follow_the_instance(monkeypatch: pytest.MonkeyPatch) 
 
 
 def test_lock_refuses_a_second_user_of_the_instance(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    pytest.importorskip("fcntl")  # file locks: not on Windows, where there is no lab either
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
     with lab.lock(1):
         with pytest.raises(lab.InstanceError, match="instance 1 is in use"), lab.lock(1):
