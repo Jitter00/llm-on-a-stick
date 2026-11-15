@@ -1,0 +1,32 @@
+# The task's reference steps as MCP calls: stick run gitea-drift-pr --model script/<this file>
+# A script can't choose, so it goes straight to the router whose file is stale (srl2); a model has to compare
+# all four first.
+steps:
+  - tool: routers__send_show_command
+    args: {device_name: srl2, command: info flat interface ethernet-1/1 description}
+    capture:
+      live: 'description "?(stick-[0-9a-f]{8})'
+  - tool: gitea__get_file_contents
+    args: {owner: netops, repo: lab-configs, path: intended/srl2.yaml, with_lines: true}
+    capture:
+      stale: 'description: (stick-[0-9a-f]{8})'
+  - tool: gitea__create_or_update_file
+    args:
+      owner: netops
+      repo: lab-configs
+      path: intended/srl2.yaml
+      branch_name: main
+      new_branch_name: fix/srl2-description
+      message: "srl2: record the uplink description it runs"
+      edits:
+        - old_string: "description: {{ captured.stale }}"
+          new_string: "description: {{ captured.live }}"
+  - tool: gitea__pull_request_write
+    args:
+      method: create
+      owner: netops
+      repo: lab-configs
+      head: fix/srl2-description
+      base: main
+      title: "srl2: record the uplink description it runs"
+      body: The router was changed by hand; this brings its file in line.

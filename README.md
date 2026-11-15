@@ -5,18 +5,18 @@
 llm-on-a-stick is a free, open-source benchmark that tests how well AI models (LLMs) handle real network engineering
 work: reading configuration off routers from two vendors, keeping NetBox and Nautobot in sync with the network,
 fixing monitoring in LibreNMS and Zabbix, finding a root cause in the routers' logs or their streaming
-telemetry, and working with AWS and Terraform. You run it on your own machine, against a small virtual network, and compare a local model (for
+telemetry, reading a Git history and opening a pull request in Gitea, and working with AWS and Terraform. You run it on your own machine, against a small virtual network, and compare a local model (for
 example one running in Ollama) with a paid one. It tells you **why** a model fails (wrong CLI syntax, made-up API
 fields, changing things it shouldn't), not just a score.
 
 **The tests are MCP-first.** The model does the work the way AI agents increasingly reach network tools: through
-a published MCP server for each tool, not a shell. Eight of the nine sections work this way, including the one on the
+a published MCP server for each tool, not a shell. Nine of the ten sections work this way, including the one on the
 routers themselves. Only Terraform gives the model a shell. More in [MCP-first](#mcp-first).
 
-> **What works today:** the virtual lab; the `stick` command; eight tools around it (NetBox, Nautobot, LibreNMS,
-> Zabbix, Oxidized, Loki with the routers' syslog, Prometheus with their streaming telemetry, and an emulated
-> AWS account for the AWS CLI and Terraform);
-> **27 tasks** in nine sections (three each: basic, intermediate, advanced),
+> **What works today:** the virtual lab; the `stick` command; nine tools around it (NetBox, Nautobot, LibreNMS,
+> Zabbix, Oxidized, Gitea, Loki with the routers' syslog, Prometheus with their streaming telemetry, and an
+> emulated AWS account for the AWS CLI and Terraform);
+> **30 tasks** in ten sections (three each: basic, intermediate, advanced),
 > from reading router configs right across two vendors to keeping NetBox in sync and fixing monitoring,
 > **MCP-first**: all but the Terraform ones go through MCP servers instead of a shell; the
 > **grader**, which checks every attempt and explains what went wrong; and the **runner**, which lets AI models
@@ -67,7 +67,7 @@ plus one for handing in its answer:
 | Section | The model works through |
 |---|---|
 | `cfg-mgmt` | an MCP server that logs in to the routers and runs one CLI command per call (`netmiko-mcp`) |
-| `netbox`, `nautobot`, `librenms`, `zabbix` | a published MCP server for that tool |
+| `netbox`, `nautobot`, `librenms`, `zabbix`, `gitea` | a published MCP server for that tool |
 | `loki`, `telemetry` | Grafana's MCP server, reading Loki and Prometheus |
 | `aws` | AWS's API MCP server, against the emulated account |
 | `terraform` | a shell: Terraform is a command and files in a directory |
@@ -103,7 +103,7 @@ tools such as NetBox and Oxidized, connected to the lab's management network lik
 | | |
 |---|---|
 | **Operating system** | Linux (Ubuntu, Debian, Fedora...) or Windows 11 with WSL2. On a Mac you can bring up the lab but not run models against it yet; the way round is a Linux virtual machine on the Mac (see [docs/platforms.md](docs/platforms.md)). |
-| **Memory (RAM)** | About 6 GB free for one section, about 11 GB to run every section at once (`--all`). The lab uses ~4 GB; each tool adds its own: NetBox ~1.5 GB, Nautobot ~1.3 GB, Zabbix ~1.3 GB, LibreNMS ~0.8 GB, Loki with Grafana ~0.4 GB, the emulated AWS account ~0.2 GB, gNMIc with Prometheus ~0.1 GB, Oxidized ~50 MB. A model running on the same machine needs its own memory on top. `stick doctor` shows what fits. |
+| **Memory (RAM)** | About 6 GB free for one section, about 11 GB to run every section at once (`--all`). The lab uses ~4 GB; each tool adds its own: NetBox ~1.5 GB, Nautobot ~1.3 GB, Zabbix ~1.3 GB, LibreNMS ~0.8 GB, Loki with Grafana ~0.4 GB, the emulated AWS account ~0.2 GB, gNMIc with Prometheus ~0.1 GB, Gitea ~0.1 GB, Oxidized ~50 MB. A model running on the same machine needs its own memory on top. `stick doctor` shows what fits. |
 | **Disk** | About 10 GB free for the container images. |
 | **Internet** | For the first download of images and tools. |
 
@@ -435,6 +435,7 @@ with its own services (`clab-stick1-base-*`, 172.30.31.x, ports + 100):
 | Zabbix 8.0 | <http://127.0.0.1:8085> | `http://172.30.30.107:8080` | `Admin` / `zabbix` |
 | Loki 3.7 (in Grafana 13.3) | <http://127.0.0.1:8086> | syslog to `172.30.30.108:1514` | `admin` / `Stick-lab-9x!Qz` |
 | Prometheus 3.16 (telemetry from gNMIc 0.49) | <http://127.0.0.1:8088> | `http://172.30.30.110:9090` | none |
+| Gitea 28.3 | <http://127.0.0.1:8089> | `http://172.30.30.112:3000` | `stick` / `stick-gitea-admin` |
 
 | Command | What it does |
 |---|---|
@@ -492,6 +493,7 @@ uv run pytest -m lab -v tests/integration/test_librenms.py   # LibreNMS
 uv run pytest -m lab -v tests/integration/test_zabbix.py     # Zabbix
 uv run pytest -m lab -v tests/integration/test_loki.py       # Loki (the routers' syslog)
 uv run pytest -m lab -v tests/integration/test_telemetry.py  # gNMIc and Prometheus (streaming telemetry)
+uv run pytest -m lab -v tests/integration/test_gitea.py      # Gitea
 uv run pytest -m lab -v tests/integration/test_moto.py       # the emulated AWS account
 uv run pytest -m lab -v tests/integration/test_grading_lab.py # the grader
 uv run pytest -m lab -v tests/integration/test_tasks_lab.py   # every task can be solved, and can't be faked (and, for MCP tasks, through their MCP servers)
@@ -547,7 +549,7 @@ model on my own machine and compare it to a frontier model".
 
 What is still to do:
 
-- **More tools**, each with its own tasks: Gitea, DNS and DHCP, SuzieQ, Batfish.
+- **More tools**, each with its own tasks: DNS and DHCP, SuzieQ, Batfish.
 - **More task sections**: lab management and troubleshooting (faults put into the lab for the model to find).
 - **The judge model**: a set of human-graded examples to check it against, judge checks for the sections
   beyond NetBox, and tasks that ask for a written explanation.

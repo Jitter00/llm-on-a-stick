@@ -390,3 +390,41 @@ telemetry_ready() {
     prom_wait 'count(oper_state == 1)' 4
     sleep 6  # one more scrape, so that the counters have a first sample too
 }
+
+# --- Gitea -----------------------------------------------------------------
+# $STICK_GITEA_URL and $STICK_GITEA_AUTH (the Authorization header's value) come from `stick task start`.
+GITEA_REPO="netops/lab-configs"
+# gitea_api <METHOD> <path> [json]   e.g. gitea_api GET "repos/$GITEA_REPO/branches"
+gitea_api() {
+    local method=$1 path=$2 body=${3:-} out code
+    local args=(-sS -X "$method" -H "Authorization: $STICK_GITEA_AUTH" -H "Accept: application/json")
+    [[ -n "$body" ]] && args+=(-H "Content-Type: application/json" --data "$body")
+    if ! out=$(curl "${args[@]}" -w '\n%{http_code}' "$STICK_GITEA_URL/api/v1/${path#/}"); then
+        echo "gitea_api $method $path: request failed" >&2; return 1
+    fi
+    code=${out##*$'\n'}; out=${out%$'\n'*}
+    if (( code >= 400 )); then
+        echo "gitea_api $method $path: HTTP $code: $out" >&2; return 1
+    fi
+    printf '%s\n' "$out"
+}
+# gitea_branch <new> [from]: create a branch (from main unless told otherwise).
+gitea_branch() {
+    gitea_api POST "repos/$GITEA_REPO/branches" \
+        "$(jq -n --arg n "$1" --arg o "${2:-main}" '{new_branch_name: $n, old_branch_name: $o}')" >/dev/null
+}
+# gitea_commit <branch> <path> <message> <author> <date>: one commit that creates or replaces <path> with the
+# text on stdin, by <author> at <date> (2026-09-01T09:00:00Z), so that a history reads the same in every run.
+gitea_commit() {
+    local branch=$1 path=$2 message=$3 author=$4 date=$5 sha method=POST body
+    sha=$(gitea_api GET "repos/$GITEA_REPO/contents/$path?ref=$branch" 2>/dev/null | jq -r '.sha // empty') || sha=""
+    [[ -n "$sha" ]] && method=PUT
+    body=$(jq -n --rawfile text /dev/stdin --arg b "$branch" --arg m "$message" --arg a "$author" \
+        --arg d "$date" --arg sha "$sha" \
+        '{content: ($text | @base64), branch: $b, message: $m, dates: {author: $d, committer: $d},
+          author: {name: $a, email: (($a | ascii_downcase | gsub("[^a-z]"; ".")) + "@example.invalid")}}
+         | .committer = .author | if $sha != "" then .sha = $sha else . end')
+    gitea_api "$method" "repos/$GITEA_REPO/contents/$path" "$body" >/dev/null
+}
+# gitea_file <path> [ref]: the file's text at a branch, tag or commit (main unless told otherwise).
+gitea_file() { gitea_api GET "repos/$GITEA_REPO/contents/$1?ref=${2:-main}" | jq -r '.content' | base64 -d; }

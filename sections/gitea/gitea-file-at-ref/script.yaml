@@ -1,0 +1,33 @@
+# The task's reference steps as MCP calls: stick run gitea-file-at-ref --model script/<this file>
+steps:
+  - tool: gitea__get_file_contents
+    args: {owner: netops, repo: lab-configs, path: routers/frr1.conf, ref: main, with_lines: true}
+    capture:
+      main: 'interface eth3.*?description (stick-[0-9a-f]{8})'
+  - tool: gitea__get_file_contents
+    args:
+      {owner: netops, repo: lab-configs, path: routers/frr1.conf, ref: "change/{{ canaries.branch }}", with_lines: true}
+    capture:
+      branch: 'interface eth3.*?description (stick-[0-9a-f]{8})'
+  # The commits the branch has and main doesn't (three), then the file each of them touches.
+  - tool: gitea__commit_read
+    args: {method: compare, owner: netops, repo: lab-configs, base: main, head: "change/{{ canaries.branch }}"}
+    capture:
+      c1: '"sha":"([0-9a-f]{40})"'
+      c2: '"sha":"[0-9a-f]{40}".*?"sha":"([0-9a-f]{40})"'
+      c3: '"sha":"[0-9a-f]{40}".*?"sha":"[0-9a-f]{40}".*?"sha":"([0-9a-f]{40})"'
+  - tool: gitea__commit_read
+    args: {method: get, owner: netops, repo: lab-configs, sha: "{{ captured.c1 }}", include_diff: true}
+    capture: {f1: 'diff --git a/(\S+) b/'}
+  - tool: gitea__commit_read
+    args: {method: get, owner: netops, repo: lab-configs, sha: "{{ captured.c2 }}", include_diff: true}
+    capture: {f2: 'diff --git a/(\S+) b/'}
+  - tool: gitea__commit_read
+    args: {method: get, owner: netops, repo: lab-configs, sha: "{{ captured.c3 }}", include_diff: true}
+    capture: {f3: 'diff --git a/(\S+) b/'}
+  - tool: submit_answer
+    args:
+      answer:
+        main: "{{ captured.main }}"
+        branch: "{{ captured.branch }}"
+        changed_files: ["{{ captured.f1 }}", "{{ captured.f2 }}", "{{ captured.f3 }}"]

@@ -1,0 +1,85 @@
+# How `stick svc` drives Gitea. ${VAR:-default} is expanded from the environment, using the same variables
+# and defaults as compose.yaml.
+name: gitea
+description: Gitea 28.3 Git server (repositories, branches, pull requests; REST API)
+compose: compose.yaml
+project: ${STICK_NAME:-stick}-gitea
+wait_timeout_s: 180
+
+# Healthy = the seeded repository answers, which only exists once `init` below has run.
+health:
+  url: http://127.0.0.1:${STICK_GITEA_PORT:-8089}/api/v1/repos/netops/lab-configs
+  headers:
+    Authorization: Basic c3RpY2s6c3RpY2stZ2l0ZWEtYWRtaW4=
+
+endpoints:
+  web (host): http://127.0.0.1:${STICK_GITEA_PORT:-8089}
+  api (host): http://127.0.0.1:${STICK_GITEA_PORT:-8089}/api/v1
+  api (lab mgmt network): http://${STICK_MGMT_PREFIX:-172.30.30}.112:3000/api/v1
+
+credentials:
+  username: stick
+  password: stick-gitea-admin
+
+# Basic authentication with the user above: Gitea's command line can't create a token with a known value.
+api:
+  base_url: http://127.0.0.1:${STICK_GITEA_PORT:-8089}/api/v1/
+  headers:
+    Authorization: Basic c3RpY2s6c3RpY2stZ2l0ZWEtYWRtaW4=
+
+# Run once, after the first boot (while the service isn't healthy yet): the admin user, the organization
+# `netops` and its repository `lab-configs` with one commit (a README). The tasks' setup scripts add the rest.
+init:
+  steps:
+    - service: gitea
+      cmd:
+        - gitea
+        - admin
+        - user
+        - create
+        - --username=stick
+        - --password=stick-gitea-admin
+        - --email=stick@example.invalid
+        - --admin
+        - --must-change-password=false
+    - service: gitea
+      cmd:
+        - sh
+        - -c
+        - >-
+          api() { curl -fsS -o /dev/null -u stick:stick-gitea-admin -H 'Content-Type: application/json'
+          --data "$2" "http://localhost:3000/api/v1/$1"; };
+          api orgs '{"username": "netops", "full_name": "Network operations"}' &&
+          api orgs/netops/repos '{"name": "lab-configs", "description": "What the lab routers should be
+          running", "auto_init": true, "default_branch": "main", "private": false}'
+
+# The baseline is the data directory right after init (database and repositories together); reset stops
+# Gitea, puts the directory back and starts it again (a few seconds).
+snapshot:
+  kind: files
+  service: gitea
+  directory: /var/lib/gitea
+  path: /etc/gitea/baseline.tar.gz
+
+# The MCP server: Gitea's own gitea-mcp. It has no fixed token to log in with, so it sends the same Basic
+# header as everything else. 12 of its 48 tools are offered: repositories, branches, commits, files and pull
+# requests (not issues, releases, wikis, Actions, packages, labels, time tracking...).
+mcp:
+  server: gitea
+  version: 1.13.0
+  env:
+    GITEA_HOST: http://127.0.0.1:${STICK_GITEA_PORT:-8089}
+    GITEA_EXTRA_HEADERS: '{"Authorization": "Basic c3RpY2s6c3RpY2stZ2l0ZWEtYWRtaW4="}'
+  allow:
+    - get_me
+    - search_repos
+    - repo_read
+    - branch_read
+    - branch_write
+    - commit_read
+    - get_repository_tree
+    - get_file_contents
+    - create_or_update_file
+    - list_pull_requests
+    - pull_request_read
+    - pull_request_write

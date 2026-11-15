@@ -68,10 +68,11 @@ Resetting between benchmark attempts restores a database snapshot rather than re
 what makes repeated runs cheap. Tasks that list a service under `reset_services` (all NetBox, Nautobot, aws,
 terraform, LibreNMS and Zabbix tasks) do this themselves at `stick task start`, before their setup.
 
-A reset is one of four kinds (`snapshot.kind` in `service.yaml`): `postgres` restores a database dump (NetBox,
+A reset is one of five kinds (`snapshot.kind` in `service.yaml`): `postgres` restores a database dump (NetBox,
 Nautobot), `mysql` loads a `mariadb-dump` back into the database (LibreNMS, while it runs; Zabbix, with its server
 stopped), `volumes` deletes the
-service's volumes and recreates it (Oxidized), and `http` sends one request to the running service (moto).
+service's volumes and recreates it (Oxidized), `http` sends one request to the running service (moto), and
+`files` puts a data directory back from an archive, with the service stopped (Gitea).
 
 A service that can't be configured from compose alone (LibreNMS: its admin user, API token and settings)
 lists `init` steps: commands run in its containers once, after the first boot, followed by a restart. Zabbix
@@ -97,6 +98,7 @@ stdio.
 | librenms | [librenms-mcp](https://github.com/mhajder/librenms-mcp) | 1.13.0 | 33 of 113 | yes | Hides SNMP communities in what it returns |
 | zabbix | [zabbix-mcp](https://github.com/mhajder/zabbix-mcp) | 0.8.0 | 16 of 53 | yes | Supports Zabbix up to 7.4: it only talks to 8.0 with `ZABBIX_SKIP_VERSION_CHECK`, and the calls the tasks use work |
 | loki | [mcp-grafana](https://github.com/grafana/mcp-grafana) | 2.2.0 | 6 of 63 | no (started with `--disable-write`) | Grafana's own server; it reads Loki through Grafana's datasource, so a query names the datasource (`loki`). 10 lines per query unless asked for more, 100 at most; timestamps in nanoseconds. Not shown: dashboards, alerting, incidents, Prometheus, and `grafana_api_request` |
+| gitea | [gitea-mcp](https://gitea.com/gitea/gitea-mcp) | 1.13.0 | 12 of 48 | yes | Gitea's own server, a Go program: the image takes its release archive, checked against the release's checksum. It logs in with the same Basic header as the tasks' scripts (`GITEA_EXTRA_HEADERS`), since Gitea's command line can't create a token with a known value. `get_file_contents` returns base64 unless asked for numbered lines (`with_lines`). Not shown: issues, labels, milestones, releases, tags, wikis, Actions, packages, projects, notifications, time tracking |
 | telemetry | [mcp-grafana](https://github.com/grafana/mcp-grafana) | 2.2.0 | 5 of 63 | no (started with `--disable-write`) | The same server, against the same Grafana (the one the `loki` service runs), shown its Prometheus tools instead of its Loki ones. `query_prometheus` needs `endTime` even for an instant query, and every answer carries a link to Grafana's Explore page |
 
 One more server reaches the lab's routers and belongs to no service: `routers`, declared in
@@ -292,6 +294,36 @@ and its description, e.g. `Interface ethernet-1/1(to frr1): Operational status`,
       needs a time period as well as `active_since`/`active_till`;
     - a host deleted and added again has a new id and no history: the `zabbix_unchanged` check counts that
       as deleting it.
+
+## Gitea
+
+A Git server with pull requests, for the GitOps tasks: the repository `netops/lab-configs` records what the
+routers should run.
+
+| | |
+|---|---|
+| Version | Gitea 28.3.0 (`gitea/gitea:28.3.0-rootless`), one container, SQLite inside |
+| Web and API | <http://127.0.0.1:8089>, API under `/api/v1`; from the lab network `http://172.30.30.112:3000` |
+| Login | `stick` / `stick-gitea-admin` (an administrator), also for the API as HTTP Basic |
+| First boot | about 12 s: the admin user, the organization `netops`, the repository `lab-configs` with one commit (a README) |
+| Reset | about 6 s (`snapshot.kind: files`) |
+| RAM (measured) | ~100 MiB |
+
+- **It needs no lab.** The tasks' setup scripts write the repository's content through the API
+  (`gitea_commit`, `gitea_branch` in `sections/_lib/common.sh`), with fixed authors and dates.
+- **Reset puts files back, not a database dump.** Gitea keeps its state in an SQLite file and in bare
+  repositories, which must go back together. The baseline is a tar archive of `/var/lib/gitea`, taken with
+  Gitea stopped and kept on the `gitea-config` volume; a reset stops Gitea, empties the directory, unpacks the
+  archive in a one-off container of the same image, and starts Gitea again.
+- **No API token.** `gitea admin user generate-access-token` only makes random tokens, and the image has no
+  `sqlite3` to insert a known one. Everything uses HTTP Basic with the admin user instead.
+- SSH, registration, Actions and the cron jobs are off: nothing changes the repository but the task.
+- Pitfalls:
+    - a branch name with a slash (`change/x`) works as `?ref=` but not inside a `git/trees/<ref>` path: use
+      the branch's commit id there;
+    - the compare endpoint and gitea-mcp's `compare` list commits, not files: the files come from each
+      commit's diff;
+    - the API accepts author and commit dates (`dates`), which is how a setup makes a history in the past.
 
 ## Telemetry
 

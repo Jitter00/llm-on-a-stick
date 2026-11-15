@@ -25,7 +25,9 @@ seed data, a snapshot/reset, a measured footprint in `src/llm_on_a_stick/data/fo
 `tests/integration/test_<name>.py` (up → seeded → change → reset), a row in `docs/compatibility.md` and a section in `docs/services.md`.
 Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some containers), and time the cold boot and the reset.
 
-- [ ] **Gitea.** Seed an org, a `lab-configs` repo and an API token; snapshot = its DB and repo volume. Needed for the GitOps tasks.
+- [x] **Gitea.** One container (SQLite), the org `netops` and its repo `lab-configs`; a reset puts the whole data
+      directory back (`snapshot.kind: files`). The `gitea` section has three tasks, MCP only. Open: a task that
+      resolves a conflicting pull request; pairing with Oxidized (its backups pushed to a Gitea repository).
 - [x] **Syslog (Loki, received by Alloy, read through Grafana).** All four routers log to it; the `loki` section has three
       tasks, MCP only. Open: a fourth task that needs an aggregate query (which router logged the most errors).
 - [x] **Telemetry (gNMIc + Prometheus).** gNMI subscriptions to both SR Linux routers (port and BGP states, counters), read
