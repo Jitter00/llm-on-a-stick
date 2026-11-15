@@ -315,6 +315,9 @@ stick vs anthropic/claude-haiku-5-5 ollama/qwen3:14b --section cfg-mgmt --repeat
 stick report runs/compare --html        # the same page for runs you already have
 ```
 
+A cloud model and a local one (or two cloud models) run at the same time, each on its own copy of the lab, if
+your machine has the memory for a second lab; otherwise one after the other. `stick vs` says which.
+
 The page counts **turns**, and explains them at the top. A turn is one reply from the model: it reads the
 conversation so far, then either asks for commands to run in the lab or says it has finished. An attempt may use
 as many turns as the task allows (its `limits.turns`, else 30; `--max-turns` overrides it). An attempt that reaches
@@ -358,6 +361,10 @@ stick run --section cfg-mgmt --model anthropic/claude-haiku-5-5
 ```bash
 stick vs anthropic/claude-haiku-5-5 ollama/gemma4:12b --section cfg-mgmt
 ```
+
+The two run at the same time, each on its own lab, when the machine has room for a second lab (about 4 GB,
+more with tools such as NetBox); add `--sequential` to run them one after the other on one lab. The second lab
+stays running: `stick env down --all` stops both.
 
 **A single task.** Give the task's id instead of `--section` (`stick task list` shows the ids and which section
 each belongs to):
