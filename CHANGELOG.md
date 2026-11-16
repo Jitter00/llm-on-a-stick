@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.26.2](https://github.com/Jitter00/llm-on-a-stick/compare/v0.26.1...v0.26.2) (2026-11-16)
+
+
+### Bug fixes
+
+* **runner:** name MCP sidecars after their lab instance ([#71](https://github.com/Jitter00/llm-on-a-stick/issues/71)) ([924a521](https://github.com/Jitter00/llm-on-a-stick/commit/924a5210a4a9e8239c9a6dcbbdab56c770409566))
+
 ## [0.26.1](https://github.com/Jitter00/llm-on-a-stick/compare/v0.26.0...v0.26.1) (2026-11-16)
 
 
