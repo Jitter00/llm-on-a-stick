@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.26.1](https://github.com/Jitter00/llm-on-a-stick/compare/v0.26.0...v0.26.1) (2026-11-16)
+
+
+### Documentation
+
+* **readme:** list the 33 tasks by section and tier ([#69](https://github.com/Jitter00/llm-on-a-stick/issues/69)) ([b436ac3](https://github.com/Jitter00/llm-on-a-stick/commit/b436ac364cb0d4a0ac58be17a3d15c1e0a37d16a))
+
 ## [0.26.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.25.0...v0.26.0) (2026-11-15)
 
 
