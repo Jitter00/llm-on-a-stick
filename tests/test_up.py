@@ -48,6 +48,17 @@ def test_up_starts_only_what_is_missing(
     assert "to stop everything: stick env down" in out
 
 
+def test_up_hint_stays_on_one_line_when_narrow(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """`stick vs` gives each child about 60 columns; the hint is a command to copy, so it must not break."""
+    _Fakes(monkeypatch, lab_running=False, healthy=set())
+    monkeypatch.setenv("STICK_INSTANCE", "1")
+    monkeypatch.setattr(cli.console, "width", 40)
+    cli._bring_up([_task()])
+    assert "to stop everything: stick --instance 1 env down\n" in capsys.readouterr().out
+
+
 def test_up_does_nothing_when_everything_runs(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
