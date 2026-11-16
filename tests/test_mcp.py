@@ -180,3 +180,13 @@ def test_hub_says_which_server_did_not_start(tmp_path: Path) -> None:
     hub = mcp.McpHub({"netbox": McpServer(server="netbox", version="1")}, "t2", tmp_path, launcher=launcher)
     with pytest.raises(mcp.McpError, match="MCP server netbox did not start"), hub:
         pass
+
+
+def test_sidecar_names_carry_the_lab_instance(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    hub = mcp.McpHub({"netbox": McpServer(server="netbox", version="1")}, "Run-1", tmp_path)
+    monkeypatch.delenv("STICK_INSTANCE", raising=False)
+    assert hub._container("netbox") == "stick-mcp-netbox-run-1"
+    monkeypatch.setenv("STICK_INSTANCE", "1")
+    argv = hub._docker("netbox", hub.servers["netbox"])
+    assert argv[argv.index("--name") + 1] == "stick1-mcp-netbox-run-1"
+    assert mcp.lab.instances_of([argv[argv.index("--name") + 1]]) == {1}

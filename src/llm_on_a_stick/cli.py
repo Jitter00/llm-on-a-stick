@@ -222,7 +222,7 @@ def env_down(
     others = sorted(_running_instances() - {current})
     if others and not all_:  # plain `env down` stops one instance: say what it left running
         which = f"instance {others[0]} is" if len(others) == 1 else f"instances {_join(others)} are"
-        console.print(f"[yellow]{which} still running:[/] stick env down --all")
+        console.print(f"[yellow]{which} still running:[/] stick env down --all", soft_wrap=True)
 
 
 def _join(numbers: list[int]) -> str:
@@ -1036,6 +1036,7 @@ def _run_side_by_side(
         console.print(
             f"[dim]lab instance {n} is left running; to stop it: stick --instance {n} env down[/]",
             highlight=False,
+            soft_wrap=True,
         )
     raise typer.Exit(max((c if c in (0, 1, 2) else 1) for c in codes))
 
@@ -1092,7 +1093,9 @@ def _bring_up(selected: list[tasks.Task]) -> None:
         raise typer.Exit(2) from exc
     if stop:
         console.print(
-            f"[dim]left running afterwards; to stop everything: {_stick()} env down[/]", highlight=False
+            f"[dim]left running afterwards; to stop everything: {_stick()} env down[/]",
+            highlight=False,
+            soft_wrap=True,  # a command to copy: never broken over two lines
         )
 
 

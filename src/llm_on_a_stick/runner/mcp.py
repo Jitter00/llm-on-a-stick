@@ -27,6 +27,7 @@ from pathlib import Path
 from types import TracebackType
 from typing import Any
 
+from llm_on_a_stick import lab
 from llm_on_a_stick.env import containerlab
 from llm_on_a_stick.runner.models import ToolDef
 from llm_on_a_stick.runner.toolbox import shorten
@@ -221,7 +222,8 @@ class McpHub:
         self._tasks: list[concurrent.futures.Future[None]] = []
 
     def _container(self, name: str) -> str:
-        return f"stick-mcp-{name}-{self.run_id}".lower()[:120]
+        """`stick-mcp-...` on lab instance 0, `stick1-mcp-...` on instance 1: the instance it serves."""
+        return f"{lab.name()}-mcp-{name}-{self.run_id}".lower()[:120]
 
     def _docker(self, name: str, server: McpServer) -> list[str]:
         env = [arg for key, value in server.env.items() for arg in ("-e", f"{key}={value}")]
