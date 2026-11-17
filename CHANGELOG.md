@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.27.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.26.2...v0.27.0) (2026-11-17)
+
+
+### Features
+
+* **judge:** a "how it worked" check for every task ([#73](https://github.com/Jitter00/llm-on-a-stick/issues/73)) ([8320a69](https://github.com/Jitter00/llm-on-a-stick/commit/8320a692135e5449e1d558bc4ea093ef160a1441))
+
 ## [0.26.2](https://github.com/Jitter00/llm-on-a-stick/compare/v0.26.1...v0.26.2) (2026-11-16)
 
 
