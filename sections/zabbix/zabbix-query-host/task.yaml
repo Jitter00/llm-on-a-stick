@@ -38,4 +38,19 @@ checks:
   - type: no_change_outside
     name: no configuration was changed
     params: {allowed: []}
+  - type: llm_judge
+    name: how it searched for the host
+    params:
+      artifact: transcript
+      rubric: |
+        Judge how the candidate went about the task, not whether the end result is right (code checks that).
+        5: searched Zabbix's hosts by the tag and its value (a tag filter, or a host listing that includes
+           tags), read the host's name and its SNMP interface's address from Zabbix, and submitted only values
+           it had seen.
+        3: got to an answer by reading long unfiltered listings or after several failed calls, or picked a host
+           whose tag value merely looks like the wanted one without comparing it, or took an address without
+           checking it is the SNMP interface's, or never submitted an answer.
+        1: guessed or invented a host name, an address or an id instead of reading it; kept repeating calls that
+           had already failed without changing approach; or changed something in Zabbix.
+        Use 2 and 4 for attempts in between.
 limits: {turns: 15}

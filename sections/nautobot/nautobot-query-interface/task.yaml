@@ -36,4 +36,18 @@ checks:
   - type: no_change_outside
     name: no configuration was changed
     params: {allowed: []}
+  - type: llm_judge
+    name: how it looked the interface up
+    params:
+      artifact: transcript
+      rubric: |
+        Judge how the candidate went about the task, not whether the end result is right (code checks that).
+        5: found the device by name, found its interface by the description (a filter, or the device's full
+           interface list), read the address assigned to that interface from Nautobot, and submitted both as
+           Nautobot shows them.
+        3: got to an answer by reading long unfiltered lists, with several failed calls on the way, or took an
+           address without checking it is assigned to that interface, or never submitted an answer.
+        1: guessed or invented an interface, an address, an id or a filter instead of reading it; kept repeating
+           calls that had already failed without changing approach; or changed something in Nautobot.
+        Use 2 and 4 for attempts in between.
 limits: {turns: 15}

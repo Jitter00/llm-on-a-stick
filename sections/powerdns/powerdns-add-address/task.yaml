@@ -49,4 +49,19 @@ checks:
     params:
       allow_changed: ["rrsets:{{ canaries.svc }}.stick.lab./A"]
       allow_new: ["rrsets:{{ canaries.host }}.{{ canaries.third }}.19.198.in-addr.arpa./PTR"]
+  - type: llm_judge
+    name: how it made the two changes
+    params:
+      artifact: transcript
+      rubric: |
+        Judge how the candidate went about the task, not whether the end result is right (code checks that).
+        5: read the name's present A record set (addresses and TTL) and how the first address's PTR record looks
+           and in which zone, then replaced the A record set with both addresses and the same TTL, added the PTR
+           record in the reverse zone, and read both back.
+        3: made both changes, but only after failed calls, or without first reading the existing record set (so
+           the old address or the TTL was kept by luck or lost and repaired afterwards), or never read back what
+           it wrote.
+        1: wrote records without reading the zone, invented a zone name, a TTL or a record format, changed or
+           removed other records; or kept repeating calls that had already failed without changing approach.
+        Use 2 and 4 for attempts in between.
 limits: {turns: 20}

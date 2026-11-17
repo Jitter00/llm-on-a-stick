@@ -48,4 +48,20 @@ checks:
   - type: no_change_outside
     name: no router was changed
     params: {allowed: []}
+  - type: llm_judge
+    name: how it brought LibreNMS in line with NetBox
+    params:
+      artifact: transcript
+      rubric: |
+        Judge how the candidate went about the task, not whether the end result is right (code checks that).
+        5: read all devices from NetBox with status and primary IPv4 address, read the devices LibreNMS
+           monitors, compared the two, added only the missing active ones by the address NetBox gives with the
+           SNMP settings asked for, removed only those with another status, left the rest, and confirmed.
+        3: did the additions but not the removal (or the other way round), or took addresses or statuses from
+           part of NetBox's list (first page only), or re-added or edited a device that was already right, or
+           never confirmed the result.
+        1: added or removed devices without reading NetBox, used addresses or names NetBox does not give,
+           changed NetBox, or invented ids; or kept repeating calls that had already failed without changing
+           approach.
+        Use 2 and 4 for attempts in between.
 limits: {turns: 25}

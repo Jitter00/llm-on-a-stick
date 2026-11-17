@@ -90,3 +90,13 @@ def test_mcp_tools_must_be_required_services(tmp_path: Path) -> None:
     for bad in ({"mcp": []}, {"shell": ["x"]}, {}):
         task = {**task, "id": f"bad{len(bad)}{'mcp' in bad}".lower(), "tools": bad}
         assert tasks.lint([write_task(tmp_path, task).parent])[1], bad
+
+
+def test_every_shipped_task_has_one_judge_check() -> None:
+    """How the model worked is judged in every section, so a new task needs its rubric too."""
+    files = sorted(Path(__file__).parents[1].glob("sections/*/*/task.yaml"))
+    assert files
+    for path in files:
+        checks = yaml.safe_load(path.read_text(encoding="utf-8"))["checks"]
+        judged = [c for c in checks if c["type"] == tasks.JUDGE_CHECK]
+        assert len(judged) == 1, f"{path.parent.name}: {len(judged)} llm_judge checks"

@@ -46,4 +46,20 @@ checks:
   - type: no_change_outside
     name: no router was changed
     params: {allowed: []}
+  - type: llm_judge
+    name: how it found the drift and proposed the fix
+    params:
+      artifact: transcript
+      rubric: |
+        Judge how the candidate went about the task, not whether the end result is right (code checks that).
+        5: read all four intended files from the repository and the first uplink's description from all four
+           routers, compared them, then changed only the one file that differs on a new branch, with the value
+           read from the router, opened the pull request into main and checked it.
+        3: stopped comparing at the first difference without checking the other routers, or needed several
+           attempts at the branch, the commit or the pull request, or rewrote more of the file than the one
+           value, or never checked what the pull request contains.
+        1: wrote a value it had not read from the router, committed to main, merged, or changed a router;
+           invented branch names, paths or file contents; or kept repeating calls that had already failed
+           without changing approach.
+        Use 2 and 4 for attempts in between.
 limits: {turns: 30}

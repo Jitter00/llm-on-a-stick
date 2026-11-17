@@ -38,4 +38,19 @@ checks:
     weight: 2
   - type: aws_unchanged
     name: nothing was changed in the AWS account
+  - type: llm_judge
+    name: how it looked the instance up
+    params:
+      artifact: transcript
+      rubric: |
+        Judge how the candidate went about the task, not whether the end result is right (code checks that).
+        5: found the instance by its Name tag with a filter, then read the subnet's CIDR block and the security
+           group's name from the account by the ids the instance gave, and submitted only values it had seen.
+        3: got to an answer by listing everything unfiltered and picking through it, with several failed
+           commands on the way, or took a value from the instance's output without looking up what it refers to,
+           or never submitted an answer.
+        1: guessed or invented an address, a CIDR block, a group name or an id instead of reading it; kept
+           repeating calls that had already failed without changing approach; or changed something in the
+           account.
+        Use 2 and 4 for attempts in between.
 limits: {turns: 15}

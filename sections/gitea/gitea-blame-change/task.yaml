@@ -40,4 +40,18 @@ checks:
     weight: 3
   - type: gitea_unchanged
     name: nothing was changed in Gitea
+  - type: llm_judge
+    name: how it searched the history
+    params:
+      artifact: transcript
+      rubric: |
+        Judge how the candidate went about the task, not whether the end result is right (code checks that).
+        5: listed the commits that touched routers/frr2.conf (or the repository's history), looked at what each
+           candidate commit changed until it had seen the one whose diff removes the neighbour, and took the
+           ticket and the author from that commit.
+        3: picked the commit from its message alone without looking at what it changed, or read only part of the
+           history (the first page, another file's commits), or never submitted an answer.
+        1: guessed or invented a commit, a ticket or an author instead of reading it; kept repeating calls that
+           had already failed without changing approach; or changed something in Gitea.
+        Use 2 and 4 for attempts in between.
 limits: {turns: 20}

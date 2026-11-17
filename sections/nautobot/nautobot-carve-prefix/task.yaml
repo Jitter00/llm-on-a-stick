@@ -39,4 +39,20 @@ checks:
   - type: nautobot_unchanged
     name: nothing else was changed in Nautobot
     params: {allow_new: [ipam/prefixes]}
+  - type: llm_judge
+    name: how it chose and reserved the block
+    params:
+      artifact: transcript
+      rubric: |
+        Judge how the candidate went about the task, not whether the end result is right (code checks that).
+        5: found the /24 in the stick-lab namespace, read every prefix that already exists inside it (all of
+           them, in that namespace), worked out the lowest free /28 from that, looked up the ids it needed
+           (namespace, status), created the one prefix with the fields asked for, and read it back.
+        3: created the prefix after a first choice was refused or after several failed calls, or read the
+           existing prefixes only in part (one page, the wrong namespace) before choosing, or never read back
+           what it created.
+        1: picked a block without reading what exists, invented ids for the namespace or the status, created
+           more than one prefix or changed existing ones; or kept repeating calls that had already failed
+           without changing approach.
+        Use 2 and 4 for attempts in between.
 limits: {turns: 20}

@@ -7,7 +7,10 @@ A task is one job for an AI model (or a person) to do in the lab, plus the code 
 - plants random **canary** values on the devices before the attempt, so a memorised or invented answer can't pass;
 - checks that **nothing else was changed** on any device;
 - ships a **reference solution** (`oracle.sh`) and is proven sound by `stick task validate`: the reference solution
-  must pass, and doing nothing must not.
+  must pass, and doing nothing must not;
+- has one check for a [judge model](grading.md#the-judge-model) (`--judge-model`): *how* the model went about
+  the task (read before writing, looked ids up or guessed them, confirmed its result). It is scored apart and
+  never changes pass or fail; without a judge it shows as "not graded".
 
 ```bash
 uv run stick task list                       # all tasks
@@ -100,10 +103,6 @@ interface before it can be a device's primary IP).
 Requirements: the lab and NetBox (`uv run stick env up`, `uv run stick svc up netbox`). Every attempt starts by
 restoring NetBox's seeded snapshot (`reset_services: [netbox]`, about 20 s), and `netbox_unchanged` fails
 attempts that change anything the task didn't ask for. Run them with `uv run stick run --section netbox ...`.
-
-Each of these tasks also has one check for a [judge model](grading.md#the-judge-model) (`--judge-model`): how
-the model went about the task (read before writing, looked ids up, confirmed its result). It is scored apart
-and never changes pass or fail; without a judge it shows as "not graded". Only the `loki` tasks have one too.
 
 ## nautobot: the other source of truth
 
@@ -210,7 +209,7 @@ only in the history.
 
 Requirements: the lab, the `telemetry` service (gNMIc, Prometheus: about 0.1 GB) and the `loki` service for
 its Grafana. Answers go through `submit_answer`; each task has a `script.yaml` with its reference solution
-as MCP calls. These tasks have no judge check. Only the SR Linux routers stream: FRR has no gNMI.
+as MCP calls. Only the SR Linux routers stream: FRR has no gNMI.
 
 ## gitea: a Git repository of router configurations
 
@@ -230,7 +229,7 @@ Requirements: the `gitea` service (about 0.1 GB); only `gitea-drift-pr` needs th
 (`reset_services: [gitea]`, about 6 s), and `gitea_unchanged` fails attempts that add, change or delete a
 branch, a pull request or a repository the task didn't ask for; a commit shows as its branch changed.
 Answers of the two read-only tasks go through `submit_answer`; each task has a `script.yaml` with its
-reference solution as MCP calls. These tasks have no judge check.
+reference solution as MCP calls.
 
 ## powerdns: DNS zones and records
 
@@ -250,7 +249,7 @@ the `routers` server as well. Every attempt starts from a PowerDNS without zones
 (`reset_services: [powerdns]`, about 1 s). The write tasks are graded by **asking the DNS server** (`dns_record`), not
 by reading the API back, and `powerdns_unchanged` fails attempts that add, change or delete a zone or a
 record set the task didn't ask for. The answer of the read-only task goes through `submit_answer`; each task
-has a `script.yaml` with its reference solution as MCP calls. These tasks have no judge check.
+has a `script.yaml` with its reference solution as MCP calls.
 
 ## loki: the routers' syslog
 

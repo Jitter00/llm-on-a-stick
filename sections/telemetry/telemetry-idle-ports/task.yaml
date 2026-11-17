@@ -40,4 +40,18 @@ checks:
   - type: no_change_outside
     name: no configuration was changed
     params: {allowed: []}
+  - type: llm_judge
+    name: how it queried the telemetry
+    params:
+      artifact: transcript
+      rubric: |
+        Judge how the candidate went about the task, not whether the end result is right (code checks that).
+        5: found the Prometheus datasource and the metric and label names for the ports' admin and oper state
+           first, queried srl2's current values for both, and counted from what the queries returned (or had
+           PromQL count), covering every port.
+        3: got to counts after several failed or badly formed queries, or from one of the two states only with
+           the other assumed, or by reading long unfiltered results, or never submitted an answer.
+        1: guessed or invented a datasource id, a metric name, a label or the counts instead of reading them; or
+           kept repeating calls that had already failed without changing approach.
+        Use 2 and 4 for attempts in between.
 limits: {turns: 15}
