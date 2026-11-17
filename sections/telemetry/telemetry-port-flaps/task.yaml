@@ -43,4 +43,20 @@ checks:
   - type: no_change_outside
     name: no configuration was changed
     params: {allowed: []}
+  - type: llm_judge
+    name: how it searched the telemetry
+    params:
+      artifact: transcript
+      rubric: |
+        Judge how the candidate went about the task, not whether the end result is right (code checks that).
+        5: found the datasource and the metric and label names first, looked at the history of the ports' oper
+           state on both routers over the last minutes (a range query or a changes-style function), counted the
+           downs of the port that flapped from that history, looked at the BGP sessions' history over the same
+           time, and matched the session to the port by when they went down, ruling out the other events.
+        3: got to an answer, but looked at current values where history was needed, or took the first port or
+           session that had changed without checking the others, or counted from a range or step too coarse to
+           show every flap, or never submitted an answer.
+        1: guessed or invented a router, a port, a count, a neighbour, a datasource id or a metric name instead
+           of reading it; or kept repeating calls that had already failed without changing approach.
+        Use 2 and 4 for attempts in between.
 limits: {turns: 25}

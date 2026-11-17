@@ -13,7 +13,6 @@ completes it (what was done is in CHANGELOG.md and the git history).
 - [ ] **Judge calibration** (the judge itself exists: [docs/grading.md](docs/grading.md#the-judge-model)): a small
       set of human-graded examples per kind of judged check (real transcripts with a person's score), and a
       command that reports how often a judge model agrees with them. Until then judge scores are unverified.
-- [ ] **Judge checks beyond NetBox**: a "how it worked" rubric for the tasks of the other sections.
 - [ ] **Written explanations**: tasks that ask for a short explanation file (a diagnosis, a change plan) for
       the judge to score with a reference answer. This changes those tasks' prompts.
 

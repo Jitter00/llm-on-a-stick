@@ -72,4 +72,21 @@ checks:
     params:
       allow_changed: ["ec2/security-groups:{{ canaries.name }}-web"]
       allow_deleted: ["ec2/security-groups:{{ canaries.name }}-debug"]
+  - type: llm_judge
+    name: how it reconciled the drift
+    params:
+      artifact: transcript
+      rubric: |
+        Judge how the candidate went about the task, not whether the end result is right (code checks that).
+        5: read the configuration and APPROVED.md, ran plan and looked at the VPC in the account to find every
+           manual change (changed and added), sorted them into approved and not, took the approved ones into
+           configuration and state without replacing anything (configuration edits, import), undid the others,
+           and ran plan again to confirm no changes.
+        3: reconciled most of it, but found the manual changes only from plan (missing what was added outside
+           the state) or only after errors, or reached a clean plan by a route that replaced or modified an
+           approved resource, or never ran a final plan.
+        1: applied the old configuration over everything without reading APPROVED.md, deleted approved
+           resources, edited the state file by hand, touched things outside the VPC, or invented resource ids;
+           or kept repeating calls that had already failed without changing approach.
+        Use 2 and 4 for attempts in between.
 limits: {turns: 35}

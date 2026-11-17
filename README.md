@@ -584,8 +584,8 @@ What is still to do:
 
 - **More tools**, each with its own tasks: DHCP (Kea), SuzieQ, Batfish.
 - **More task sections**: lab management and troubleshooting (faults put into the lab for the model to find).
-- **The judge model**: a set of human-graded examples to check it against, judge checks for the sections
-  beyond NetBox, and tasks that ask for a written explanation.
+- **The judge model**: a set of human-graded examples to check it against, and tasks that ask for a written
+  explanation.
 - **Your own tasks**: a scaffold command, and tasks loaded from a git address.
 - **Run variants**: the same model at different context sizes and quantisations.
 - **Several labs in parallel**, so a cloud model and a local model can run at the same time.

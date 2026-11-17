@@ -150,7 +150,7 @@ More (giving up, hallucinated APIs...) can come from the same transcripts; the c
 
 A second model that reads a finished attempt and does two things code can't:
 
-- **Scores the task's `llm_judge` checks** against their rubrics. Today the five NetBox tasks have one each,
+- **Scores the task's `llm_judge` checks** against their rubrics. Every task has one,
   about *how* the model worked: did it read before writing, look ids up or guess them, confirm its result.
 - **Says why an attempt didn't pass**, in a few sentences, for every attempt whose outcome isn't `pass`. This
   summary is not scored.

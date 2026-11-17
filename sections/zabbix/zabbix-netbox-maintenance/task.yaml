@@ -46,4 +46,19 @@ checks:
   - type: netbox_unchanged
     name: nothing was changed in NetBox
     params: {allow_new: []}
+  - type: llm_judge
+    name: how it matched the devices and created the maintenance
+    params:
+      artifact: transcript
+      rubric: |
+        Judge how the candidate went about the task, not whether the end result is right (code checks that).
+        5: found the tenant in NetBox and read all of its devices with their primary IPv4 addresses, found the
+           Zabbix host for each by the address of the host's interface (not by name), created one maintenance
+           with the name, start, length and type asked for and exactly those hosts, and read it back.
+        3: created the maintenance, but matched hosts on part of the evidence (names, an incomplete device or
+           host list), or needed several attempts at the times or fields, or never read back what it created.
+        1: chose hosts without reading NetBox, invented host ids or timestamps, created more than one
+           maintenance, added whole host groups, or changed hosts; or kept repeating calls that had already
+           failed without changing approach.
+        Use 2 and 4 for attempts in between.
 limits: {turns: 30}

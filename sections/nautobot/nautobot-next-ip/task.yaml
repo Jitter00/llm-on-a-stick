@@ -46,4 +46,21 @@ checks:
   - type: no_change_outside
     name: no other router was changed
     params: {allowed: [frr2]}
+  - type: llm_judge
+    name: how it allocated and configured the address
+    params:
+      artifact: transcript
+      rubric: |
+        Judge how the candidate went about the task, not whether the end result is right (code checks that).
+        5: read the addresses already recorded in the pool in the stick-lab namespace, worked out the lowest
+           free usable one from that, looked up the ids it needed (namespace, status, frr2's interface lo),
+           recorded the /32 and assigned it to the interface, added it on frr2's lo without removing the address
+           there, and confirmed both in Nautobot and in the running configuration.
+        3: did both parts, but chose the address from an incomplete read (one page, the other namespace) or by
+           trial and error against Nautobot's refusals, or did not check what lo already had, or never confirmed
+           one of the two sides.
+        1: picked an address without reading what is recorded, invented ids, replaced lo's existing address,
+           changed other objects or devices; or kept repeating calls that had already failed without changing
+           approach.
+        Use 2 and 4 for attempts in between.
 limits: {turns: 25}

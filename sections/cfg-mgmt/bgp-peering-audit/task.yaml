@@ -41,4 +41,18 @@ checks:
   - type: no_change_outside
     name: no configuration was changed
     params: {allowed: []}
+  - type: llm_judge
+    name: how it went about the audit
+    params:
+      artifact: transcript
+      rubric: |
+        Judge how the candidate went about the task, not whether the end result is right (code checks that).
+        5: read the BGP configuration of all four routers (each router's own AS and every neighbour's configured
+           AS), worked out which router is at the other end of each neighbour address from what it read,
+           compared every one of the eight neighbours, and reported only mismatches both outputs show.
+        3: compared only part of the neighbours or routers, or took the AS of the far end from session state or
+           from assumption instead of that router's own configuration, or never submitted an answer.
+        1: guessed or invented AS numbers or addresses instead of reading them; kept repeating calls that had
+           already failed without changing approach; or changed configuration.
+        Use 2 and 4 for attempts in between.
 limits: {turns: 30}
