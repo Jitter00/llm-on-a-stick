@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.29.1](https://github.com/Jitter00/llm-on-a-stick/compare/v0.29.0...v0.29.1) (2026-11-18)
+
+
+### Documentation
+
+* **readme:** complete the expert column and fix stale counts ([#79](https://github.com/Jitter00/llm-on-a-stick/issues/79)) ([97414ad](https://github.com/Jitter00/llm-on-a-stick/commit/97414addfe1a3b11730976a38e2ed3c64e75e4a8))
+
 ## [0.29.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.28.0...v0.29.0) (2026-11-18)
 
 
