@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.28.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.27.0...v0.28.0) (2026-11-18)
+
+
+### Features
+
+* **runner:** stop a local-model run when the GPU's PCIe link runs slow ([#75](https://github.com/Jitter00/llm-on-a-stick/issues/75)) ([fe272b2](https://github.com/Jitter00/llm-on-a-stick/commit/fe272b2a2e6424d9fcdbca93beaa1d6a3473f88a))
+
 ## [0.27.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.26.2...v0.27.0) (2026-11-17)
 
 
