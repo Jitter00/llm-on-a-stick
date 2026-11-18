@@ -1,0 +1,80 @@
+id: tf-refactor
+section: terraform
+title: Move a live network into a module and from count to for_each, without touching the account
+tier: expert
+tags: [tool:terraform, iface:cli, skill:iac-refactor]
+topology: none
+prompt: |
+  Terraform and its AWS provider (hashicorp/aws) are installed in your toolbox; `terraform init` needs no
+  download. An AWS account is ready: the credentials, the region eu-west-1 and the API endpoint, an emulator,
+  are set in the environment, so `provider "aws" {}` needs no arguments (`aws` and boto3 work too).
+
+  The Terraform configuration in {{ workspace }}/net is applied and in production. Refactor it:
+    - the network (the VPC, its internet gateway, the subnets, their route tables and route table
+      associations, and the default route) moves into a local module in {{ workspace }}/net/modules/network,
+      called from the root module as module "network";
+    - in the module, the subnets, route tables and associations are made with for_each, keyed by the
+      subnet's name (web, db, app), not with count; the resources are named like this:
+      module.network.aws_vpc.this, module.network.aws_internet_gateway.this,
+      module.network.aws_subnet.this["web"] (and "db", "app"), module.network.aws_route_table.this["web"]...,
+      module.network.aws_route_table_association.this["web"]..., module.network.aws_route.internet;
+    - the security group and the instance stay in the root module, as aws_security_group.web and
+      aws_instance.app, and get what they need from the module.
+
+  This is production: no resource in the account may be destroyed, replaced or changed, not even for a
+  moment. When you are done, the state holds every resource at its new address, and `terraform plan` in
+  {{ workspace }}/net reports no changes.
+requires:
+  services: [moto]
+reset_services: [moto]
+canaries:
+  vpc: net16
+  name: hostname
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: terraform_state_has
+    name: every resource is at its new address, and nothing else is in the state
+    params:
+      path: net
+      addresses:
+        - module.network.aws_vpc.this
+        - module.network.aws_internet_gateway.this
+        - module.network.aws_subnet.this["web"]
+        - module.network.aws_subnet.this["db"]
+        - module.network.aws_subnet.this["app"]
+        - module.network.aws_route_table.this["web"]
+        - module.network.aws_route_table.this["db"]
+        - module.network.aws_route_table.this["app"]
+        - module.network.aws_route_table_association.this["web"]
+        - module.network.aws_route_table_association.this["db"]
+        - module.network.aws_route_table_association.this["app"]
+        - module.network.aws_route.internet
+        - aws_security_group.web
+        - aws_instance.app
+      count: 14
+    weight: 3
+  - type: terraform_plan_clean
+    name: terraform plan reports no changes
+    params: {path: net}
+    weight: 2
+  - type: aws_unchanged
+    name: nothing in the account was destroyed, replaced or changed
+    weight: 3
+  - type: llm_judge
+    name: how it refactored a live configuration
+    params:
+      artifact: transcript
+      rubric: |
+        Judge how the candidate went about the task, not whether the end result is right (code checks that).
+        5: read the configuration and the state first (which index is which subnet: the CIDR blocks follow
+           the list's order), wrote the module and moved blocks (or state moves) that carry every index to
+           its key, ran init and plan and read the plan before any apply, made sure it only moved resources
+           (nothing to add, change or destroy), and ran a final plan.
+        3: got there, but only after a plan or apply that would have replaced resources and had to be undone
+           by hand, or with moves found by trial and error, or without a final plan.
+        1: applied a plan that destroyed or replaced resources, edited the state file by hand, rebuilt the
+           resources with the CLI; or kept repeating commands that had already failed without changing
+           approach.
+        Use 2 and 4 for attempts in between.
+limits: {turns: 40}

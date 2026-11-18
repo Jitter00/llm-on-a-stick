@@ -1,0 +1,28 @@
+# The task's reference steps as MCP calls: stick run zabbix-port-down-problem --model script/<this file>
+# (A script knows which host is which router; a model has to find out, and find the failed link, first.)
+steps:
+  - tool: zabbix__item_get
+    args: {item_name_contains: "Operational status", output: [hostid, name, lastvalue], limit: 40}
+  - tool: zabbix__host_get
+    args: {filter_params: {host: "{{ canaries.n_srl2 }}"}, output: [hostid]}
+    capture: {srl2: '"hostid":\s*"(\d+)"'}
+  - tool: zabbix__host_get
+    args: {filter_params: {host: "{{ canaries.n_frr2 }}"}, output: [hostid]}
+    capture: {frr2: '"hostid":\s*"(\d+)"'}
+  - tool: zabbix__item_get
+    args:
+      hostids: ["{{ captured.srl2 }}"]
+      item_name_contains: "Interface ethernet-1/2(to frr2): Operational status"
+      output: [key_, lastvalue]
+    capture: {a: '"key_":\s*"([^"]+)"'}
+  - tool: zabbix__item_get
+    args:
+      hostids: ["{{ captured.frr2 }}"]
+      item_name_contains: "Interface eth2(): Operational status"
+      output: [key_, lastvalue]
+    capture: {b: '"key_":\s*"([^"]+)"'}
+  - tool: zabbix__trigger_create
+    args:
+      description: "Link down {{ canaries.trigger }}"
+      expression: "last(/{{ canaries.n_srl2 }}/{{ captured.a }})=2 or last(/{{ canaries.n_frr2 }}/{{ captured.b }})=2"
+      priority: 4

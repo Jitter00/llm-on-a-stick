@@ -1,0 +1,78 @@
+id: gitea-backport-pr
+section: gitea
+title: Backport one ticket's commits to a release branch, as a pull request
+tier: expert
+tags: [tool:gitea, iface:mcp, skill:git-history, skill:gitops-backport]
+topology: none
+prompt: |
+  You reach a Gitea server (Git hosting) through its MCP server. There is no git client: you work through
+  the server's tools only.
+
+  The repository netops/lab-configs holds router configurations. The branch release/2026.11 was cut from main
+  some time ago and has changes of its own since. On main, the security review (ticket
+  {{ canaries.ticket }}) changed some of the configurations.
+
+  Backport that ticket to release/2026.11: open a pull request into release/2026.11 that makes exactly the
+  changes the ticket's commits made on main, and nothing else. Changes main had before or after them, for
+  other tickets, must not come along, and the release branch's own changes must stay.
+
+  Do not commit to main or to release/2026.11 directly, and do not merge the pull request.
+requires:
+  services: [gitea]
+tools:
+  mcp: [gitea]
+reset_services: [gitea]
+canaries:
+  ticket: description
+  t_rel: description
+  t_desc: description
+  t_peer: description
+  t_timers: description
+  d_rel: description
+  d_main: description
+  pw1: description
+  pw2: description
+  extra: ipv4
+  extra_as: asn
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: gitea_pull
+    name: one open pull request into the release branch carries the ticket's changes and nothing else
+    params:
+      repo: netops/lab-configs
+      base: release/2026.11
+      files: [routers/frr1.conf, routers/frr2.conf]
+      contains:
+        routers/frr1.conf:
+          - "neighbor 10.0.1.0 password {{ canaries.pw1 }}"
+          - "ip prefix-list LAN seq 10 permit 10.1.1.0/24\n"
+          - "timers bgp 5 15"
+        routers/frr2.conf:
+          - "neighbor 10.0.2.2 password {{ canaries.pw2 }}"
+          - "description {{ canaries.d_rel }}"
+      absent:
+        routers/frr1.conf: ["le 32", "{{ canaries.d_main }}", "timers bgp 10 30", "timers bgp 60 180"]
+        routers/frr2.conf: ["{{ canaries.extra }}"]
+      max_lines: 4
+    weight: 3
+  - type: gitea_unchanged
+    name: main and the release branch were not committed to, and nothing else changed in Gitea
+    params: {allow_new: [branches, pulls]}
+  - type: llm_judge
+    name: how it found the ticket's changes and carried them over
+    params:
+      artifact: transcript
+      rubric: |
+        Judge how the candidate went about the task, not whether the end result is right (code checks that).
+        5: listed main's history far enough to find every commit naming the ticket (one per router), read each
+           one's diff, read the release branch's version of each file, made only those line changes on a new
+           branch cut from the release branch, opened the pull request into release/2026.11 and checked what
+           it changes.
+        3: found the changes but needed several attempts, or copied whole files from main and then repaired
+           them, or never checked the pull request's diff.
+        1: took main's current files as they are, missed a commit of the ticket without looking for more,
+           committed to main or to the release branch, merged, or invented paths, branch names or contents;
+           or kept repeating calls that had already failed without changing approach.
+        Use 2 and 4 for attempts in between.
+limits: {turns: 40}

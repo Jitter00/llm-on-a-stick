@@ -1,0 +1,27 @@
+# The task's reference steps as MCP calls: stick run librenms-link-down-alert --model script/<this file>
+# (A script knows the conditions; a model has to read the ports' descriptions and states first.)
+steps:
+  - tool: librenms__device_add
+    args:
+      payload: {hostname: "{{ nodes.srl2.mgmt_ip }}", version: v2c, community: stick-ro}
+  - tool: librenms__ports_search_field
+    args: {field: ifAlias, search: to}
+  - tool: librenms__alert_rule_add
+    args:
+      payload:
+        name: "{{ canaries.rule }}"
+        severity: critical
+        devices: [-1]
+        count: 1
+        delay: 0
+        interval: 300
+        mute: false
+        builder:
+          condition: AND
+          valid: true
+          rules:
+            - {id: ports.ifAdminStatus, field: ports.ifAdminStatus, type: string, input: text, operator: equal, value: up}
+            - {id: ports.ifOperStatus, field: ports.ifOperStatus, type: string, input: text, operator: not_equal, value: up}
+            - {id: ports.ifAlias, field: ports.ifAlias, type: string, input: text, operator: begins_with, value: "to "}
+  - tool: librenms__alert_rules_list
+    args: {}

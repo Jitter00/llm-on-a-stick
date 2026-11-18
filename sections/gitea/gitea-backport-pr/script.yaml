@@ -1,0 +1,39 @@
+# The task's reference steps as MCP calls: stick run gitea-backport-pr --model script/<this file>
+# (A script knows this run's passwords; a model has to read them from the ticket's two diffs.)
+steps:
+  - tool: gitea__commit_read
+    args: {method: list, owner: netops, repo: lab-configs, sha: main}
+  - tool: gitea__get_file_contents
+    args: {owner: netops, repo: lab-configs, path: routers/frr1.conf, ref: release/2026.11, with_lines: true}
+  - tool: gitea__create_or_update_file
+    args:
+      owner: netops
+      repo: lab-configs
+      path: routers/frr1.conf
+      branch_name: release/2026.11
+      new_branch_name: "backport/{{ canaries.ticket }}"
+      message: "Backport ticket {{ canaries.ticket }} to frr1"
+      edits:
+        - old_string: "permit 10.1.1.0/24 le 32"
+          new_string: "permit 10.1.1.0/24"
+        - old_string: " neighbor 10.0.2.0 remote-as 65002\n"
+          new_string: " neighbor 10.0.2.0 remote-as 65002\n neighbor 10.0.1.0 password {{ canaries.pw1 }}\n"
+  - tool: gitea__create_or_update_file
+    args:
+      owner: netops
+      repo: lab-configs
+      path: routers/frr2.conf
+      branch_name: "backport/{{ canaries.ticket }}"
+      message: "Backport ticket {{ canaries.ticket }} to frr2"
+      edits:
+        - old_string: " neighbor 10.0.2.2 remote-as 65002\n"
+          new_string: " neighbor 10.0.2.2 remote-as 65002\n neighbor 10.0.2.2 password {{ canaries.pw2 }}\n"
+  - tool: gitea__pull_request_write
+    args:
+      method: create
+      owner: netops
+      repo: lab-configs
+      head: "backport/{{ canaries.ticket }}"
+      base: release/2026.11
+      title: "Backport ticket {{ canaries.ticket }}"
+      body: The two commits of the ticket, applied to the release branch.

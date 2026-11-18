@@ -1,0 +1,71 @@
+id: zabbix-port-down-problem
+section: zabbix
+title: Alert on a failed link, at both of its ends
+tier: expert
+tags: [tool:zabbix, vendor:srl, vendor:frr, iface:mcp, skill:nms-alerting]
+prompt: |
+  You reach Zabbix through its MCP server.
+
+  Zabbix monitors the lab's four routers over SNMP (srl1 and srl2 run Nokia SR Linux, frr1 and frr2 run
+  FRRouting), under host names that are not the routers' own. The routers are cabled to each other in pairs
+  (each SR Linux router to each FRR router). One of those router-to-router links has failed, and Zabbix has no
+  problem open for it.
+
+  Find the failed link from what Zabbix has collected, and add one trigger:
+    - name: Link down {{ canaries.trigger }}
+    - severity: High
+    - it reads the operational status of the port at each end of that link (one item on each of the two
+      routers), and nothing else, and it is in problem state while either of those ports is down.
+
+  Zabbix must really open the problem. Do not change the hosts, their items or anything else in Zabbix, and do
+  not change any router.
+requires:
+  devices: [srl1, srl2, frr1, frr2]
+  services: [zabbix]
+tools:
+  mcp: [zabbix]
+reset_services: [zabbix]
+canaries:
+  n_srl1: hostname
+  n_srl2: hostname
+  n_frr1: hostname
+  n_frr2: hostname
+  trigger: description
+  spare: count
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: zabbix_problem
+    name: one High trigger reads the status of both ends of the failed link, and its problem is open
+    params:
+      trigger: "Link down {{ canaries.trigger }}"
+      hosts: ["{{ canaries.n_srl2 }}", "{{ canaries.n_frr2 }}"]
+      severity: 4
+      items:
+        - {host: "{{ canaries.n_srl2 }}", name: "Interface ethernet-1/2(to frr2): Operational status"}
+        - {host: "{{ canaries.n_frr2 }}", name: "Interface eth2(): Operational status"}
+    weight: 3
+  - type: zabbix_unchanged
+    name: nothing else was changed in Zabbix
+    params: {allow_new: ["triggers:Link down {{ canaries.trigger }}"]}
+  - type: no_change_outside
+    name: no router was changed
+    params: {allowed: []}
+  - type: llm_judge
+    name: how it found the failed link and built the trigger
+    params:
+      artifact: transcript
+      rubric: |
+        Judge how the candidate went about the task, not whether the end result is right (code checks that).
+        5: worked out which Zabbix host is which router from what Zabbix collected (system names or addresses),
+           read the ports' operational status on all four, told the failed link apart from a spare port that
+           is down but cabled to nothing, matched its two ends (the SR Linux port's description names the
+           router at the other end; the FRR end is the one of that router's ports that is down), built one
+           trigger from the two items' real keys, and checked that the problem opened.
+        3: got there, but by guessing a host or a port before reading the data, with several failed trigger
+           expressions, or without checking the problem.
+        1: invented host names, item keys or ifIndex values; put the trigger on one end only or on the spare
+           port without looking; changed hosts or items; or kept repeating calls that had already failed
+           without changing approach.
+        Use 2 and 4 for attempts in between.
+limits: {turns: 40}

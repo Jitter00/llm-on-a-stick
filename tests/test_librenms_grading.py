@@ -240,6 +240,10 @@ def test_librenms_alert_wants_exactly_the_expected_alerts(nms: tuple[Any, FakeLi
     assert api.polled[-1] == "device:poll all -q"
     api.alerts.append({"id": 1, "rule_id": 5, "device_id": srl1["device_id"], "state": 1})
     assert check(ctx, "librenms_alert", **params).status == "pass"
+    # Two rows for one device and rule (two alert runs at once) are one alert.
+    api.alerts.append({"id": 9, "rule_id": 5, "device_id": srl1["device_id"], "state": 1})
+    assert check(ctx, "librenms_alert", **params).status == "pass"
+    api.alerts.pop()
     api.alerts.append({"id": 2, "rule_id": 5, "device_id": srl2["device_id"], "state": 1})  # too much
     res = check(ctx, "librenms_alert", **params)
     assert res.status == "fail" and res.observed["count"] == 2 and res.hints == ["wrong-config"]

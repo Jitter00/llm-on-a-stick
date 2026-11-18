@@ -184,3 +184,96 @@ def blockers(snap: Snapshot, instance: str, port: int, source: str) -> list[str]
     if not opened:
         out.append(f"none of the instance's security groups allows TCP {port} from {source}")
     return out
+
+
+def _route_target(snap: Snapshot, vpc: str, subnet: str, address: str) -> dict[str, Any] | None:
+    """The route a subnet uses towards `address`: the longest prefix in its route table (its own, else the
+    VPC's main one), ignoring blackholes."""
+    tables = [t for t in snap.get("ec2/route-tables", {}).values() if t.get("VpcId") == vpc]
+    own = [t for t in tables if any(a.get("SubnetId") == subnet for a in t.get("Associations", []))]
+    main = [t for t in tables if any(a.get("Main") for a in t.get("Associations", []))]
+    routes = [
+        r for t in (own or main)[:1] for r in t.get("Routes", [])
+        if r.get("State") != "blackhole" and _covers(r.get("DestinationCidrBlock"), address)
+    ]  # fmt: skip
+    return max(routes, key=lambda r: ipaddress.ip_network(r["DestinationCidrBlock"]).prefixlen, default=None)
+
+
+def _subnet_acl(snap: Snapshot, vpc: str, subnet: str) -> dict[str, Any] | None:
+    every = [a for a in snap.get("ec2/network-acls", {}).values() if a.get("VpcId") == vpc]
+    acls = [a for a in every if any(x.get("SubnetId") == subnet for x in a.get("Associations", []))] or [
+        a for a in every if a.get("IsDefault")
+    ]
+    return acls[0] if acls else None
+
+
+def _sg_allows(perms: list[dict[str, Any]], port: int, address: str, groups: set[str]) -> bool:
+    """Security group rules (ingress or egress) that let TCP `port` through to or from `address`, or from an
+    instance in one of `groups` (a rule that names a group)."""
+    return any(
+        str(perm.get("IpProtocol")) in ("-1", "tcp", "6")
+        and (str(perm.get("IpProtocol")) == "-1" or int(perm["FromPort"]) <= port <= int(perm["ToPort"]))
+        and (
+            any(_covers(r.get("CidrIp"), address) for r in perm.get("IpRanges", []))
+            or any(p.get("GroupId") in groups for p in perm.get("UserIdGroupPairs", []))
+        )
+        for perm in perms
+    )
+
+
+def private_blockers(
+    snap: Snapshot, peerings: list[dict[str, Any]], source: str, target: str, port: int
+) -> list[str]:
+    """What stops the running instance labelled `source` from opening TCP `port` on the running instance
+    labelled `target`, over their private addresses, read off the account's state: between two VPCs an
+    active peering connection and a route to it on both sides; both subnets' network ACLs, both ways; the
+    target's security groups in and the source's out. `peerings` is describe-vpc-peering-connections'
+    list. Empty: nothing stops it."""
+    running = [
+        i for i in snap.get("ec2/instances", {}).values() if (i.get("State") or {}).get("Name") == "running"
+    ]
+    ends = []
+    for name in (source, target):
+        found = [i for i in running if i.get("label") == name]
+        if len(found) != 1:
+            return [f"{len(found)} running instance(s) named {name}"]
+        ends.append(found[0])
+    src, dst = ends
+    src_ip, dst_ip = str(src.get("PrivateIpAddress")), str(dst.get("PrivateIpAddress"))
+    out = []
+    if src.get("VpcId") != dst.get("VpcId"):
+        pair = {src.get("VpcId"), dst.get("VpcId")}
+        active = {
+            str(p.get("VpcPeeringConnectionId"))
+            for p in peerings
+            if (p.get("Status") or {}).get("Code") == "active"
+            and {
+                (p.get("RequesterVpcInfo") or {}).get("VpcId"),
+                (p.get("AccepterVpcInfo") or {}).get("VpcId"),
+            }
+            == pair
+        }
+        if not active:
+            out.append("no active peering connection between the two VPCs")
+        for inst, address, side in ((src, dst_ip, source), (dst, src_ip, target)):
+            route = _route_target(snap, str(inst.get("VpcId")), str(inst.get("SubnetId")), address)
+            if not route or str(route.get("VpcPeeringConnectionId")) not in active:
+                out.append(f"{side}'s subnet has no route to {address} through an active peering connection")
+    for inst, peer, side in ((src, dst_ip, source), (dst, src_ip, target)):
+        acl = _subnet_acl(snap, str(inst.get("VpcId")), str(inst.get("SubnetId")))
+        sending = inst is src  # the source's ACL sees the request leave (egress), the target's see it arrive
+        if not acl or not _nacl_allows(acl, sending, port, peer):
+            out.append(f"{side}'s network ACL does not let TCP {port} {'out' if sending else 'in'}")
+        if not acl or not all(_nacl_allows(acl, not sending, p, peer) for p in EPHEMERAL):
+            way = "in" if sending else "out"
+            out.append(f"{side}'s network ACL does not let the replies {way} (TCP 1024-65535)")
+    groups = snap.get("ec2/security-groups", {})
+    src_groups = {str(g.get("GroupId")) for g in src.get("SecurityGroups", [])}
+    dst_groups = {str(g.get("GroupId")) for g in dst.get("SecurityGroups", [])}
+    inbound = [groups.get(g, {}).get("IpPermissions", []) for g in dst_groups]
+    if not any(_sg_allows(perms, port, src_ip, src_groups) for perms in inbound):
+        out.append(f"none of {target}'s security groups allows TCP {port} from {src_ip}")
+    outbound = [groups.get(g, {}).get("IpPermissionsEgress", []) for g in src_groups]
+    if not any(_sg_allows(perms, port, dst_ip, dst_groups) for perms in outbound):
+        out.append(f"none of {source}'s security groups allows TCP {port} out to {dst_ip}")
+    return out

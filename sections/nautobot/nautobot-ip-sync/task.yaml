@@ -1,0 +1,129 @@
+id: nautobot-ip-sync
+section: nautobot
+title: Bring Nautobot's record of two routers' addresses up to date
+tier: expert
+tags: [tool:nautobot, vendor:frr, iface:mcp, skill:ipam, skill:sot-update, skill:comparison]
+prompt: |
+  You reach Nautobot through its MCP server. The lab's routers are reached through another MCP server, which
+  runs one CLI command per call; frr1 and frr2 run FRRouting, and their CLI commands are run as:
+  vtysh -c "<command>"
+
+  Nautobot should record every IPv4 address configured on frr1's and frr2's interfaces lo, eth1, eth2 and eth3,
+  in the namespace stick-lab: with the prefix length configured on the router, status Active, and assigned to the
+  device's interface that has it. Part of this is recorded already, not all of it correctly. Make it complete
+  and right:
+    - add the addresses that are missing, and correct the interface an address is assigned to where it is wrong;
+      each address is recorded once;
+    - an address needs a prefix that holds it in the same namespace: where stick-lab has none, add the network's
+      prefix (the address's network, with the same prefix length, status Active) first.
+
+  Do not change anything else in Nautobot, and do not change any configuration on the routers.
+requires:
+  devices: [frr1, frr2]
+  services: [nautobot]
+tools:
+  mcp: [nautobot, routers]
+reset_services: [nautobot]
+canaries:
+  svc1: ipv4
+  svc2: ipv4
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: nautobot_object
+    name: frr1 lo has its service address
+    params:
+      endpoint: ipam/ip-addresses
+      filters: {address: "{{ canaries.svc1 }}/32", namespace: stick-lab, device: frr1, interfaces: lo}
+      expect: {status.name: Active, mask_length: 32}
+  - type: nautobot_object
+    name: frr2 lo has its service address
+    params:
+      endpoint: ipam/ip-addresses
+      filters: {address: "{{ canaries.svc2 }}/32", namespace: stick-lab, device: frr2, interfaces: lo}
+      expect: {status.name: Active, mask_length: 32}
+  - type: nautobot_object
+    name: frr2 lo has its router address
+    params:
+      endpoint: ipam/ip-addresses
+      filters: {address: 10.255.0.12/32, namespace: stick-lab, device: frr2, interfaces: lo}
+      expect: {status.name: Active, mask_length: 32}
+  - type: nautobot_object
+    name: 10.0.1.1/31 is on frr1 eth1, not eth2
+    params:
+      endpoint: ipam/ip-addresses
+      filters: {address: 10.0.1.1/31, namespace: stick-lab, device: frr1, interfaces: eth1}
+      expect: {status.name: Active, mask_length: 31}
+    weight: 2
+  - type: nautobot_object
+    name: frr1 eth2 has its address, and only that one
+    params:
+      endpoint: ipam/ip-addresses
+      filters: {namespace: stick-lab, device: frr1, interfaces: eth2}
+      expect: {address: 10.0.2.1/31, status.name: Active}
+  - type: nautobot_object
+    name: frr1 eth3 has its address
+    params:
+      endpoint: ipam/ip-addresses
+      filters: {address: 10.1.1.1/24, namespace: stick-lab, device: frr1, interfaces: eth3}
+      expect: {status.name: Active, mask_length: 24}
+  - type: nautobot_object
+    name: frr2 eth1 has its address
+    params:
+      endpoint: ipam/ip-addresses
+      filters: {address: 10.0.1.3/31, namespace: stick-lab, device: frr2, interfaces: eth1}
+      expect: {status.name: Active, mask_length: 31}
+  - type: nautobot_object
+    name: frr2 eth2 has its address in stick-lab (Global's copy doesn't count)
+    params:
+      endpoint: ipam/ip-addresses
+      filters: {address: 10.0.2.3/31, namespace: stick-lab, device: frr2, interfaces: eth2}
+      expect: {status.name: Active, mask_length: 31}
+    weight: 2
+  - type: nautobot_object
+    name: frr2 eth3 has its address, under a new stick-lab prefix
+    params:
+      endpoint: ipam/ip-addresses
+      filters: {address: 10.1.2.1/24, namespace: stick-lab, device: frr2, interfaces: eth3}
+      expect: {status.name: Active, mask_length: 24, parent.prefix: 10.1.2.0/24}
+    weight: 2
+  - type: nautobot_object
+    name: stick-lab has the prefix for frr2's LAN
+    params:
+      endpoint: ipam/prefixes
+      filters: {prefix: 10.1.2.0/24, namespace: stick-lab}
+      expect: {status.name: Active}
+  - type: nautobot_object
+    name: every address recorded once in stick-lab (2 before, 8 added)
+    params: {endpoint: ipam/ip-addresses, filters: {namespace: stick-lab}, count: 10}
+  - type: nautobot_object
+    name: one prefix added in stick-lab
+    params: {endpoint: ipam/prefixes, filters: {namespace: stick-lab}, count: 7}
+  - type: nautobot_object
+    name: nothing added in Global
+    params: {endpoint: ipam/ip-addresses, filters: {namespace: Global}, count: 2}
+  - type: nautobot_unchanged
+    name: nothing else was changed in Nautobot
+    params:
+      allow_new: [ipam/ip-addresses, ipam/ip-address-to-interface, ipam/prefixes]
+      allow_deleted: [ipam/ip-address-to-interface]
+      allow_changed: [ipam/ip-address-to-interface]
+  - type: no_change_outside
+    name: no configuration was changed
+    params: {allowed: []}
+  - type: llm_judge
+    name: how it reconciled Nautobot with the routers
+    params:
+      artifact: transcript
+      rubric: |
+        Judge how the candidate went about the task, not whether the end result is right (code checks that).
+        5: read every address on both routers' four interfaces, read what Nautobot records in the stick-lab
+           namespace (addresses, their interfaces, the prefixes), worked out what was missing, misassigned or had
+           no prefix, made only those changes (prefix before address, the wrong link moved rather than the address
+           duplicated), and read the result back to confirm.
+        3: made the changes from a partial reading (one router, one interface type, the wrong namespace) or by
+           trial and error against Nautobot's refusals, duplicated an address, or never confirmed the result.
+        1: invented addresses or ids instead of reading them, changed other objects or the routers, or kept
+           repeating calls that had already failed without changing approach.
+        Use 2 and 4 for attempts in between.
+limits: {turns: 50}  # the reference script alone takes 34 calls

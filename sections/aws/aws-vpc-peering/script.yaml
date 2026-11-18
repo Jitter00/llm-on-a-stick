@@ -1,0 +1,80 @@
+# The task's reference steps as MCP calls: stick run aws-vpc-peering --model script/<this file>
+# Peer the app and data VPCs, route each server's subnet to the other, let the database's replies out of its
+# subnet's network ACL, and allow 5432 from the application server's group.
+steps:
+  - tool: moto__call_aws
+    args:
+      cli_command: >-
+        aws ec2 describe-vpcs --filters Name=tag:Name,Values={{ canaries.name }}-app --query Vpcs[0].VpcId
+    capture:
+      v_app: '(vpc-[0-9a-f]+)'
+  - tool: moto__call_aws
+    args:
+      cli_command: >-
+        aws ec2 describe-vpcs --filters Name=tag:Name,Values={{ canaries.name }}-data --query Vpcs[0].VpcId
+    capture:
+      v_data: '(vpc-[0-9a-f]+)'
+  - tool: moto__call_aws
+    args:
+      cli_command: >-
+        aws ec2 create-vpc-peering-connection --vpc-id {{ captured.v_app }} --peer-vpc-id {{ captured.v_data }}
+    capture:
+      pcx: '(pcx-[0-9a-f]+)'
+  - tool: moto__call_aws
+    args:
+      cli_command: aws ec2 accept-vpc-peering-connection --vpc-peering-connection-id {{ captured.pcx }}
+  - tool: moto__call_aws
+    args:
+      cli_command: >-
+        aws ec2 describe-route-tables --filters Name=tag:Name,Values={{ canaries.name }}-app
+        --query RouteTables[0].RouteTableId
+    capture:
+      rt_app: '(rtb-[0-9a-f]+)'
+  - tool: moto__call_aws
+    args:
+      cli_command: >-
+        aws ec2 describe-route-tables --filters Name=tag:Name,Values={{ canaries.name }}-data
+        --query RouteTables[0].RouteTableId
+    capture:
+      rt_data: '(rtb-[0-9a-f]+)'
+  - tool: moto__call_aws
+    args:
+      cli_command: >-
+        aws ec2 create-route --route-table-id {{ captured.rt_app }}
+        --destination-cidr-block {{ canaries.db_net }}.1.0/24 --vpc-peering-connection-id {{ captured.pcx }}
+  - tool: moto__call_aws
+    args:
+      cli_command: >-
+        aws ec2 create-route --route-table-id {{ captured.rt_data }}
+        --destination-cidr-block {{ canaries.app_net }}.1.0/24 --vpc-peering-connection-id {{ captured.pcx }}
+  - tool: moto__call_aws
+    args:
+      cli_command: >-
+        aws ec2 describe-network-acls --filters Name=tag:Name,Values={{ canaries.name }}-data
+        --query NetworkAcls[0].NetworkAclId
+    capture:
+      acl: '(acl-[0-9a-f]+)'
+  - tool: moto__call_aws
+    args:
+      cli_command: >-
+        aws ec2 create-network-acl-entry --network-acl-id {{ captured.acl }} --egress --rule-number 110
+        --protocol 6 --port-range From=1024,To=65535 --cidr-block {{ canaries.app_net }}.1.0/24 --rule-action allow
+  - tool: moto__call_aws
+    args:
+      cli_command: >-
+        aws ec2 describe-security-groups --filters Name=group-name,Values={{ canaries.app }}
+        --query SecurityGroups[0].GroupId
+    capture:
+      g_app: '(sg-[0-9a-f]+)'
+  - tool: moto__call_aws
+    args:
+      cli_command: >-
+        aws ec2 describe-security-groups --filters Name=group-name,Values={{ canaries.db }}
+        Name=vpc-id,Values={{ captured.v_data }} --query SecurityGroups[0].GroupId
+    capture:
+      g_db: '(sg-[0-9a-f]+)'
+  - tool: moto__call_aws
+    args:
+      cli_command: >-
+        aws ec2 authorize-security-group-ingress --group-id {{ captured.g_db }} --protocol tcp --port 5432
+        --source-group {{ captured.g_app }}

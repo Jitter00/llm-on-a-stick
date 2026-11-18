@@ -1,0 +1,32 @@
+# The task's reference steps as MCP calls: stick run netbox-cable-links --model script/<this file>
+# (A script knows which name is which router; a model has to match management addresses.)
+steps:
+  - tool: netbox__netbox_get_objects
+    args: {object_type: dcim.device, fields: [name, primary_ip4]}
+  - tool: netbox__netbox_get_objects
+    args: {object_type: dcim.cable, fields: [id, label, a_terminations, b_terminations]}
+  - tool: routers__send_show_command
+    args: {device_name: srl1, command: "info flat interface * subinterface * ipv4 address *"}
+  - tool: routers__send_show_command
+    args: {device_name: srl2, command: "info flat interface * subinterface * ipv4 address *"}
+  - tool: routers__send_show_command
+    args: {device_name: frr1, command: 'vtysh -c "show interface brief"'}
+  - tool: routers__send_show_command
+    args: {device_name: frr2, command: 'vtysh -c "show interface brief"'}
+  - tool: netbox__netbox_get_objects
+    args: {object_type: dcim.cable, filters: {label: "{{ canaries.label_bad }}"}, fields: [id]}
+    capture: {bad: '"id":\s*(\d+)'}
+  - tool: netbox__netbox_delete_object
+    args: {object_type: dcim.cable, object_id: "{{ captured.bad }}"}
+  - tool: netbox__netbox_connect_cable
+    args:
+      a_terminations: [{object_type: dcim.interface, device: "{{ canaries.n1 }}", name: ethernet-1/1}]
+      b_terminations: [{object_type: dcim.interface, device: "{{ canaries.n3 }}", name: eth1}]
+  - tool: netbox__netbox_connect_cable
+    args:
+      a_terminations: [{object_type: dcim.interface, device: "{{ canaries.n1 }}", name: ethernet-1/2}]
+      b_terminations: [{object_type: dcim.interface, device: "{{ canaries.n4 }}", name: eth1}]
+  - tool: netbox__netbox_connect_cable
+    args:
+      a_terminations: [{object_type: dcim.interface, device: "{{ canaries.n2 }}", name: ethernet-1/2}]
+      b_terminations: [{object_type: dcim.interface, device: "{{ canaries.n4 }}", name: eth2}]

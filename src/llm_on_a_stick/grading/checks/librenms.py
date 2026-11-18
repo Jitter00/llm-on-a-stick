@@ -84,11 +84,15 @@ def librenms_alert(
         )  # fmt: skip
     _refresh(ctx)
     names = {str(d["device_id"]): d["hostname"] for d in state.devices(api)}
-    active = [
-        a
-        for a in state.listing(api, "alerts?state=1", "alerts")
-        if str(a.get("rule_id")) == str(rules[0]["id"])
-    ]
+    # LibreNMS keeps one alert per device and rule; two alert runs at the same moment (the dispatcher's, after
+    # it polled a device just added, and the grader's) can still write two rows for one: count it once.
+    active = list(
+        {
+            str(a.get("device_id")): a
+            for a in state.listing(api, "alerts?state=1", "alerts")
+            if str(a.get("rule_id")) == str(rules[0]["id"])
+        }.values()
+    )
     on = sorted(names.get(str(a.get("device_id")), str(a.get("device_id"))) for a in active)
     want = count if count is not None else len(devices)
     expected = {"devices": sorted(devices), "count": want}

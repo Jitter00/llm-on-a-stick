@@ -1,0 +1,47 @@
+# The task's reference steps as MCP calls: stick run powerdns-ptr-reconcile --model script/<this file>
+# A script can't compare, so it reads the zones and writes the five PTR changes it knows are needed; a model
+# has to derive them from the A records of both forward zones first.
+steps:
+  - tool: powerdns__listZones
+    args: {server_id: localhost}
+  - tool: powerdns__listZone
+    args: {server_id: localhost, zone_id: stick.lab.}
+  - tool: powerdns__listZone
+    args: {server_id: localhost, zone_id: oob.example.}
+  - tool: powerdns__listZone
+    args: {server_id: localhost, zone_id: "{{ canaries.t1 }}.19.198.in-addr.arpa."}
+  - tool: powerdns__listZone
+    args: {server_id: localhost, zone_id: "{{ canaries.t2 }}.19.198.in-addr.arpa."}
+  - tool: powerdns__patchZone
+    args:
+      server_id: localhost
+      zone_id: "{{ canaries.t1 }}.19.198.in-addr.arpa."
+      rrsets:
+        - name: "11.{{ canaries.t1 }}.19.198.in-addr.arpa."
+          type: PTR
+          ttl: 3600
+          changetype: REPLACE
+          records: [{content: "{{ canaries.svc }}.stick.lab.", disabled: false}]
+        - name: "20.{{ canaries.t1 }}.19.198.in-addr.arpa."
+          type: PTR
+          ttl: 3600
+          changetype: REPLACE
+          records: [{content: "{{ canaries.db }}.stick.lab.", disabled: false}]
+        - name: "60.{{ canaries.t1 }}.19.198.in-addr.arpa."
+          type: PTR
+          changetype: DELETE
+  - tool: powerdns__patchZone
+    args:
+      server_id: localhost
+      zone_id: "{{ canaries.t2 }}.19.198.in-addr.arpa."
+      rrsets:
+        - name: "30.{{ canaries.t2 }}.19.198.in-addr.arpa."
+          type: PTR
+          ttl: 3600
+          changetype: REPLACE
+          records: [{content: "{{ canaries.web }}.stick.lab.", disabled: false}]
+        - name: "50.{{ canaries.t2 }}.19.198.in-addr.arpa."
+          type: PTR
+          ttl: 3600
+          changetype: REPLACE
+          records: [{content: "{{ canaries.mgmt }}.oob.example.", disabled: false}]

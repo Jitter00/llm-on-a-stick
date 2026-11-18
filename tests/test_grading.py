@@ -214,6 +214,30 @@ def test_json_file_matches(tmp_path: Path) -> None:
     assert check(ctx, "json_file_matches", path="facts.json", expected={"asn": 1}).hints == ["wrong-format"]
 
 
+def test_json_file_matches_takes_a_measurement_within_its_tolerance(tmp_path: Path) -> None:
+    ctx = make_ctx(tmp_path)
+    answer = ctx.run.workspace / "answer.json"
+    params = {
+        "path": "answer.json",
+        "expected": {"mbps": "20", "router": "srl1"},
+        "tolerance": {"mbps": 0.25},
+    }
+    for value, status in (
+        (20, "pass"),
+        (16.2, "pass"),
+        ("24.9", "pass"),
+        (14.9, "fail"),
+        (26, "fail"),
+        ("x", "fail"),
+    ):
+        answer.write_text(json.dumps({"mbps": value, "router": "srl1"}))
+        assert check(ctx, "json_file_matches", **params).status == status, value
+    answer.write_text(json.dumps({"mbps": 20, "router": "srl2"}))  # other keys stay exact
+    assert check(ctx, "json_file_matches", **params).status == "fail"
+    answer.write_text(json.dumps({"router": "srl1"}))
+    assert check(ctx, "json_file_matches", **params).status == "fail"
+
+
 def test_json_file_matches_compares_dns_names_without_case_or_the_last_dot(tmp_path: Path) -> None:
     ctx = make_ctx(tmp_path)
     (ctx.run.workspace / "answer.json").write_text(

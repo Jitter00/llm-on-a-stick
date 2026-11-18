@@ -1,0 +1,92 @@
+id: netbox-cable-links
+section: netbox
+title: Make NetBox's cables between the routers match the lab
+tier: expert
+tags: [tool:netbox, vendor:srl, vendor:frr, iface:mcp, skill:sot-update, skill:comparison]
+prompt: |
+  You reach NetBox through its MCP server. The lab's routers are reached through another MCP server, which runs
+  one CLI command per call; srl1 and srl2 run Nokia SR Linux, frr1 and frr2 run FRRouting, whose CLI commands
+  are run as: vtysh -c "<command>"
+
+  NetBox lists the lab's four routers under other names than the lab uses, each with its management address as
+  its primary IPv4 address. NetBox's cables between them are incomplete, and not every one of them is right.
+  Make NetBox's cables match the lab:
+    - one cable for every link that connects two of the four routers directly, between the two interfaces at
+      its ends (the addresses configured on the routers' interfaces tell which interfaces share a link);
+    - no cable between router interfaces that are not linked to each other;
+    - a cable that is already right stays as it is.
+
+  Do not change anything else in NetBox (devices, interfaces, their descriptions...), and do not change any
+  configuration on the routers.
+requires:
+  devices: [srl1, srl2, frr1, frr2]
+  services: [netbox]
+tools:
+  mcp: [netbox, routers]
+reset_services: [netbox]
+canaries:
+  n1: hostname
+  n2: hostname
+  n3: hostname
+  n4: hostname
+  label_ok: description
+  label_bad: description
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  # n1 = srl1, n2 = srl2, n3 = frr1, n4 = frr2 (setup.sh).
+  - type: netbox_object
+    name: srl1 ethernet-1/1 is cabled to frr1 eth1
+    params:
+      endpoint: dcim/interfaces
+      filters: {device: "{{ canaries.n1 }}", name: ethernet-1/1}
+      expect: {link_peers.0.device.name: "{{ canaries.n3 }}", link_peers.0.name: eth1}
+  - type: netbox_object
+    name: srl1 ethernet-1/2 is cabled to frr2 eth1
+    params:
+      endpoint: dcim/interfaces
+      filters: {device: "{{ canaries.n1 }}", name: ethernet-1/2}
+      expect: {link_peers.0.device.name: "{{ canaries.n4 }}", link_peers.0.name: eth1}
+  - type: netbox_object
+    name: srl2 ethernet-1/1 is cabled to frr1 eth2
+    params:
+      endpoint: dcim/interfaces
+      filters: {device: "{{ canaries.n2 }}", name: ethernet-1/1}
+      expect: {link_peers.0.device.name: "{{ canaries.n3 }}", link_peers.0.name: eth2}
+  - type: netbox_object
+    name: srl2 ethernet-1/2 is cabled to frr2 eth2
+    params:
+      endpoint: dcim/interfaces
+      filters: {device: "{{ canaries.n2 }}", name: ethernet-1/2}
+      expect: {link_peers.0.device.name: "{{ canaries.n4 }}", link_peers.0.name: eth2}
+  - type: netbox_object
+    name: the cable that was right is kept
+    params: {endpoint: dcim/cables, filters: {label: "{{ canaries.label_ok }}"}, count: 1}
+  - type: netbox_object
+    name: the wrong cable is gone
+    params: {endpoint: dcim/cables, filters: {label: "{{ canaries.label_bad }}"}, count: 0}
+  - type: netbox_object
+    name: four cables in all, none to an unlinked interface
+    params: {endpoint: dcim/cables, count: 4}
+  - type: netbox_unchanged
+    name: nothing but cables was changed in NetBox
+    params: {allow_new: [dcim/cables], allow_deleted: [dcim/cables]}
+  - type: no_change_outside
+    name: no configuration was changed
+    params: {allowed: []}
+  - type: llm_judge
+    name: how it worked out and recorded the links
+    params:
+      artifact: transcript
+      rubric: |
+        Judge how the candidate went about the task, not whether the end result is right (code checks that).
+        5: matched each NetBox device to a router by its management address, read the interface addresses of all
+           four routers and paired interfaces by shared subnet, compared that with the cables NetBox already
+           had, removed only the wrong cable, added only the missing ones, and read the cables back to confirm.
+        3: got the links from a partial reading (descriptions, names, LLDP over the management network, one
+           vendor only) or by trial and error, recreated a cable that was already right, or never confirmed the
+           result.
+        1: guessed the links or the device mapping instead of reading them, invented ids, changed devices or
+           interfaces, or kept repeating calls that had already failed without changing approach.
+        Use 2 and 4 for attempts in between.
+limits: {turns: 40}

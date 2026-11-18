@@ -1,0 +1,80 @@
+id: loki-compromised-login
+section: loki
+title: Follow a password-guessing address from its failed logins to the change it made, in the routers' syslog
+tier: expert
+tags: [tool:loki, iface:mcp, skill:log-correlation, skill:aggregation, skill:security]
+prompt: |
+  The lab's four routers (srl1, srl2, frr1, frr2) send their syslog to Loki. You reach it through Grafana's
+  MCP server. srl1 and srl2 run Nokia SR Linux; frr1 and frr2 run FRR.
+
+  In the last few minutes somebody guessed passwords over SSH. Of all the addresses that SSH logins failed
+  from, follow the one with the most failed login attempts in total, over all four routers. It got into one
+  router in the end, and changed its configuration there.
+
+  Submit with submit_answer:
+    {"source": "<that IPv4 address>",
+     "failed_logins": {"<router>": <failed login attempts from that address on that router>, "...": ...},
+     "router": "<the router it got into>", "user": "<the account it got in with>",
+     "new_value": "<the value its change set, as typed in the command>"}
+  List in failed_logins only the routers with at least one failed attempt from that address. Count login
+  attempts, not log lines.
+
+  Only report: do not change any configuration on any device.
+requires:
+  devices: [srl1, srl2, frr1, frr2, h1, h2]
+  services: [loki]
+tools:
+  mcp: [loki]
+reset_services: [loki]
+canaries:
+  user: hostname
+  other: hostname
+  tries1: count
+  tries2: count
+  pass: description
+  desc: description
+  decoy: description
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: json_file_matches
+    name: the answer names the address and its failed attempts on each router
+    params:
+      path: answer.json
+      expected:
+        source: "{{ nodes.h1.mgmt_ip }}"
+        failed_logins: {frr1: "{{ canaries.tries1 }}", frr2: "{{ canaries.tries2 }}", srl2: 2}
+    weight: 2
+  - type: json_file_matches
+    name: the answer names the router it got into and the account
+    params:
+      path: answer.json
+      expected:
+        router: srl2
+        user: "{{ canaries.user }}"
+    weight: 2
+  - type: json_file_matches
+    name: the answer gives the value its change set
+    params:
+      path: answer.json
+      expected:
+        new_value: "{{ canaries.desc }}"
+  - type: no_change_outside
+    name: no configuration was changed
+    params: {allowed: []}
+  - type: llm_judge
+    name: how it searched the logs
+    params:
+      artifact: transcript
+      rubric: |
+        Judge how the candidate went about the task, not whether the end result is right (code checks that).
+        5: found the datasource and the labels first; counted failed attempts per source address and per router
+           with an aggregate query or from lines it had checked were one per attempt, across both log formats
+           (SR Linux and FRR, valid and invalid accounts); then followed that address's successful login to its
+           session and tied the commit and the command to that session rather than to the time or the router.
+        3: got to an answer, but by counting lines without checking what one attempt logs, by reading long
+           unfiltered results, or by taking the last commit on the router without tying it to the session.
+        1: guessed or invented an address, a count, an account, a value, a datasource id or a label instead of
+           reading them; or kept repeating calls that had already failed without changing approach.
+        Use 2 and 4 for attempts in between.
+limits: {turns: 40}

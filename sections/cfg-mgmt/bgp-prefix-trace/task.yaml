@@ -1,0 +1,73 @@
+id: bgp-prefix-trace
+section: cfg-mgmt
+title: Trace one prefix through BGP across two vendors, and name the policies that stop it
+tier: expert
+tags: [vendor:srl, vendor:frr, iface:mcp, skill:troubleshooting, skill:routing-policy]
+prompt: |
+  You reach the lab's routers through an MCP server, which runs one CLI command per call. srl1 and srl2 run
+  Nokia SR Linux. frr1 and frr2 run FRRouting, and their CLI commands are run as: vtysh -c "<command>"
+
+  Each of srl1 and srl2 has an eBGP session with each of frr1 and frr2, over the link between them. frr1
+  announces the prefix {{ canaries.pool }}.{{ canaries.host }}/32, but not every router receives it.
+
+  For each of srl1, srl2 and frr2, find out whether the prefix is in that router's BGP table, received from a
+  neighbour, and if so the next hop it uses for it. If it is not there, find the routing policy (SR Linux) or
+  route-map (FRR) that keeps it from reaching that router: the router where it is applied, its name, and
+  whether it filters what that router sends ("out") or what it receives ("in"). Name only a policy or
+  route-map that is applied to a BGP session and really drops this prefix.
+
+  Submit with submit_answer:
+    {"routers": [{"router": "<srl1|srl2|frr2>", "has_route": <true|false>, "next_hop": "<address>" or null,
+                  "filtered_by": null or {"router": "<router>", "policy": "<name>", "direction": "<out|in>"}}]}
+  with one entry for each of the three routers.
+
+  Only report: do not change any configuration on any device.
+requires:
+  devices: [srl1, srl2, frr1, frr2]
+tools:
+  mcp: [routers]
+canaries:
+  pool: net24
+  host: octet
+  frr_pl: hostname
+  frr_rm: hostname
+  decoy_pl: hostname
+  decoy_rm: hostname
+  srl_ps: hostname
+  srl_pol: hostname
+  decoy_ps: hostname
+  decoy_pol: hostname
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: json_file_matches
+    name: srl1 doesn't have it, because of frr1's route-map out
+    params:
+      path: answer.json
+      expected:
+        routers:
+          - {router: srl1, has_route: false, next_hop: null,
+             filtered_by: {router: frr1, policy: "{{ canaries.frr_rm }}", direction: out}}
+          - {router: srl2, has_route: true, next_hop: 10.0.2.1, filtered_by: null}
+          - {router: frr2, has_route: false, next_hop: null,
+             filtered_by: {router: srl2, policy: "{{ canaries.srl_pol }}", direction: out}}
+    weight: 3
+  - type: no_change_outside
+    name: no configuration was changed
+    params: {allowed: []}
+  - type: llm_judge
+    name: how it went about the trace
+    params:
+      artifact: transcript
+      rubric: |
+        Judge how the candidate went about the task, not whether the end result is right (code checks that).
+        5: read each router's BGP table for the prefix, then followed the path back towards frr1 and read the
+           policies and route-maps applied to each session on the way (group and neighbour level on SR Linux,
+           per neighbour on FRR), evaluated their prefix lists and prefix sets against the prefix (including
+           mask-length ranges), and told apart policies that are applied from those that only exist.
+        3: found the routers without the prefix but named a filter from its name or existence rather than from
+           where it is applied and what it matches, or checked only one vendor's policies.
+        1: guessed or invented next hops or policy names instead of reading them; kept repeating calls that
+           had already failed without changing approach; or changed configuration.
+        Use 2 and 4 for attempts in between.
+limits: {turns: 40}

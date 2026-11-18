@@ -103,11 +103,17 @@ def file_matches_running_config(
 
 @check("json_file_matches")
 def json_file_matches(
-    ctx: GradeContext, path: str, expected: dict[str, Any], dns_names: list[str] | None = None
+    ctx: GradeContext,
+    path: str,
+    expected: dict[str, Any],
+    dns_names: list[str] | None = None,
+    tolerance: dict[str, float] | None = None,
 ) -> Verdict:
     """The file is JSON and contains every expected key with the expected value (extra keys are fine).
     `dns_names`: keys whose values are DNS names, compared without regard to case or a dot at the end
-    (`web.stick.lab.` and `Web.stick.lab` are the same name)."""
+    (`web.stick.lab.` and `Web.stick.lab` are the same name).
+    `tolerance`: keys whose values are measurements, as {key: fraction}: a number within that fraction of
+    the expected one passes (`{"mbps": 0.25}`: 15 to 25 when 20 is expected)."""
     text = _read_output(ctx, path)
     if text is None:
         return _no_output(path)
@@ -123,6 +129,10 @@ def json_file_matches(
         got = data.get(key, "<missing>")
         if key in (dns_names or []):
             got_cmp, want = _dns_names(got), _dns_names(want)
+        elif key in (tolerance or {}):
+            if not _within(got, want, (tolerance or {})[key]):
+                wrong[key] = got
+            continue
         else:
             got_cmp = got
         if _normalise_json(got_cmp) != _normalise_json(want):
@@ -139,6 +149,15 @@ def json_file_matches(
             hints=[hint],
         )
     return Verdict("pass", f"all {len(expected)} values correct")
+
+
+def _within(got: Any, want: Any, fraction: float) -> bool:
+    """A number (or a numeric string) within `fraction` of the expected number."""
+    try:
+        g, w = float(got), float(want)
+    except (TypeError, ValueError):
+        return False
+    return abs(g - w) <= abs(w) * fraction
 
 
 def _dns_names(value: Any) -> Any:

@@ -1,0 +1,99 @@
+id: powerdns-ptr-reconcile
+section: powerdns
+title: Make the reverse zones agree with every address in the forward zones
+tier: expert
+tags: [tool:powerdns, iface:mcp, skill:dns-audit]
+topology: none
+prompt: |
+  You reach a PowerDNS authoritative DNS server through an MCP server made from its HTTP API. The server id
+  is always "localhost".
+
+  The server holds forward zones and the reverse zones of two networks, 198.19.{{ canaries.t1 }}.0/24 and
+  198.19.{{ canaries.t2 }}.0/24. The reverse zones were kept by hand and have fallen behind.
+
+  Make the two reverse zones agree with the forward zones: every address in those two networks that a name
+  in a forward zone resolves to (an A record) has a PTR record to that name, or to each such name, and
+  nothing else. Add what is missing, correct what is wrong, and remove PTR records that no name leads to any
+  more. Use the TTL the existing PTR records have.
+
+  Do not change the forward zones, and change nothing else.
+requires:
+  services: [powerdns]
+tools:
+  mcp: [powerdns]
+reset_services: [powerdns]
+canaries:
+  t1: octet
+  t2: octet
+  svc: hostname
+  db: hostname
+  old: hostname
+  gone: hostname
+  web: hostname
+  mail: hostname
+  mgmt: hostname
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: dns_record
+    name: the second address of a name with two gets its PTR record
+    params:
+      name: "11.{{ canaries.t1 }}.19.198.in-addr.arpa"
+      type: PTR
+      values: ["{{ canaries.svc }}.stick.lab"]
+  - type: dns_record
+    name: the stale PTR record names the host's current name
+    params:
+      name: "20.{{ canaries.t1 }}.19.198.in-addr.arpa"
+      type: PTR
+      values: ["{{ canaries.db }}.stick.lab"]
+  - type: dns_record
+    name: the PTR record that no name leads to is gone
+    params:
+      name: "60.{{ canaries.t1 }}.19.198.in-addr.arpa"
+      type: PTR
+      values: []
+  - type: dns_record
+    name: an address in the second network gets its PTR record, to the name and not its alias
+    params:
+      name: "30.{{ canaries.t2 }}.19.198.in-addr.arpa"
+      type: PTR
+      values: ["{{ canaries.web }}.stick.lab"]
+  - type: dns_record
+    name: the address from the other forward zone gets its PTR record
+    params:
+      name: "50.{{ canaries.t2 }}.19.198.in-addr.arpa"
+      type: PTR
+      values: ["{{ canaries.mgmt }}.oob.example"]
+  - type: dns_record
+    name: the PTR records that were right still answer
+    params:
+      name: "10.{{ canaries.t1 }}.19.198.in-addr.arpa"
+      type: PTR
+      values: ["{{ canaries.svc }}.stick.lab"]
+  - type: powerdns_unchanged
+    name: nothing else changed in PowerDNS
+    params:
+      allow_new:
+        - "rrsets:11.{{ canaries.t1 }}.19.198.in-addr.arpa./PTR"
+        - "rrsets:30.{{ canaries.t2 }}.19.198.in-addr.arpa./PTR"
+        - "rrsets:50.{{ canaries.t2 }}.19.198.in-addr.arpa./PTR"
+      allow_changed: ["rrsets:20.{{ canaries.t1 }}.19.198.in-addr.arpa./PTR"]
+      allow_deleted: ["rrsets:60.{{ canaries.t1 }}.19.198.in-addr.arpa./PTR"]
+  - type: llm_judge
+    name: how it reconciled the zones
+    params:
+      artifact: transcript
+      rubric: |
+        Judge how the candidate went about the task, not whether the end result is right (code checks that).
+        5: listed every zone, read all the A records of every forward zone (not only the obvious one) and all
+           the PTR records of both reverse zones, built the list of what should exist, changed only the PTR
+           records that were missing, wrong or orphaned, left aliases and addresses outside the two networks
+           alone, and read the reverse zones back.
+        3: fixed most of it, but read only one forward zone, or rewrote record sets that were already right, or
+           found the differences by trial and error, or never read the zones back.
+        1: wrote records it had not derived from the forward zones, changed the forward zones, deleted record
+           sets that were right, invented names; or kept repeating calls that had already failed without
+           changing approach.
+        Use 2 and 4 for attempts in between.
+limits: {turns: 40}

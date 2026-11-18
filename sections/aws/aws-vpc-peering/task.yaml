@@ -1,0 +1,76 @@
+id: aws-vpc-peering
+section: aws
+title: Connect an application server to a database in another VPC, and nothing more
+tier: expert
+tags: [tool:aws, iface:mcp, skill:cloud-troubleshooting]
+topology: none
+prompt: |
+  You reach an AWS account (region eu-west-1, an emulator) through the AWS API MCP server, which runs one
+  AWS CLI command per call.
+
+  The application server {{ canaries.app }} (an EC2 instance with that Name tag, in the VPC {{ canaries.name }}-app)
+  must connect to the PostgreSQL database on the running server {{ canaries.db }} (in the VPC
+  {{ canaries.name }}-data) on TCP 5432, over their private addresses. Its connections time out today. Both
+  servers are healthy, and PostgreSQL listens on 5432.
+
+  The emulator carries no traffic, so you cannot test a connection: work from the configuration, and make
+  everything on the path between the two servers right, in both directions. Only {{ canaries.app }} may reach
+  the database, and only on TCP 5432: no other server in its VPC, and no other port. Change as little as
+  possible and leave everything else in the account as it is.
+requires:
+  services: [moto]
+tools:
+  mcp: [moto]
+reset_services: [moto]
+canaries:
+  name: hostname
+  app: hostname
+  db: hostname
+  app_net: net16
+  db_net: net16
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: aws_private_reachable
+    name: the application server reaches the database on 5432
+    params: {source: "{{ canaries.app }}", target: "{{ canaries.db }}", port: 5432}
+    weight: 4
+  - type: aws_private_reachable
+    name: it reaches no other port on the database (SSH)
+    params: {source: "{{ canaries.app }}", target: "{{ canaries.db }}", port: 22, reachable: false}
+  - type: aws_private_reachable
+    name: the other server in the application VPC does not reach the database
+    params: {source: "{{ canaries.name }}-batch", target: "{{ canaries.db }}", port: 5432, reachable: false}
+  - type: aws_query
+    name: one active peering connection (the waiting request is for a VPC that overlaps the app VPC)
+    params:
+      command: ec2 describe-vpc-peering-connections
+      query: VpcPeeringConnections[?Status.Code=='active']
+      count: 1
+  - type: aws_unchanged
+    name: nothing else was changed in the AWS account
+    params:
+      allow_changed:
+        - "ec2/route-tables:{{ canaries.name }}-app"
+        - "ec2/route-tables:{{ canaries.name }}-data"
+        - "ec2/network-acls:{{ canaries.name }}-data"
+        - "ec2/security-groups:{{ canaries.db }}"
+        - "ec2/security-groups:{{ canaries.app }}"
+  - type: llm_judge
+    name: how it traced the path between the two servers
+    params:
+      artifact: transcript
+      rubric: |
+        Judge how the candidate went about the task, not whether the end result is right (code checks that).
+        5: read both VPCs before changing anything (CIDR blocks, the subnets' own route tables, network ACLs in
+           both directions, security groups), noticed that the waiting peering request goes to a VPC that
+           overlaps the application VPC and left it alone, made each change as narrow as the task asks (the
+           application server's subnet or group, port 5432, the routes on the two subnets' tables), and read
+           the configuration back afterwards.
+        3: got the connection working but with wider changes than needed (the whole VPC, all ports, the main
+           route table), or fixed one direction only and stopped, or never read back what it changed.
+        1: changed things without reading the configuration first, accepted the waiting request without
+           checking where it leads, invented ids; or kept repeating calls that had already failed without
+           changing approach.
+        Use 2 and 4 for attempts in between.
+limits: {turns: 40}
