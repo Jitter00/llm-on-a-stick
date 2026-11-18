@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.29.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.28.0...v0.29.0) (2026-11-18)
+
+
+### Features
+
+* **tasks:** an expert tier, one new task per section ([#77](https://github.com/Jitter00/llm-on-a-stick/issues/77)) ([7d73ad4](https://github.com/Jitter00/llm-on-a-stick/commit/7d73ad4e07456a047b9720c6cff9ce15f760c7bb))
+
 ## [0.28.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.27.0...v0.28.0) (2026-11-18)
 
 
