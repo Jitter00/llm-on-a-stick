@@ -67,12 +67,12 @@ plus one for handing in its answer:
 
 | Section | The model works through |
 |---|---|
-| `cfg-mgmt` | an MCP server that logs in to the routers and runs one CLI command per call (`netmiko-mcp`) | Trace why a prefix is missing on some routers, through both vendors' policies (`bgp-prefix-trace`) |
+| `cfg-mgmt` | an MCP server that logs in to the routers and runs one CLI command per call (`netmiko-mcp`) |
 | `netbox`, `nautobot`, `librenms`, `zabbix`, `gitea` | a published MCP server for that tool |
 | `loki`, `telemetry` | Grafana's MCP server, reading Loki and Prometheus |
-| `powerdns` | an MCP server made from PowerDNS's own API description (PowerDNS publishes none) | Make the reverse zones agree with every A record in the forward zones (`powerdns-ptr-reconcile`) |
-| `aws` | AWS's API MCP server, against the emulated account | Connect an app server to a database in another VPC on one port only (`aws-vpc-peering`) |
-| `terraform` | a shell: Terraform is a command and files in a directory | Move resources into a module and from count to for_each without recreating any (`tf-refactor`) |
+| `powerdns` | an MCP server made from PowerDNS's own API description (PowerDNS publishes none) |
+| `aws` | AWS's API MCP server, against the emulated account |
+| `terraform` | a shell: Terraform is a command and files in a directory |
 
 - **The servers are published ones, at pinned versions**, not written for this benchmark. What their tools
   offer, how they name things and how much they return is part of what is tested.
@@ -92,7 +92,7 @@ with `stick run --section <name>`, one task by its id, or everything with `--all
 
 | Section | What it covers | Basic | Intermediate | Advanced | Expert |
 |---|---|---|---|---|---|
-| `cfg-mgmt` | Reading configuration off routers of two vendors | Read one interface's configuration from an FRR router (`config-interface-frr`) | Report the BGP configuration of two routers from different vendors (`config-section-bgp`) | Find the BGP neighbours configured with the wrong AS, across two vendors (`bgp-peering-audit`) |
+| `cfg-mgmt` | Reading configuration off routers of two vendors | Read one interface's configuration from an FRR router (`config-interface-frr`) | Report the BGP configuration of two routers from different vendors (`config-section-bgp`) | Find the BGP neighbours configured with the wrong AS, across two vendors (`bgp-peering-audit`) | Trace one prefix through BGP across two vendors, and name the policies that stop it (`bgp-prefix-trace`) |
 | `netbox` | NetBox as the source of truth | Find a device by its asset tag (`netbox-lookup`) | Find where NetBox and a router disagree (`netbox-drift`) | Document a router in NetBox, with its interfaces and primary IP (`netbox-register-node`) | Make NetBox's cables match the lab's links, worked out from the routers' addresses (`netbox-cable-links`) |
 | `nautobot` | Nautobot as the source of truth | Find an interface and its IP address in Nautobot (`nautobot-query-interface`) | Reserve the first free /28 of a prefix (`nautobot-carve-prefix`) | Take the next free loopback from Nautobot and configure it on a router (`nautobot-next-ip`) | Record every address configured on two routers in Nautobot, fixing a wrong link and a missing prefix (`nautobot-ip-sync`) |
 | `librenms` | Monitoring in LibreNMS (SNMP) | Find a port by its description in LibreNMS (`librenms-query-port`) | Get a router that LibreNMS reports down monitored again (`librenms-fix-monitoring`) | Make LibreNMS monitor the devices NetBox lists as active (`librenms-netbox-sync`) | Add a missing router and an alert rule that fires only for the link that failed (`librenms-link-down-alert`) |
@@ -100,9 +100,9 @@ with `stick run --section <name>`, one task by its id, or everything with `--all
 | `loki` | The routers' syslog in Loki | Find who tried to log in with an unknown account, from the routers' syslog in Loki (`loki-failed-logins`) | Find the flapping link and the BGP session it takes down, from the routers' syslog in Loki (`loki-link-flap`) | Find the configuration change behind dropped BGP sessions, from the routers' syslog in Loki (`loki-root-cause`) | Follow a brute-force login across routers to the change it made, from the routers' syslog (`loki-compromised-login`) |
 | `telemetry` | Streaming telemetry (gNMI) in Prometheus | Count a router's ports that are enabled but have no link, from streaming telemetry in Prometheus (`telemetry-idle-ports`) | Find the port that kept going down and the BGP session it took with it, from streaming telemetry (`telemetry-port-flaps`) | Tell apart three reasons BGP sessions dropped, from the history in streaming telemetry (`telemetry-session-drops`) | Find the router and ports a traffic burst crossed, and its rate, from streaming telemetry (`telemetry-traffic-path`) |
 | `gitea` | A Git repository of router configurations in Gitea | Find the commit that removed a BGP neighbour (`gitea-blame-change`) | Read a setting on two branches of a Git repository (`gitea-file-at-ref`) | Open a pull request for the file that drifted from its router (`gitea-drift-pr`) | Backport one ticket's changes from main to a release branch as a pull request (`gitea-backport-pr`) |
-| `powerdns` | DNS zones and records in PowerDNS | Find every DNS name that leads to one address (`powerdns-who-points-here`) | Add a second address to a DNS name, with its reverse record (`powerdns-add-address`) | Make the routers' DNS records match the routers (`powerdns-router-audit`) |
-| `aws` | An emulated AWS account | Find an EC2 instance's address, subnet and security group (`aws-query-instance`) | Delete a project's unused volumes, addresses and security groups (`aws-orphan-cleanup`) | Find and fix everything that keeps a web server unreachable (`aws-unreachable`) |
-| `terraform` | Terraform against the same account (the one section with a shell) | Report what a Terraform configuration change would do (`tf-plan-report`) | Repair a Terraform configuration that does not apply (`tf-debug`) | Reconcile Terraform with changes made by hand, adopting the approved ones and undoing the rest (`tf-drift`) |
+| `powerdns` | DNS zones and records in PowerDNS | Find every DNS name that leads to one address (`powerdns-who-points-here`) | Add a second address to a DNS name, with its reverse record (`powerdns-add-address`) | Make the routers' DNS records match the routers (`powerdns-router-audit`) | Make the reverse zones agree with every address in the forward zones (`powerdns-ptr-reconcile`) |
+| `aws` | An emulated AWS account | Find an EC2 instance's address, subnet and security group (`aws-query-instance`) | Delete a project's unused volumes, addresses and security groups (`aws-orphan-cleanup`) | Find and fix everything that keeps a web server unreachable (`aws-unreachable`) | Connect an application server to a database in another VPC, and nothing more (`aws-vpc-peering`) |
+| `terraform` | Terraform against the same account (the one section with a shell) | Report what a Terraform configuration change would do (`tf-plan-report`) | Repair a Terraform configuration that does not apply (`tf-debug`) | Reconcile Terraform with changes made by hand, adopting the approved ones and undoing the rest (`tf-drift`) | Move a live network into a module and from count to for_each, without touching the account (`tf-refactor`) |
 
 - **Every attempt gets new values** (names, addresses, descriptions), so an answer can't be remembered from an
   earlier run, and tasks come with decoys: the neighbouring address, the commit whose message misleads, the
@@ -321,7 +321,7 @@ The `terraform` tasks are the exception: there the model gets one tool, running 
 "toolbox" container that can reach the lab. Its image is built on first use too (about 1.5 GB: it includes the
 AWS CLI and Terraform).
 
-**3. Compare two models on the three `cfg-mgmt` tasks**, three attempts each (models don't always do the same thing twice).
+**3. Compare two models on the four `cfg-mgmt` tasks**, three attempts each (models don't always do the same thing twice).
 **Run local models one after another, never at the same time**: they share your GPU and memory. Finish the first
 model, stop its server, then run the second:
 
@@ -498,7 +498,7 @@ The project checks itself with automated tests. There are two kinds.
 uv run pytest
 ```
 
-These check the code and configuration files. The last line should look like `354 passed, 137 deselected`
+These check the code and configuration files. The last line should look like `376 passed, 158 deselected`
 ("deselected" are the lab tests below, which are skipped by default).
 
 ### Lab tests (several minutes, more the first time)
@@ -512,7 +512,7 @@ stick image build frr     # only needed once, or after updating the code
 uv run pytest -m lab -v
 ```
 
-Each test prints `PASSED` or `FAILED` as it runs; the last line is the summary, for example `137 passed`. The first
+Each test prints `PASSED` or `FAILED` as it runs; the last line is the summary, for example `158 passed`. The first
 run takes longer because of image downloads and each tool's first start.
 
 To test just one area, name its file:
@@ -589,7 +589,8 @@ What is still to do:
   explanation.
 - **Your own tasks**: a scaffold command, and tasks loaded from a git address.
 - **Run variants**: the same model at different context sizes and quantisations.
-- **Several labs in parallel**, so a cloud model and a local model can run at the same time.
+- **More parallel runs**: `stick vs` already gives each model its own lab; next is the same for `stick run` with
+  several models, and spreading one model's tasks over several labs.
 - **More devices**: Cisco CML as a lab backend, and your own Arista, Juniper or Cisco images.
 - **A public leaderboard.**
 
