@@ -233,7 +233,8 @@ function scoreboard() {
           el("div", {class: "meter", role: "img", "aria-label": mix}, seg("pass", "p"), seg("partial", "w"), seg("fail", "f"), seg("error", "e")),
           el("div", {class: "note", style: "margin-top:4px"}, mix)),
         tile("Mean score", c.mean_score.toFixed(2), bestScore === c.id ? better() : null),
-        tile("Mean time", secs(c.mean_wall_s), "per attempt"),
+        tile("Mean time", secs(c.mean_wall_s), c.gpu_link_degraded
+          ? `unreliable: GPU link was slow in ${c.gpu_link_degraded} attempt(s)` : "per attempt"),
         tile("Mean turns", c.mean_turns.toFixed(1), "per attempt"),
         tile("Tokens", short(c.tokens_in + c.tokens_out), `${short(c.tokens_in)} in, ${short(c.tokens_out)} out`),
         tile("Cost", cost(c.cost_usd), c.cost_usd === 0 ? "local model" : null),

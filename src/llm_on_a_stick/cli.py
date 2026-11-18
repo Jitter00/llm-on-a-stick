@@ -19,7 +19,7 @@ from rich.console import Console
 from rich.table import Table
 from rich.text import Text
 
-from llm_on_a_stick import __version__, doctor, dotenv, paths, services, tasks
+from llm_on_a_stick import __version__, doctor, dotenv, gpulink, paths, services, tasks
 from llm_on_a_stick import lab as lab_mod
 from llm_on_a_stick.env import containerlab
 from llm_on_a_stick.grading import grade as grade_mod
@@ -169,6 +169,14 @@ def doctor_cmd(
         )
     for g in report.gpus:
         console.print(f"[bold]GPU[/]: {g.name}, {g.vram_mb} MiB")
+    for link in report.gpu_links:
+        narrow = link.width < link.expected_width
+        width = f", [yellow]x{link.width} of x{link.expected_width}[/]" if narrow else f", x{link.width}"
+        console.print(
+            f"[bold]GPU link[/]: {link.address} at {link.gts:g} of {link.expected_gts:g} GT/s now{width} "
+            "[dim](an idle link may read low; it is checked under load during local-model runs)[/]",
+            highlight=False,
+        )
     caps = ", ".join(f"{k}={'yes' if v else 'no'}" for k, v in report.capabilities.items())
     console.print(f"[bold]Can run[/]: {caps}")
     raise typer.Exit(0 if report.ok else 1)
@@ -655,6 +663,23 @@ JudgeBaseUrlOpt = Annotated[
 JudgeRepeatsOpt = Annotated[
     int, typer.Option("--judge-repeats", min=1, max=9, help="Times the judge is asked for each judgement.")
 ]
+
+
+def _no_gpu_link_check(value: bool) -> bool:
+    if value:  # in the environment, so the runs that `stick vs` starts get it too
+        os.environ[gpulink.ENV_OFF] = "1"
+    return value
+
+
+NoGpuLinkCheckOpt = Annotated[
+    bool,
+    typer.Option(
+        "--no-gpu-link-check",
+        callback=_no_gpu_link_check,
+        help="Keep going when the GPU's PCIe link runs below the speed it can do while a local model "
+        "works (the times are then unreliable). Without it, the run stops after the first such attempt.",
+    ),
+]
 NoReportOpt = Annotated[
     bool, typer.Option("--no-report", help="Don't write report.html and report.json into the runs folder.")
 ]
@@ -682,6 +707,7 @@ def run_cmd(
     judge_model: JudgeModelOpt = None,
     judge_base_url: JudgeBaseUrlOpt = None,
     judge_repeats: JudgeRepeatsOpt = 3,
+    no_gpu_link_check: NoGpuLinkCheckOpt = False,
     attempts_file: Annotated[
         Path | None,
         typer.Option(hidden=True, help="Append each attempt's folder to this file (used by `stick vs`)."),
@@ -734,6 +760,7 @@ def vs_cmd(
     judge_model: JudgeModelOpt = None,
     judge_base_url: JudgeBaseUrlOpt = None,
     judge_repeats: JudgeRepeatsOpt = 3,
+    no_gpu_link_check: NoGpuLinkCheckOpt = False,
     sequential: Annotated[
         bool,
         typer.Option(
@@ -869,6 +896,7 @@ def _run_models(
     style = _OUTCOME_STYLE
     done: list[Path] = []
     errors = 0
+    slow_link = False
     for c in clients:  # model by model: one model's whole batch before the next
         for t in selected:
             lab = DockerLabState(t.topology)
@@ -898,6 +926,22 @@ def _run_models(
                 console.print(f"  [dim]{info.run_dir}[/]", soft_wrap=True, highlight=False)
                 if judge_client is not None:
                     _judge_attempt(info.run_dir, judge_client, judge_repeats, force=True)
+                if (m.gpu_link or {}).get("degraded"):
+                    what = gpulink.describe(m.gpu_link or {})
+                    if gpulink.enforced():
+                        err.print(
+                            f"[red]{what}: stopping. A model that moves data between RAM and the card "
+                            "runs several times slower like this, and the run's times would mean nothing. "
+                            "A reboot usually restores the link; --no-gpu-link-check runs anyway.[/]",
+                            highlight=False,
+                        )
+                        slow_link = True
+                        break
+                    err.print(f"  [yellow]{what}: times of this attempt are unreliable[/]", highlight=False)
+            if slow_link:
+                break
+        if slow_link:
+            break
     rows = report.collect(done)
     if rows and attempts_file is None:  # with an attempts file, `stick vs` reports on all its models
         console.print()
@@ -905,7 +949,7 @@ def _run_models(
         if not no_report:  # this run's attempts only: the folder may hold older runs of other models
             name = _report_name(model, task_refs, section, all_)
             _write_html(done, runs_dir / name, title=None, task=None)
-    raise typer.Exit(1 if errors else 0)
+    raise typer.Exit(1 if errors or slow_link else 0)
 
 
 def _need_mb(selected: list[tasks.Task], n: int) -> int:

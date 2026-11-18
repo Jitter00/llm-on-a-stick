@@ -146,6 +146,7 @@ that cache the prompt (llama.cpp, Strata, Ollama, Anthropic) re-read only the ne
 | Tokens (read + written) | the task's `limits.tokens`, else none | task.yaml |
 | One command | 60 s | `--cmd-timeout` |
 | Output the model sees per command | 4,000 characters, about 1,000 tokens (head and tail kept, the gap marked) | `Settings.max_output_chars` |
+| GPU link below its speed (local models, Linux) | The run stops after the first attempt it happens in | `--no-gpu-link-check` (warn only) |
 | RAM kept free for your system | 2048 MiB: below it an attempt waits up to a minute, then stops (`low_memory`, not counted against the model) | `--min-free-ram` (0 = off) |
 
 **The turns are the limit.** Time depends on your hardware: the same model passes on a fast GPU and runs out of
@@ -217,6 +218,7 @@ Each attempt is a normal run folder (see [Grading](grading.md)) plus:
 | `context_window` | The context window the server reported (Strata/llama.cpp: `n_ctx`; Ollama: the loaded model's `context_length`). Compare models at the same size. |
 | `cost_usd` | From `data/prices.yaml` for API models; 0 for local servers; `null` if the price isn't known |
 | `wall_s`, `model_s`, `tools_s` | Total time, time waiting for the model, time running commands |
+| `gpu_link` | For a local model on this machine (Linux): each GPU's PCIe link while the model worked (`peak_gts` against `expected_gts`, `width` against `expected_width`), the number of `samples`, and `degraded`. `null` when it wasn't read. See [The GPU's PCIe link](#the-gpus-pcie-link) |
 
 The runner adds these failure hints to the grader's (see [Grading](grading.md#failure-hints)): `max-turns`,
 `timeout`, `model-error`, `refusal`, `tool-call-error`, `no-tool-use`, `output-limit`, `repetition-loop`,
@@ -313,6 +315,28 @@ With two or three models in the data the page puts them side by side and says wh
 counts for each model the tasks where it was best or joint best. More than three are still listed side by side,
 without that comparison. `report.json` next to it has the same numbers without the transcripts. The transcripts
 contain the lab's logins and API tokens; they only work inside the lab.
+
+## The GPU's PCIe link
+
+A graphics card whose PCIe link runs below its speed (it trained low, or fell back to Gen1 and stayed there)
+gives no error: a model that moves data between RAM and the card just runs several times slower, and a run
+takes hours with times that mean nothing. So while a **local model on this machine** works, `stick run`
+reads the link of every PCIe GPU from `/sys/bus/pci/devices` (any vendor, no root; Linux only):
+
+- **What the link can do** is the lower of what its two ends can do, over every hop from the card to the
+  root port: a Gen5 card in a Gen4 slot is expected at Gen4, a x16 card in a x8 slot at x8.
+- **Only under load.** An idle link may run slow to save power, so it is read once a second while a model
+  request is in flight (from 2 seconds in), and the best reading counts.
+- **Degraded** means: at least three readings, and no GPU reached its speed and width. With several GPUs,
+  one that did is enough.
+
+The readings go into each attempt's `metrics.json` (`gpu_link`). After the first attempt with a degraded
+link the run **stops**, with exit code 1: that attempt is graded and kept (pass and fail don't depend on
+speed), and the report is written for what was done. A reboot usually restores the link. With
+`--no-gpu-link-check` the run goes on with a warning per attempt, and the report says the times are
+unreliable (`gpu_link_degraded` per model in the `.json`): use it for hardware that always trains low,
+or when only pass and fail matter. `stick doctor` shows each link as it is at that moment, which says
+little when the card is idle. Cloud models and servers on another machine are not checked.
 
 ## A judge model: `--judge-model` and `stick judge`
 

@@ -60,6 +60,9 @@ stick env down                                             # stop everything whe
   the second on the next free one, which stays running afterwards (`stick env down --all` stops every instance).
   The command prints which instance each model got, or why they run one after the other. `--sequential` keeps
   both on one lab.
+- **A run that stops with `GPU ... ran at ... GT/s, its link can do ...`** found the graphics card's PCIe
+  link running slow while a local model worked. Tell the user (a reboot usually restores it); don't retry, and
+  don't add `--no-gpu-link-check` unless they say that only pass and fail matter.
 - **Runs can be long.** A cloud model takes about 15 s per attempt, a local model several minutes, and a first
   start of NetBox or Nautobot adds about 2.5 minutes. Run anything bigger than one section in the background and
   wait for it to exit; don't cut it short with a command timeout.
@@ -71,7 +74,8 @@ Don't parse the terminal table. Each run ends by printing two paths:
 - `report-<model>-<what>-<time>.html`: the page for the user. Give them the `file://` address as printed.
 - The `.json` file with the same name: the same numbers, for you.
     - `contenders[]`: one per model and setting, with `attempts`, `passed`, `errors` (attempts with outcome
-      `error`: the lab, the grader or the model server failed), `mean_score`, `tokens_in`, `tokens_out`, `cost_usd`, `mean_wall_s`, `total_wall_s` (seconds, all attempts), `mean_turns`, and
+      `error`: the lab, the grader or the model server failed), `mean_score`, `tokens_in`, `tokens_out`, `cost_usd`, `mean_wall_s`, `total_wall_s` (seconds, all attempts), `mean_turns`,
+      `gpu_link_degraded` (attempts made on a slow GPU link: above 0, don't quote that model's times), and
       `sampling` (what was really sent). With a judge: `judge_score` (0..1, mean over `judge_attempts`),
       kept apart from `mean_score`.
     - `attempts{}`: one per attempt, with `task_id`, `outcome` (`pass`, `partial`, `fail`, `error`), `score`,

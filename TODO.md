@@ -92,6 +92,8 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
 
 ## Known gotchas (learned so far)
 
+- A GPU whose PCIe link falls back to Gen1 under load makes a local model about 3x slower with no error anywhere;
+  `stick run` now stops on it ([docs/runner.md](docs/runner.md#the-gpus-pcie-link)).
 - SR Linux startup `.cli` files take no `#` comments: containerlab stops at the first one, silently.
 - `snmpd -c` *adds* a config file to the default search path; use `-C -c` or it binds udp:161 twice and crashes the container.
 - FRR config is mounted read-only under `/etc/stick` and copied in at boot, so `write memory` can't modify the repo (a test enforces this).
