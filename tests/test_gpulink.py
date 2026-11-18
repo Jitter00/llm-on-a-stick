@@ -1,8 +1,15 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
+import pytest
+
 from llm_on_a_stick import gpulink
+
+# The fake sysfs needs PCI addresses as file names ("0000:01:00.0") and symlinks, as on Linux, the one
+# platform whose GPU links are read; Windows allows neither.
+pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="sysfs (Linux) only")
 
 GPU, VGA = "0x030000", "0x030200"
 

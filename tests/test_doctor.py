@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -155,6 +156,7 @@ def test_run_doctor_end_to_end_with_fakes() -> None:
     assert report.to_dict()["ok"] is True
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="a PCI address isn't a valid file name on Windows")
 def test_run_doctor_reads_the_gpu_links(tmp_path: Path) -> None:
     card = tmp_path / "0000:01:00.0"
     card.mkdir()
