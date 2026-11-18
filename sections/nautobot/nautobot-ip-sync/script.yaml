@@ -1,0 +1,124 @@
+# The task's reference steps as MCP calls: stick run nautobot-ip-sync --model script/<this file>
+# (A script knows what is missing; a model has to compare the routers with Nautobot.)
+steps:
+  - tool: routers__send_show_command
+    args: {device_name: frr1, command: 'vtysh -c "show running-config"'}
+  - tool: routers__send_show_command
+    args: {device_name: frr2, command: 'vtysh -c "show running-config"'}
+  - tool: nautobot__rest_list
+    args: {endpoint: /api/ipam/ip-addresses/, filters: {namespace: stick-lab, depth: 1}}
+  - tool: nautobot__rest_list
+    args: {endpoint: /api/ipam/ip-address-to-interface/, filters: {depth: 1}}
+  - tool: nautobot__rest_list
+    args: {endpoint: /api/ipam/prefixes/, filters: {namespace: stick-lab}}
+  - tool: nautobot__rest_list
+    args: {endpoint: /api/dcim/interfaces/, filters: {device: frr1, name: lo}}
+    capture: {frr1_lo: '"id":\s*"([0-9a-f-]{36})"'}
+  - tool: nautobot__rest_list
+    args: {endpoint: /api/dcim/interfaces/, filters: {device: frr1, name: eth1}}
+    capture: {frr1_eth1: '"id":\s*"([0-9a-f-]{36})"'}
+  - tool: nautobot__rest_list
+    args: {endpoint: /api/dcim/interfaces/, filters: {device: frr1, name: eth2}}
+    capture: {frr1_eth2: '"id":\s*"([0-9a-f-]{36})"'}
+  - tool: nautobot__rest_list
+    args: {endpoint: /api/dcim/interfaces/, filters: {device: frr1, name: eth3}}
+    capture: {frr1_eth3: '"id":\s*"([0-9a-f-]{36})"'}
+  - tool: nautobot__rest_list
+    args: {endpoint: /api/dcim/interfaces/, filters: {device: frr2, name: lo}}
+    capture: {frr2_lo: '"id":\s*"([0-9a-f-]{36})"'}
+  - tool: nautobot__rest_list
+    args: {endpoint: /api/dcim/interfaces/, filters: {device: frr2, name: eth1}}
+    capture: {frr2_eth1: '"id":\s*"([0-9a-f-]{36})"'}
+  - tool: nautobot__rest_list
+    args: {endpoint: /api/dcim/interfaces/, filters: {device: frr2, name: eth2}}
+    capture: {frr2_eth2: '"id":\s*"([0-9a-f-]{36})"'}
+  - tool: nautobot__rest_list
+    args: {endpoint: /api/dcim/interfaces/, filters: {device: frr2, name: eth3}}
+    capture: {frr2_eth3: '"id":\s*"([0-9a-f-]{36})"'}
+  - tool: nautobot__rest_create
+    args:
+      endpoint: /api/ipam/prefixes/
+      data: {prefix: 10.1.2.0/24, namespace: {name: stick-lab}, status: {name: Active}, type: network}
+  - tool: nautobot__rest_create
+    args:
+      endpoint: /api/ipam/ip-addresses/
+      data: {address: "{{ canaries.svc1 }}/32", namespace: {name: stick-lab}, status: {name: Active}, type: host}
+    capture: {ip0: '"id":\s*"([0-9a-f-]{36})"'}
+  - tool: nautobot__rest_create
+    args:
+      endpoint: /api/ipam/ip-address-to-interface/
+      data: {ip_address: "{{ captured.ip0 }}", interface: "{{ captured.frr1_lo }}"}
+  - tool: nautobot__rest_create
+    args:
+      endpoint: /api/ipam/ip-addresses/
+      data: {address: "10.0.2.1/31", namespace: {name: stick-lab}, status: {name: Active}, type: host}
+    capture: {ip1: '"id":\s*"([0-9a-f-]{36})"'}
+  - tool: nautobot__rest_create
+    args:
+      endpoint: /api/ipam/ip-address-to-interface/
+      data: {ip_address: "{{ captured.ip1 }}", interface: "{{ captured.frr1_eth2 }}"}
+  - tool: nautobot__rest_create
+    args:
+      endpoint: /api/ipam/ip-addresses/
+      data: {address: "10.1.1.1/24", namespace: {name: stick-lab}, status: {name: Active}, type: host}
+    capture: {ip2: '"id":\s*"([0-9a-f-]{36})"'}
+  - tool: nautobot__rest_create
+    args:
+      endpoint: /api/ipam/ip-address-to-interface/
+      data: {ip_address: "{{ captured.ip2 }}", interface: "{{ captured.frr1_eth3 }}"}
+  - tool: nautobot__rest_create
+    args:
+      endpoint: /api/ipam/ip-addresses/
+      data: {address: "10.255.0.12/32", namespace: {name: stick-lab}, status: {name: Active}, type: host}
+    capture: {ip3: '"id":\s*"([0-9a-f-]{36})"'}
+  - tool: nautobot__rest_create
+    args:
+      endpoint: /api/ipam/ip-address-to-interface/
+      data: {ip_address: "{{ captured.ip3 }}", interface: "{{ captured.frr2_lo }}"}
+  - tool: nautobot__rest_create
+    args:
+      endpoint: /api/ipam/ip-addresses/
+      data: {address: "{{ canaries.svc2 }}/32", namespace: {name: stick-lab}, status: {name: Active}, type: host}
+    capture: {ip4: '"id":\s*"([0-9a-f-]{36})"'}
+  - tool: nautobot__rest_create
+    args:
+      endpoint: /api/ipam/ip-address-to-interface/
+      data: {ip_address: "{{ captured.ip4 }}", interface: "{{ captured.frr2_lo }}"}
+  - tool: nautobot__rest_create
+    args:
+      endpoint: /api/ipam/ip-addresses/
+      data: {address: "10.0.1.3/31", namespace: {name: stick-lab}, status: {name: Active}, type: host}
+    capture: {ip5: '"id":\s*"([0-9a-f-]{36})"'}
+  - tool: nautobot__rest_create
+    args:
+      endpoint: /api/ipam/ip-address-to-interface/
+      data: {ip_address: "{{ captured.ip5 }}", interface: "{{ captured.frr2_eth1 }}"}
+  - tool: nautobot__rest_create
+    args:
+      endpoint: /api/ipam/ip-addresses/
+      data: {address: "10.0.2.3/31", namespace: {name: stick-lab}, status: {name: Active}, type: host}
+    capture: {ip6: '"id":\s*"([0-9a-f-]{36})"'}
+  - tool: nautobot__rest_create
+    args:
+      endpoint: /api/ipam/ip-address-to-interface/
+      data: {ip_address: "{{ captured.ip6 }}", interface: "{{ captured.frr2_eth2 }}"}
+  - tool: nautobot__rest_create
+    args:
+      endpoint: /api/ipam/ip-addresses/
+      data: {address: "10.1.2.1/24", namespace: {name: stick-lab}, status: {name: Active}, type: host}
+    capture: {ip7: '"id":\s*"([0-9a-f-]{36})"'}
+  - tool: nautobot__rest_create
+    args:
+      endpoint: /api/ipam/ip-address-to-interface/
+      data: {ip_address: "{{ captured.ip7 }}", interface: "{{ captured.frr2_eth3 }}"}
+  - tool: nautobot__rest_list
+    args: {endpoint: /api/ipam/ip-addresses/, filters: {address: 10.0.1.1/31, namespace: stick-lab}}
+    capture: {moved: '"id":\s*"([0-9a-f-]{36})"'}
+  - tool: nautobot__rest_list
+    args: {endpoint: /api/ipam/ip-address-to-interface/, filters: {ip_address: "{{ captured.moved }}"}}
+    capture: {link: '"id":\s*"([0-9a-f-]{36})"'}
+  - tool: nautobot__rest_update
+    args:
+      endpoint: /api/ipam/ip-address-to-interface/
+      object_id: "{{ captured.link }}"
+      data: {interface: "{{ captured.frr1_eth1 }}"}

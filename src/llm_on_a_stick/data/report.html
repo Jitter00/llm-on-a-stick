@@ -266,7 +266,7 @@ function breakdowns() {
   if (sections.length < 2 && tiers.length < 2) return null;
   return el("section", {}, el("h2", {}, "Sections and tiers"),
     R.max_repeats === 1 ? el("p", {class: "muted"},
-      "One attempt per task: with three tasks, a section's result moves in thirds. Run with --repeat 3 to compare sections.") : null,
+      "One attempt per task: with four tasks, a section's result moves in quarters. Run with --repeat 3 to compare sections.") : null,
     el("div", {class: "breakdowns"},
       sections.length > 1 ? breakdownTable("Section", sections) : null,
       tiers.length > 1 ? breakdownTable("Tier", tiers) : null));

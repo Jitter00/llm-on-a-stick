@@ -455,7 +455,7 @@ def _rank(per: dict[str, Any]) -> tuple[float, float]:
     return per["passed"] / len(per["attempts"]), per["mean_score"]
 
 
-TIERS = ["basic", "intermediate", "advanced"]
+TIERS = ["basic", "intermediate", "advanced", "expert"]
 
 
 def _breakdown(attempts: list[AttemptDetail], field_name: str, order: list[str]) -> list[dict[str, Any]]:
@@ -556,8 +556,8 @@ def build_report(attempts: list[AttemptDetail], title: str = "") -> dict[str, An
         # The judge models that scored these attempts (normally one). Their scores are never in `mean_score`.
         "judges": sorted({str(a.judge["model"]) for a in attempts if a.judge and a.judge.get("model")}),
         "tasks": tasks,
-        # Totals per section and per tier. With one attempt per task and three tasks in a section, a section
-        # moves in thirds: `max_repeats` lets the page say so.
+        # Totals per section and per tier. With one attempt per task and four tasks in a section, a section
+        # moves in quarters: `max_repeats` lets the page say so.
         "by_section": _breakdown(attempts, "section", []),
         "by_tier": _breakdown(attempts, "tier", TIERS),
         "max_repeats": max((a.repeat for a in attempts), default=0),

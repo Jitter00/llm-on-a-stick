@@ -82,17 +82,32 @@ def zabbix_absent(ctx: GradeContext, ip: str) -> Verdict:
     return Verdict("fail", f"{ip} is in Zabbix and shouldn't be", hints=["collateral-change"])
 
 
+def _reads_exactly(read: list[dict[str, Any]], wanted: list[dict[str, str]]) -> bool:
+    """Every item read matches one wanted {host, name} and every wanted one is matched by an item."""
+
+    def match(item: dict[str, Any], want: dict[str, str]) -> bool:
+        hosts = {h.get("host") for h in item.get("hosts") or []}
+        return want["host"] in hosts and want["name"] in str(item.get("name", ""))
+
+    return all(any(match(i, w) for w in wanted) for i in read) and all(
+        any(match(i, w) for i in read) for w in wanted
+    )
+
+
 @check("zabbix_problem")
 def zabbix_problem(
     ctx: GradeContext,
     trigger: str,
     hosts: list[str],
     severity: int | None = None,
+    items: list[dict[str, str]] | None = None,
     wait_s: int = 40,
 ) -> Verdict:
     """Exactly one trigger people made is named `trigger` (with that `severity`, 0-5, if given; 4 = High),
     it is enabled, it is on exactly the `hosts` (host names), and after a poll of its items, forced now, it
-    is in problem state: one open problem. The check waits up to `wait_s` seconds for the problem."""
+    is in problem state: one open problem. The check waits up to `wait_s` seconds for the problem.
+    `items`: the trigger reads exactly these items, each `{host: <host name>, name: <text in the item's
+    name>}`, so that a trigger on another port, or on something that is always true, doesn't pass."""
     api = _api(ctx)
     try:
         found = state.triggers(api, trigger)
@@ -118,8 +133,18 @@ def zabbix_problem(
                 "fail", f"trigger {trigger!r} is not on the expected host",
                 expected=expected, observed=observed, hints=["wrong-config"],
             )  # fmt: skip
-        items = state.rpc(api, "item.get", {"triggerids": [trig["triggerid"]], "output": ["itemid"]})
-        state.poll_now(api, [i["itemid"] for i in items])
+        read = state.rpc(
+            api, "item.get",
+            {"triggerids": [trig["triggerid"]], "output": ["itemid", "name"], "selectHosts": ["host"]},
+        )  # fmt: skip
+        if items is not None and not _reads_exactly(read, items):
+            reads = sorted(f"{(i.get('hosts') or [{}])[0].get('host')}: {i.get('name')}" for i in read)
+            return Verdict(
+                "fail", f"trigger {trigger!r} doesn't read the expected items",
+                expected={**expected, "items": items}, observed={**observed, "items": reads},
+                hints=["wrong-config"],
+            )  # fmt: skip
+        state.poll_now(api, [i["itemid"] for i in read])
 
         def problems() -> list[dict[str, Any]]:
             return list(

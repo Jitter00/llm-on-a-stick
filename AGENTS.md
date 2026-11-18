@@ -83,7 +83,7 @@ Don't parse the terminal table. Each run ends by printing two paths:
       didn't pass) and `judge.checks[]` (`score`, `scale`, `scores` per repeat, `agreement`, `reason`).
     - `judges`: the judge models used, if any.
     - `by_section[]` and `by_tier[]`: `name` and, per contender id, `tasks`, `attempts`, `passed`,
-      `mean_score`. `max_repeats` is the most attempts any task got: at 1, a section moves in thirds.
+      `mean_score`. `max_repeats` is the most attempts any task got: at 1, a section moves in quarters.
     - `versus`: set only when there are two or three contenders: `wins` (task ids per contender, and `tie`),
       `top` (task ids where the contender was best or joint best), `only_passed_by` and `headline`.
 

@@ -274,6 +274,24 @@ def test_netbox_unchanged_allows_a_cable_only_where_allowed(tmp_path: Path) -> N
     assert res.status == "fail" and "changed ethernet-1/1 (description)" in res.observed[0]
 
 
+def test_netbox_unchanged_allows_deleting_or_editing_only_where_allowed(tmp_path: Path) -> None:
+    data = cabled()
+    connect(data)
+    ctx, nb = nb_ctx(tmp_path, data)
+    snap = sotstate.snapshot(nb, ("dcim/interfaces", "dcim/cables"))
+    (ctx.run.baseline_dir / "netbox.json").write_text(json.dumps(snap))
+    nb.data["dcim/cables"].clear()  # the cable was removed
+    res = check(ctx, "netbox_unchanged")
+    assert res.status == "fail" and res.observed == ["dcim/cables: deleted id 5"]
+    assert check(ctx, "netbox_unchanged", allow_deleted=["dcim/cables"]).status == "pass"
+    nb.data["dcim/interfaces"][0]["description"] = "edited"
+    res = check(ctx, "netbox_unchanged", allow_deleted=["dcim/cables"])
+    assert res.status == "fail" and "changed ethernet-1/1 (description)" in res.observed[0]
+    assert res.expected == {"allow_new": [], "allow_deleted": ["dcim/cables"]}
+    allowed = check(ctx, "netbox_unchanged", allow_deleted=["dcim/cables"], allow_changed=["dcim/interfaces"])
+    assert allowed.status == "pass"
+
+
 def test_netbox_unchanged_ignores_ip_counters_on_interfaces(tmp_path: Path) -> None:
     data = cabled()
     data["dcim/interfaces"][0]["count_ipaddresses"] = 0

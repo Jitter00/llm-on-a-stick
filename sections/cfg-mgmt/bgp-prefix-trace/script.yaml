@@ -1,0 +1,36 @@
+# The task's reference steps as MCP calls: stick run bgp-prefix-trace --model script/<this file>
+# (A script knows which filters this run's setup applied; a model has to find them where they are applied.)
+steps:
+  - tool: routers__send_show_command
+    args:
+      device_name: srl2
+      command: "show network-instance default protocols bgp routes ipv4 prefix {{ canaries.pool }}.{{ canaries.host }}/32"
+    capture:
+      next_hop: 'BGP next-hop\s*:\s*([0-9.]+)'
+  - tool: routers__send_show_command
+    args:
+      device_name: srl1
+      command: "show network-instance default protocols bgp routes ipv4 prefix {{ canaries.pool }}.{{ canaries.host }}/32"
+  - tool: routers__send_show_command
+    args: {device_name: frr2, command: 'vtysh -c "show ip bgp {{ canaries.pool }}.{{ canaries.host }}/32"'}
+  - tool: routers__send_show_command
+    args: {device_name: frr1, command: 'vtysh -c "show running-config bgpd"'}
+    capture:
+      frr_rm: 'neighbor 10\.0\.1\.0 route-map (\S+) out'
+  - tool: routers__send_show_command
+    args: {device_name: frr1, command: 'vtysh -c "show ip prefix-list"'}
+  - tool: routers__send_show_command
+    args: {device_name: srl2, command: "info flat network-instance default protocols bgp"}
+    capture:
+      srl_pol: 'neighbor 10\.0\.2\.3 export-policy \[\s*(\S+)\s*\]'
+  - tool: routers__send_show_command
+    args: {device_name: srl2, command: "info flat routing-policy"}
+  - tool: submit_answer
+    args:
+      answer:
+        routers:
+          - {router: srl1, has_route: false, next_hop: null,
+             filtered_by: {router: frr1, policy: "{{ captured.frr_rm }}", direction: out}}
+          - {router: srl2, has_route: true, next_hop: "{{ captured.next_hop }}", filtered_by: null}
+          - {router: frr2, has_route: false, next_hop: null,
+             filtered_by: {router: srl2, policy: "{{ captured.srl_pol }}", direction: out}}

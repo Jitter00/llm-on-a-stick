@@ -1,0 +1,68 @@
+id: telemetry-traffic-path
+section: telemetry
+title: Find the path and the rate of a traffic burst from the routers' port counters
+tier: expert
+tags: [tool:prometheus, vendor:srl, iface:mcp, skill:telemetry, skill:aggregation]
+prompt: |
+  srl1 and srl2 (Nokia SR Linux) stream telemetry over gNMI: the state and counters of their ports and of
+  their BGP sessions. It is kept in Prometheus, which you reach through Grafana's MCP server. frr1 and frr2
+  do not stream anything.
+
+  The hosts h1 (10.1.1.10, behind frr1) and h2 (10.1.2.10, behind frr2) are connected through the routers:
+  frr1 and frr2 each have a link to srl1 and one to srl2. In the last few minutes one of the hosts sent the
+  other a burst of traffic that lasted about half a minute, and it is over now. It went through one of the
+  SR Linux routers. Other traffic was going on at the same time.
+
+  From the counters, find the SR Linux router the burst went through, the port it came in on and the port it
+  left by, and its average rate while it lasted, in megabits per second (1 Mbit = 1,000,000 bits).
+  Submit with submit_answer:
+    {"router": "<srl1|srl2>", "in_interface": "<port name>", "out_interface": "<port name>",
+     "mbps": <average rate, a number>}
+
+  Only report: do not change any configuration on any device.
+requires:
+  devices: [srl1, srl2, frr1, frr2, h1, h2]
+  services: [loki, telemetry]
+tools:
+  mcp: [telemetry]
+reset_services: [telemetry]
+canaries:
+  rate: count
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: json_file_matches
+    name: the answer names the router and the ports in and out
+    params:
+      path: answer.json
+      expected:
+        router: srl1
+        in_interface: ethernet-1/2
+        out_interface: ethernet-1/1
+    weight: 2
+  - type: json_file_matches
+    name: the answer gives the burst's rate (within 25 %)
+    params:
+      path: answer.json
+      expected:
+        mbps: "{{ canaries.rate }}0"
+      tolerance: {mbps: 0.25}
+  - type: no_change_outside
+    name: no configuration was changed after the burst
+    params: {allowed: []}
+  - type: llm_judge
+    name: how it read the counters
+    params:
+      artifact: transcript
+      rubric: |
+        Judge how the candidate went about the task, not whether the end result is right (code checks that).
+        5: found the datasource and the counter metrics and their labels first; turned the octet counters into
+           rates (rate or increase over a window, in bits) on both routers' ports, in and out, over a range that
+           covers the burst; told the burst (in on one port, out of another of the same router) apart from
+           traffic that came in and went out of one port; and averaged over the burst's own duration.
+        3: got to an answer, but from raw counter values or a single sample, by picking the busiest port
+           without checking where the traffic left, or by averaging over a window much longer than the burst.
+        1: guessed or invented a router, a port, a rate, a datasource id or a metric name instead of reading
+           them; or kept repeating calls that had already failed without changing approach.
+        Use 2 and 4 for attempts in between.
+limits: {turns: 40}

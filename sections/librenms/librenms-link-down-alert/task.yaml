@@ -1,0 +1,68 @@
+id: librenms-link-down-alert
+section: librenms
+title: Monitor the last router and alert on links to other routers that are down
+tier: expert
+tags: [tool:librenms, vendor:srl, vendor:frr, iface:mcp, skill:nms-alerting, skill:nms-onboarding]
+prompt: |
+  You reach LibreNMS through its MCP server.
+
+  LibreNMS monitors three of the lab's four routers over SNMP version 2c. srl2 (management address
+  {{ nodes.srl2.mgmt_ip }}, community stick-ro) is missing: add it.
+
+  Then create one alert rule for all devices, named {{ canaries.rule }}, with severity critical, that raises an
+  alert while a link to another router is down: a port that is enabled but not up, and that is described as
+  leading to another router (on these routers such a port's description is "to <router name>"). A port that
+  was switched off on purpose, or one that leads nowhere, must not raise an alert, even if it is down.
+
+  The rule is checked by what it does: after the next poll, exactly the alerts it should raise must be
+  active. Do not change anything else in LibreNMS, and do not change any router.
+requires:
+  devices: [srl1, srl2, frr1, frr2]
+  services: [librenms]
+tools:
+  mcp: [librenms]
+reset_services: [librenms]
+canaries:
+  rule: hostname
+  planned: hostname
+  spare: count
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: librenms_device
+    name: srl2 is monitored and LibreNMS reaches it
+    params:
+      hostname: "{{ nodes.srl2.mgmt_ip }}"
+      expect: {status: 1, snmpver: v2c, community: stick-ro}
+  - type: librenms_alert
+    name: the rule raises one alert, on srl2, whose link to frr2 is down
+    params:
+      rule: "{{ canaries.rule }}"
+      severity: critical
+      devices: ["{{ nodes.srl2.mgmt_ip }}"]
+      count: 1
+    weight: 3
+  - type: librenms_unchanged
+    name: nothing else was changed in LibreNMS
+    params: {allow_new: ["devices:{{ nodes.srl2.mgmt_ip }}", "rules:{{ canaries.rule }}"]}
+  - type: no_change_outside
+    name: no router was changed
+    params: {allowed: []}
+  - type: llm_judge
+    name: how it added the router and built the rule
+    params:
+      artifact: transcript
+      rubric: |
+        Judge how the candidate went about the task, not whether the end result is right (code checks that).
+        5: added srl2 once and checked LibreNMS reaches it; read the ports LibreNMS has (their descriptions,
+           admin and operational status) before writing the rule, so that the rule tells the failed link apart
+           from the spare port and the disabled planned port; created one rule, and after the transport error
+           LibreNMS answers with, checked whether the rule exists instead of creating it again; then looked at
+           the active alerts.
+        3: got there, but wrote the rule from assumptions and corrected it by trial and error, or never
+           checked the rule or the alerts.
+        1: created duplicate rules or devices, deleted and re-added things, changed other devices or a router,
+           or invented field names, ids or values; or kept repeating calls that had already failed without
+           changing approach.
+        Use 2 and 4 for attempts in between.
+limits: {turns: 40}

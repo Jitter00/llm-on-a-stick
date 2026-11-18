@@ -94,15 +94,23 @@ def _label(obj: dict[str, Any]) -> str:
     return f"id {obj.get('id')}"
 
 
-def diff(before: Snapshot, after: Snapshot, allow_new: list[str]) -> list[str]:
-    """Changes from `before` to `after`, except new objects on the `allow_new` endpoints."""
+def diff(
+    before: Snapshot,
+    after: Snapshot,
+    allow_new: list[str],
+    allow_deleted: list[str] | None = None,
+    allow_changed: list[str] | None = None,
+) -> list[str]:
+    """Changes from `before` to `after`, except new objects on the `allow_new` endpoints, deleted ones on the
+    `allow_deleted` endpoints and edited ones on the `allow_changed` endpoints."""
     problems: list[str] = []
     for endpoint, old in before.items():
         new = after.get(endpoint, {})
         for oid, obj in old.items():
             if oid not in new:
-                problems.append(f"{endpoint}: deleted {_label(obj)}")
-            elif new[oid] != obj:
+                if endpoint not in (allow_deleted or []):
+                    problems.append(f"{endpoint}: deleted {_label(obj)}")
+            elif new[oid] != obj and endpoint not in (allow_changed or []):
                 fields = sorted(k for k in set(obj) | set(new[oid]) if obj.get(k) != new[oid].get(k))
                 problems.append(f"{endpoint}: changed {_label(obj)} ({', '.join(fields)})")
         if endpoint not in allow_new:

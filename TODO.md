@@ -64,7 +64,7 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
 
 ## Phase 2: tasks, user tests, variants, scheduler
 
-- [ ] **Three tasks per section (basic, intermediate, advanced), none obvious, through the tool's MCP server**
+- [ ] **Four tasks per section (basic, intermediate, advanced, expert), none obvious, through the tool's MCP server**
       (rules: docs/tasks.md, "Which tasks are kept"; pick the ones local models are likely to get wrong). New sections are per tool (powerdns, kea,
       ...); the groupings are in sections/README.md. Also `lab-mgmt` and `troubleshooting` (fault injection:
       MTU mismatch, wrong ASN, ACL blackhole).

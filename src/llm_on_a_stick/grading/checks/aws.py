@@ -275,3 +275,32 @@ def terraform_state_has(
             expected=expected, observed=have[:SAMPLE], hints=["wrong-config"],
         )  # fmt: skip
     return Verdict("pass", f"{path}: the state manages {len(have)} resource(s)", expected=expected)
+
+
+@check("aws_private_reachable")
+def aws_private_reachable(
+    ctx: GradeContext, source: str, target: str, port: int, reachable: bool = True
+) -> Verdict:
+    """A TCP connection from the running instance with the Name tag `source` to `port` on the one named
+    `target`, over their private addresses, would get through (or, with `reachable: false`, would not),
+    judging by the account's state: between VPCs an active peering connection and routes to it on both
+    sides, both subnets' network ACLs in both directions, the target's security groups in and the source's
+    out (a rule may name a CIDR block or the source's group). Whichever way it was fixed counts."""
+    code, out, err = _run(None, "aws ec2 describe-vpc-peering-connections --output json")
+    if code != 0:
+        return Verdict("error", f"cannot list peering connections: {err.strip()[-300:]}", hints=["env-error"])
+    peerings = json.loads(out or "{}").get("VpcPeeringConnections", [])
+    try:
+        found = awsstate.private_blockers(awsstate.snapshot(), peerings, source, target, int(port))
+    except awsstate.AwsStateError as exc:
+        raise ServiceUnavailable(str(exc)) from exc
+    what = f"TCP {port} from {source} to {target}"
+    if reachable:
+        if not found:
+            return Verdict("pass", f"{what}: gets through")
+        return Verdict(
+            "fail", f"{what}: stopped in {len(found)} place(s)", observed=found, hints=["wrong-config"]
+        )
+    if found:
+        return Verdict("pass", f"{what}: still closed", observed=found[:SAMPLE])
+    return Verdict("fail", f"{what}: gets through, and must not", hints=["collateral-change"])

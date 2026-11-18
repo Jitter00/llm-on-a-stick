@@ -384,6 +384,109 @@ def test_aws_reachable_passes_either_way_round(tmp_path: Path, monkeypatch: pyte
     assert res.status == "fail" and res.hints == ["collateral-change"]
 
 
+def peered_accounts() -> awsstate.Snapshot:
+    """An app server in vpc-a that reaches a database in vpc-b on 5432 over an active peering."""
+    everywhere = {"CidrBlock": "0.0.0.0/0", "Protocol": "-1", "RuleAction": "allow", "RuleNumber": 100}
+
+    def table(vpc: str, subnet: str, local: str, remote: str) -> dict[str, Any]:
+        return {
+            "VpcId": vpc, "Associations": [{"Main": False, "SubnetId": subnet}],
+            "Routes": [
+                {"DestinationCidrBlock": local, "GatewayId": "local", "State": "active"},
+                {"DestinationCidrBlock": remote, "VpcPeeringConnectionId": "pcx-1", "State": "active"},
+            ],
+        }  # fmt: skip
+
+    return {
+        "ec2/instances": {
+            "i-a": {"label": "app", "State": {"Name": "running"}, "SubnetId": "subnet-a", "VpcId": "vpc-a",
+                    "PrivateIpAddress": "10.64.1.10", "SecurityGroups": [{"GroupId": "sg-a"}]},
+            "i-b": {"label": "db", "State": {"Name": "running"}, "SubnetId": "subnet-b", "VpcId": "vpc-b",
+                    "PrivateIpAddress": "10.65.1.10", "SecurityGroups": [{"GroupId": "sg-b"}]},
+        },
+        "ec2/route-tables": {
+            "rtb-a": table("vpc-a", "subnet-a", "10.64.0.0/16", "10.65.1.0/24"),
+            "rtb-b": table("vpc-b", "subnet-b", "10.65.0.0/16", "10.64.0.0/16"),
+        },
+        "ec2/network-acls": {
+            f"acl-{v}": {"VpcId": f"vpc-{v}", "IsDefault": True,
+                         "Entries": [{**everywhere, "Egress": False}, {**everywhere, "Egress": True}]}
+            for v in "ab"
+        },
+        "ec2/security-groups": {
+            "sg-a": {"IpPermissions": [], "IpPermissionsEgress": [
+                {"IpProtocol": "-1", "IpRanges": [{"CidrIp": "0.0.0.0/0"}]}]},
+            "sg-b": {"IpPermissions": [{"IpProtocol": "tcp", "FromPort": 5432, "ToPort": 5432,
+                                        "IpRanges": [{"CidrIp": "10.64.1.0/24"}]}],
+                     "IpPermissionsEgress": [{"IpProtocol": "-1", "IpRanges": [{"CidrIp": "0.0.0.0/0"}]}]},
+        },
+    }  # fmt: skip
+
+
+PEERING = {
+    "VpcPeeringConnectionId": "pcx-1", "Status": {"Code": "active"},
+    "RequesterVpcInfo": {"VpcId": "vpc-a"}, "AccepterVpcInfo": {"VpcId": "vpc-b"},
+}  # fmt: skip
+
+
+def test_private_blockers_follow_the_peering_both_ways() -> None:
+    snap = peered_accounts()
+    assert awsstate.private_blockers(snap, [PEERING], "app", "db", 5432) == []
+    assert awsstate.private_blockers(snap, [PEERING], "app", "db", 22) == [
+        "none of db's security groups allows TCP 22 from 10.64.1.10"
+    ]
+    pending = {**PEERING, "Status": {"Code": "pending-acceptance"}}
+    found = awsstate.private_blockers(snap, [pending], "app", "db", 5432)
+    assert found[0] == "no active peering connection between the two VPCs" and len(found) == 3
+
+    snap["ec2/route-tables"]["rtb-b"]["Routes"].pop()  # no way back
+    assert awsstate.private_blockers(snap, [PEERING], "app", "db", 5432) == [
+        "db's subnet has no route to 10.64.1.10 through an active peering connection"
+    ]
+    snap = peered_accounts()
+    acl = snap["ec2/network-acls"]["acl-b"]["Entries"]
+    acl[1]["CidrBlock"] = "10.65.0.0/16"  # the database's replies may only stay in its own VPC
+    assert awsstate.private_blockers(snap, [PEERING], "app", "db", 5432) == [
+        "db's network ACL does not let the replies out (TCP 1024-65535)"
+    ]
+    snap = peered_accounts()
+    snap["ec2/security-groups"]["sg-b"]["IpPermissions"] = [
+        {"IpProtocol": "tcp", "FromPort": 5432, "ToPort": 5432, "IpRanges": [],
+         "UserIdGroupPairs": [{"GroupId": "sg-a"}]}
+    ]  # fmt: skip
+    assert (
+        awsstate.private_blockers(snap, [PEERING], "app", "db", 5432) == []
+    )  # a rule naming the app's group
+    snap["ec2/security-groups"]["sg-a"]["IpPermissionsEgress"] = []
+    assert awsstate.private_blockers(snap, [PEERING], "app", "db", 5432) == [
+        "none of app's security groups allows TCP 5432 out to 10.65.1.10"
+    ]
+    assert awsstate.private_blockers(snap, [PEERING], "app", "web", 5432) == [
+        "0 running instance(s) named web"
+    ]
+
+
+def test_aws_private_reachable_reads_the_peerings(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, tool: dict[str, Any]
+) -> None:
+    ctx = make_ctx(tmp_path)
+    monkeypatch.setattr(awsstate, "snapshot", peered_accounts)
+    tool["reply"] = done(out=json.dumps({"VpcPeeringConnections": [PEERING]}))
+    assert check(ctx, "aws_private_reachable", source="app", target="db", port=5432).status == "pass"
+    assert "describe-vpc-peering-connections" in tool["commands"][-1]
+    res = check(ctx, "aws_private_reachable", source="app", target="db", port=22)
+    assert res.status == "fail" and res.hints == ["wrong-config"]
+    assert (
+        check(ctx, "aws_private_reachable", source="app", target="db", port=22, reachable=False).status
+        == "pass"
+    )
+    tool["reply"] = done(out=json.dumps({"VpcPeeringConnections": []}))
+    res = check(ctx, "aws_private_reachable", source="app", target="db", port=5432, reachable=False)
+    assert res.status == "pass"
+    tool["reply"] = done(255, err="boom")
+    assert check(ctx, "aws_private_reachable", source="app", target="db", port=5432).status == "error"
+
+
 # --------------------------------------------------------------------------- terraform
 
 

@@ -1,0 +1,37 @@
+# The task's reference steps as MCP calls: stick run telemetry-traffic-path --model script/<this file>
+# (A script can't compare numbers: it knows the path; a model has to find the port the burst left by.)
+steps:
+  - tool: telemetry__list_datasources
+    args: {type: prometheus}
+    capture:
+      uid: '"uid":\s*"([^"]+)"'
+  - tool: telemetry__query_prometheus
+    args:
+      datasourceUid: "{{ captured.uid }}"
+      expr: 'max_over_time((rate(in_octets{interface_name=~"ethernet-.*"}[20s]) * 8 / 1e6)[10m:5s]) > 1'
+      queryType: instant
+      startTime: now
+      endTime: now
+  - tool: telemetry__query_prometheus
+    args:
+      datasourceUid: "{{ captured.uid }}"
+      expr: 'max_over_time((rate(out_octets{interface_name=~"ethernet-.*"}[20s]) * 8 / 1e6)[10m:5s]) > 1'
+      queryType: instant
+      startTime: now
+      endTime: now
+  - tool: telemetry__query_prometheus
+    args:
+      datasourceUid: "{{ captured.uid }}"
+      expr: 'max_over_time((rate(out_octets{source="srl1", interface_name="ethernet-1/1"}[20s]) * 8 / 1e6)[10m:5s])'
+      queryType: instant
+      startTime: now
+      endTime: now
+    capture:
+      mbps: '"value":\s*\[[\d.e+]+,\s*"([\d.]+)"\]'
+  - tool: submit_answer
+    args:
+      answer:
+        router: srl1
+        in_interface: ethernet-1/2
+        out_interface: ethernet-1/1
+        mbps: "{{ captured.mbps }}"

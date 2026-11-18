@@ -17,7 +17,7 @@ routers themselves. Only Terraform gives the model a shell. More in [MCP-first](
 > **What works today:** the virtual lab; the `stick` command; ten tools around it (NetBox, Nautobot, LibreNMS,
 > Zabbix, Oxidized, Gitea, PowerDNS, Loki with the routers' syslog, Prometheus with their streaming telemetry, and an
 > emulated AWS account for the AWS CLI and Terraform);
-> **33 tasks** in eleven sections (three each: basic, intermediate, advanced; [the list](#the-tasks)),
+> **44 tasks** in eleven sections (four each: basic, intermediate, advanced, expert; [the list](#the-tasks)),
 > from reading router configs right across two vendors to keeping NetBox in sync and fixing monitoring,
 > **MCP-first**: all but the Terraform ones go through MCP servers instead of a shell; the
 > **grader**, which checks every attempt and explains what went wrong; and the **runner**, which lets AI models
@@ -42,10 +42,10 @@ cd llm-on-a-stick
 uv sync
 uv run stick doctor                                            # checks your machine and lists your models
 uv run stick image build frr                                   # once, about a minute
-uv run stick run --section cfg-mgmt --model ollama/gemma4:12b  # three tasks, one model
+uv run stick run --section cfg-mgmt --model ollama/gemma4:12b  # four tasks, one model
 ```
 
-`stick run` starts the lab and the tools the tasks need, lets the model attempt the three config management
+`stick run` starts the lab and the tools the tasks need, lets the model attempt the four config management
 tasks through the routers' MCP server, and prints the address of a report page: what passed, and why the
 rest failed. The first run also
 downloads and builds about 2.5 GB of container images, so it takes longer than the ones after it.
@@ -67,12 +67,12 @@ plus one for handing in its answer:
 
 | Section | The model works through |
 |---|---|
-| `cfg-mgmt` | an MCP server that logs in to the routers and runs one CLI command per call (`netmiko-mcp`) |
+| `cfg-mgmt` | an MCP server that logs in to the routers and runs one CLI command per call (`netmiko-mcp`) | Trace why a prefix is missing on some routers, through both vendors' policies (`bgp-prefix-trace`) |
 | `netbox`, `nautobot`, `librenms`, `zabbix`, `gitea` | a published MCP server for that tool |
 | `loki`, `telemetry` | Grafana's MCP server, reading Loki and Prometheus |
-| `powerdns` | an MCP server made from PowerDNS's own API description (PowerDNS publishes none) |
-| `aws` | AWS's API MCP server, against the emulated account |
-| `terraform` | a shell: Terraform is a command and files in a directory |
+| `powerdns` | an MCP server made from PowerDNS's own API description (PowerDNS publishes none) | Make the reverse zones agree with every A record in the forward zones (`powerdns-ptr-reconcile`) |
+| `aws` | AWS's API MCP server, against the emulated account | Connect an app server to a database in another VPC on one port only (`aws-vpc-peering`) |
+| `terraform` | a shell: Terraform is a command and files in a directory | Move resources into a module and from count to for_each without recreating any (`tf-refactor`) |
 
 - **The servers are published ones, at pinned versions**, not written for this benchmark. What their tools
   offer, how they name things and how much they return is part of what is tested.
@@ -86,19 +86,20 @@ Which servers, which versions and which of their tools:
 
 ## The tasks
 
-**33 tasks in eleven sections**, three per section: one basic, one intermediate, one advanced. Run one section
+**44 tasks in eleven sections**, four per section: one basic, one intermediate, one advanced and one expert. The
+expert tier is headroom for models that pass the other three; small models are expected to fail it. Run one section
 with `stick run --section <name>`, one task by its id, or everything with `--all`; `stick task list` prints them.
 
-| Section | What it covers | Basic | Intermediate | Advanced |
-|---|---|---|---|---|
+| Section | What it covers | Basic | Intermediate | Advanced | Expert |
+|---|---|---|---|---|---|
 | `cfg-mgmt` | Reading configuration off routers of two vendors | Read one interface's configuration from an FRR router (`config-interface-frr`) | Report the BGP configuration of two routers from different vendors (`config-section-bgp`) | Find the BGP neighbours configured with the wrong AS, across two vendors (`bgp-peering-audit`) |
-| `netbox` | NetBox as the source of truth | Find a device by its asset tag (`netbox-lookup`) | Find where NetBox and a router disagree (`netbox-drift`) | Document a router in NetBox, with its interfaces and primary IP (`netbox-register-node`) |
-| `nautobot` | Nautobot as the source of truth | Find an interface and its IP address in Nautobot (`nautobot-query-interface`) | Reserve the first free /28 of a prefix (`nautobot-carve-prefix`) | Take the next free loopback from Nautobot and configure it on a router (`nautobot-next-ip`) |
-| `librenms` | Monitoring in LibreNMS (SNMP) | Find a port by its description in LibreNMS (`librenms-query-port`) | Get a router that LibreNMS reports down monitored again (`librenms-fix-monitoring`) | Make LibreNMS monitor the devices NetBox lists as active (`librenms-netbox-sync`) |
-| `zabbix` | Monitoring in Zabbix (SNMP) | Find a host by its tag in Zabbix (`zabbix-query-host`) | Add a router to Zabbix over SNMP (`zabbix-add-host`) | Put a NetBox tenant's devices in maintenance in Zabbix (`zabbix-netbox-maintenance`) |
-| `loki` | The routers' syslog in Loki | Find who tried to log in with an unknown account, from the routers' syslog in Loki (`loki-failed-logins`) | Find the flapping link and the BGP session it takes down, from the routers' syslog in Loki (`loki-link-flap`) | Find the configuration change behind dropped BGP sessions, from the routers' syslog in Loki (`loki-root-cause`) |
-| `telemetry` | Streaming telemetry (gNMI) in Prometheus | Count a router's ports that are enabled but have no link, from streaming telemetry in Prometheus (`telemetry-idle-ports`) | Find the port that kept going down and the BGP session it took with it, from streaming telemetry (`telemetry-port-flaps`) | Tell apart three reasons BGP sessions dropped, from the history in streaming telemetry (`telemetry-session-drops`) |
-| `gitea` | A Git repository of router configurations in Gitea | Find the commit that removed a BGP neighbour (`gitea-blame-change`) | Read a setting on two branches of a Git repository (`gitea-file-at-ref`) | Open a pull request for the file that drifted from its router (`gitea-drift-pr`) |
+| `netbox` | NetBox as the source of truth | Find a device by its asset tag (`netbox-lookup`) | Find where NetBox and a router disagree (`netbox-drift`) | Document a router in NetBox, with its interfaces and primary IP (`netbox-register-node`) | Make NetBox's cables match the lab's links, worked out from the routers' addresses (`netbox-cable-links`) |
+| `nautobot` | Nautobot as the source of truth | Find an interface and its IP address in Nautobot (`nautobot-query-interface`) | Reserve the first free /28 of a prefix (`nautobot-carve-prefix`) | Take the next free loopback from Nautobot and configure it on a router (`nautobot-next-ip`) | Record every address configured on two routers in Nautobot, fixing a wrong link and a missing prefix (`nautobot-ip-sync`) |
+| `librenms` | Monitoring in LibreNMS (SNMP) | Find a port by its description in LibreNMS (`librenms-query-port`) | Get a router that LibreNMS reports down monitored again (`librenms-fix-monitoring`) | Make LibreNMS monitor the devices NetBox lists as active (`librenms-netbox-sync`) | Add a missing router and an alert rule that fires only for the link that failed (`librenms-link-down-alert`) |
+| `zabbix` | Monitoring in Zabbix (SNMP) | Find a host by its tag in Zabbix (`zabbix-query-host`) | Add a router to Zabbix over SNMP (`zabbix-add-host`) | Put a NetBox tenant's devices in maintenance in Zabbix (`zabbix-netbox-maintenance`) | Find the failed link between two routers and add a trigger on both of its ports (`zabbix-port-down-problem`) |
+| `loki` | The routers' syslog in Loki | Find who tried to log in with an unknown account, from the routers' syslog in Loki (`loki-failed-logins`) | Find the flapping link and the BGP session it takes down, from the routers' syslog in Loki (`loki-link-flap`) | Find the configuration change behind dropped BGP sessions, from the routers' syslog in Loki (`loki-root-cause`) | Follow a brute-force login across routers to the change it made, from the routers' syslog (`loki-compromised-login`) |
+| `telemetry` | Streaming telemetry (gNMI) in Prometheus | Count a router's ports that are enabled but have no link, from streaming telemetry in Prometheus (`telemetry-idle-ports`) | Find the port that kept going down and the BGP session it took with it, from streaming telemetry (`telemetry-port-flaps`) | Tell apart three reasons BGP sessions dropped, from the history in streaming telemetry (`telemetry-session-drops`) | Find the router and ports a traffic burst crossed, and its rate, from streaming telemetry (`telemetry-traffic-path`) |
+| `gitea` | A Git repository of router configurations in Gitea | Find the commit that removed a BGP neighbour (`gitea-blame-change`) | Read a setting on two branches of a Git repository (`gitea-file-at-ref`) | Open a pull request for the file that drifted from its router (`gitea-drift-pr`) | Backport one ticket's changes from main to a release branch as a pull request (`gitea-backport-pr`) |
 | `powerdns` | DNS zones and records in PowerDNS | Find every DNS name that leads to one address (`powerdns-who-points-here`) | Add a second address to a DNS name, with its reverse record (`powerdns-add-address`) | Make the routers' DNS records match the routers (`powerdns-router-audit`) |
 | `aws` | An emulated AWS account | Find an EC2 instance's address, subnet and security group (`aws-query-instance`) | Delete a project's unused volumes, addresses and security groups (`aws-orphan-cleanup`) | Find and fix everything that keeps a web server unreachable (`aws-unreachable`) |
 | `terraform` | Terraform against the same account (the one section with a shell) | Report what a Terraform configuration change would do (`tf-plan-report`) | Repair a Terraform configuration that does not apply (`tf-debug`) | Reconcile Terraform with changes made by hand, adopting the approved ones and undoing the rest (`tf-drift`) |

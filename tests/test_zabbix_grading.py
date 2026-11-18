@@ -81,7 +81,12 @@ class FakeZabbix:
 
     def _item_get(self, params: dict[str, Any]) -> list[dict[str, Any]]:
         if "triggerids" in params:
-            return [{"itemid": f"t{tid}"} for tid in params["triggerids"]]
+            trigs = {t["triggerid"]: t for t in self.triggers}
+            return [
+                {"itemid": f"t{tid}", **item}
+                for tid in params["triggerids"]
+                for item in trigs.get(tid, {}).get("items", [{}])
+            ]
         return [{"itemid": f"h{hostid}"} for hostid in params["hostids"]]
 
     def _task_create(self, params: list[dict[str, Any]]) -> dict[str, Any]:
@@ -298,6 +303,24 @@ def test_zabbix_problem_wants_one_trigger_in_problem_state(zbx: tuple[Any, FakeZ
     trig["status"] = "0"
     api.triggers.append({**trig, "triggerid": "8"})  # a duplicate
     assert "exactly one" in check(ctx, "zabbix_problem", **params).message
+
+
+def test_zabbix_problem_can_want_the_items_the_trigger_reads(zbx: tuple[Any, FakeZabbix]) -> None:
+    ctx, api = zbx
+    want = [{"host": "a", "name": "Interface e1-2(to b): Operational status"},
+            {"host": "b", "name": "Interface eth2(): Operational status"}]  # fmt: skip
+    params = {"trigger": "link down", "hosts": ["a", "b"], "items": want}
+    item_a = {"name": "Interface e1-2(to b): Operational status", "hosts": [{"host": "a"}]}
+    item_b = {"name": "Interface eth2(): Operational status", "hosts": [{"host": "b"}]}
+    trig = {"triggerid": "9", "description": "link down", "priority": "4", "status": "0",
+            "hosts": [{"host": "a"}, {"host": "b"}], "items": [item_a], "pending": 1}  # fmt: skip
+    api.triggers.append(trig)
+    res = check(ctx, "zabbix_problem", **params)
+    assert res.status == "fail" and "items" in res.message and api.polled == []
+    trig["items"] = [item_a, item_b, {"name": "System name", "hosts": [{"host": "a"}]}]
+    assert check(ctx, "zabbix_problem", **params).status == "fail"
+    trig["items"] = [item_a, item_b]
+    assert check(ctx, "zabbix_problem", **params).status == "pass"
 
 
 def test_zabbix_maintenance_checks_the_window_and_who_is_in_it(zbx: tuple[Any, FakeZabbix]) -> None:

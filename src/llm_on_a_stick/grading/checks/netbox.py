@@ -13,7 +13,13 @@ SAMPLE = 10
 _TITLES = {"netbox": "NetBox", "nautobot": "Nautobot"}
 
 
-def unchanged(ctx: GradeContext, service: str, allow_new: list[str] | None) -> Verdict:
+def unchanged(
+    ctx: GradeContext,
+    service: str,
+    allow_new: list[str] | None,
+    allow_deleted: list[str] | None = None,
+    allow_changed: list[str] | None = None,
+) -> Verdict:
     """`service` matches its state at `stick task start` (baseline/<service>.json)."""
     title = _TITLES.get(service, service)
     path = ctx.run.baseline_dir / f"{service}.json"
@@ -24,27 +30,43 @@ def unchanged(ctx: GradeContext, service: str, allow_new: list[str] | None) -> V
         )  # fmt: skip
     before: sotstate.Snapshot = json.loads(path.read_text(encoding="utf-8"))
     after = sotstate.snapshot(ctx.services.rest(service), tuple(before))
-    problems = sotstate.diff(before, after, allow_new or [])
+    problems = sotstate.diff(before, after, allow_new or [], allow_deleted, allow_changed)
     if problems:
+        allowed = {"allow_new": allow_new or []}
+        allowed.update(
+            {k: v for k, v in (("allow_deleted", allow_deleted), ("allow_changed", allow_changed)) if v}
+        )
         return Verdict(
             "fail", f"{len(problems)} change(s) the task didn't ask for",
-            expected={"allow_new": allow_new or []}, observed=problems[:SAMPLE], hints=["collateral-change"],
+            expected=allowed, observed=problems[:SAMPLE], hints=["collateral-change"],
         )  # fmt: skip
     return Verdict("pass", f"nothing else changed in {title}")
 
 
 @check("netbox_unchanged")
-def netbox_unchanged(ctx: GradeContext, allow_new: list[str] | None = None) -> Verdict:
+def netbox_unchanged(
+    ctx: GradeContext,
+    allow_new: list[str] | None = None,
+    allow_deleted: list[str] | None = None,
+    allow_changed: list[str] | None = None,
+) -> Verdict:
     """NetBox matches its state at `stick task start` (baseline/netbox.json): nothing changed or deleted, and
-    nothing added except on the `allow_new` endpoints (e.g. [dcim/devices, ipam/ip-addresses])."""
-    return unchanged(ctx, "netbox", allow_new)
+    nothing added except on the `allow_new` endpoints (e.g. [dcim/devices, ipam/ip-addresses]). Objects
+    may be deleted on the `allow_deleted` endpoints and edited on the `allow_changed` ones."""
+    return unchanged(ctx, "netbox", allow_new, allow_deleted, allow_changed)
 
 
 @check("nautobot_unchanged")
-def nautobot_unchanged(ctx: GradeContext, allow_new: list[str] | None = None) -> Verdict:
+def nautobot_unchanged(
+    ctx: GradeContext,
+    allow_new: list[str] | None = None,
+    allow_deleted: list[str] | None = None,
+    allow_changed: list[str] | None = None,
+) -> Verdict:
     """Nautobot matches its state at `stick task start` (baseline/nautobot.json): nothing changed or
-    deleted, and nothing added except on the `allow_new` endpoints (e.g. [ipam/ip-address-to-interface])."""
-    return unchanged(ctx, "nautobot", allow_new)
+    deleted, and nothing added except on the `allow_new` endpoints (e.g. [ipam/ip-address-to-interface]).
+    Objects may be deleted on the `allow_deleted` endpoints and edited on the `allow_changed` ones."""
+    return unchanged(ctx, "nautobot", allow_new, allow_deleted, allow_changed)
 
 
 @check("nautobot_graphql")

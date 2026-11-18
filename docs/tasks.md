@@ -73,7 +73,7 @@ saving a whole configuration to a file (a tool result is cut at 4,000 characters
 
 ## cfg-mgmt: getting configuration right
 
-These three tasks test whether a model can *read* configuration correctly off two vendors' routers (Nokia
+These four tasks test whether a model can *read* configuration correctly off two vendors' routers (Nokia
 SR Linux and FRRouting), before it's ever asked to change anything. The model works through the `routers` MCP
 server and answers with facts from the configuration, not with the configuration itself.
 
@@ -82,6 +82,7 @@ server and answers with facts from the configuration, not with the configuration
 | `config-interface-frr` | basic | Report the description and address configured on frr2's eth3 | A plain `show` sent to FRR's Linux shell, another interface's values, an invented description |
 | `config-section-bgp` | intermediate | Report srl2's and frr1's BGP configuration: own AS, and each neighbour's address, AS and description | One vendor's syntax used on the other, a neighbour missed, descriptions swapped or invented |
 | `bgp-peering-audit` | advanced | Across the four routers, find every BGP neighbour configured with an AS that the router at the other end doesn't have | Trusting neighbour descriptions instead of interface addresses, reporting only one vendor's mismatch, reporting the right AS as wrong |
+| `bgp-prefix-trace` | expert | frr1 announces a prefix: for the other three routers, whether it is in BGP and its next hop, or the policy that drops it (router, name, direction) | A route-map out on FRR and an export policy on one SR Linux neighbour; a prefix-list that only looks as if it matches (`le 31`); a policy that rejects the prefix but is attached to nothing; reading only the router that lacks it |
 
 Requirements: the lab running (`uv run stick env up`). `stick task start` refuses to start a task whose
 requirements aren't met.
@@ -97,6 +98,7 @@ interface before it can be a device's primary IP).
 | Task | Tier | What the agent must do | What can go wrong (and is detected) |
 |---|---|---|---|
 | `netbox-register-node` | advanced | Document frr2 in NetBox: device, interfaces with the router's descriptions, mgmt IP as primary IPv4 | Wrong role/type/platform, descriptions not read off the router, primary IP not set (or set before it's assigned), edits to the seed |
+| `netbox-cable-links` | expert | The four routers are in NetBox under other names: make its cables match the lab's router-to-router links, worked out from the interface addresses | Names to match by management address; one right cable to keep, one wrong cable to delete (its port is taken); a description that points the wrong way; cabling host or management ports |
 | `netbox-lookup` | basic | Find the device with a given asset tag, the rack it is in and the address on its eth1 | Reading the first page only (the server returns ten objects unless asked for more), a device whose tag merely contains the wanted one, eth0's address, an answer in the reply instead of `submit_answer` |
 | `netbox-drift` | intermediate | Report every difference between srl2 in NetBox and its running config | Missing the wrong address, inventing differences, "fixing" NetBox instead of reporting |
 
@@ -117,6 +119,7 @@ a router, through the `routers` server.
 | `nautobot-query-interface` | basic | Find the interface with a given description on a device, and its IP address (linked through `ip-address-to-interface`, so the interface list doesn't show it) | The distractor address, another device's interface, a changed Nautobot |
 | `nautobot-carve-prefix` | intermediate | Reserve the first free /28 of a /24 in a namespace: the third one, a hole between taken blocks | "The one after the last", the same /24 in the Global namespace, a status or namespace given by name where the API wants a reference, more than one prefix |
 | `nautobot-next-ip` | advanced | Take the lowest free address of the stick-lab loopback pool, record it as a /32 on frr2's `lo`, and configure it on frr2 | The same /24 in the Global namespace (more addresses taken there), "the highest plus one" (the pool has a gap), the /24 instead of /32, only one side done |
+| `nautobot-ip-sync` | expert | Record every IPv4 address on frr1's and frr2's interfaces in namespace stick-lab, with its mask, assigned to its interface | An address linked to the wrong interface (relink, don't duplicate); copies in Global that don't count; a /24 that exists only in Global and has to be created first; the routers' canary loopbacks |
 
 Requirements: Nautobot, and the lab for `nautobot-next-ip`. Every attempt starts
 by restoring Nautobot's seeded snapshot (`reset_services: [nautobot]`, about 25 s), and `nautobot_unchanged` fails
@@ -136,6 +139,7 @@ is wrong with it, first.
 | `aws-query-instance` | basic | Report an instance's private IP, its subnet's CIDR block and its security group's name | The other instance's values, the subnet id instead of its CIDR block, a changed account |
 | `aws-orphan-cleanup` | intermediate | Delete a project's unattached volumes, unassociated Elastic IPs, and security groups that nothing uses or refers to | Deleting the group that another group's rule refers to, a stopped instance's volume, another project's or an untagged orphan (the emulator refuses none of these); leaving an orphan behind |
 | `aws-unreachable` | advanced | A web server doesn't answer HTTPS from the internet: find every cause and fix it | Stopping at the first of four causes (no public address, no default route, a network ACL deny entry, a security group that allows 443 from 10/8 only); opening more than 443; a default route on the main route table |
+| `aws-vpc-peering` | expert | An app server must reach a database in another VPC on 5432, and nothing else may: make it work | An old VPC with the app VPC's CIDR and a stopped server of the same name; a pending peering to it; routes on the subnets' tables, not the main ones; a NACL that blocks the replies; a batch server that must not get in; opening 22 |
 
 Requirements: moto only (`uv run stick svc up moto`), not the lab. Every attempt starts from an empty account
 (`reset_services: [moto]`, about 0.2 s), and `aws_unchanged` fails attempts that add, change or delete anything
@@ -155,6 +159,7 @@ account.
 | `tf-plan-report` | basic | Say what applying an edited configuration would create, update, replace and delete, without applying | Applying it, calling a replacement an update, missing the resource that is only deleted |
 | `tf-debug` | intermediate | Repair a configuration that never applied (a `for_each` reference without a key, two security groups in a dependency cycle, a subnet outside the VPC) and apply it | Fixing the first error only, breaking the cycle by dropping a rule, moving only some rules out of the groups (inline and separate rules fight: the plan is never clean), building the rest with the CLI |
 | `tf-drift` | advanced | People worked by hand in a managed VPC: adopt the two approved changes (an instance resize, a new subnet), undo the rest (a rule on a managed group, a security group nobody manages) | A blind `terraform apply` (reverts the resize), `apply -refresh-only` (keeps the rule), stopping when the plan is clean (the plan shows neither the new subnet nor the new group), recreating the subnet instead of importing it, importing it without its tags |
+| `tf-refactor` | expert | Move the network into a local module and from `count` to `for_each` by subnet name, with nothing destroyed, replaced or changed | Without `moved` blocks every resource is recreated (new ids); indexes that don't follow the names; references and outputs that break; a plan that isn't clean |
 
 Requirements: moto only. Run them with `uv run stick run --section terraform ...`.
 
@@ -169,6 +174,7 @@ looks, so results never depend on the poller's timing.
 | `librenms-query-port` | basic | Find the port with a given description among the monitored devices; report the device's system name, the port name and its ifIndex | The distractor port with another description, an id instead of the system name, changing anything |
 | `librenms-fix-monitoring` | intermediate | One router is down in LibreNMS since its community was changed on the device: find which, and fix LibreNMS's entry | Deleting and re-adding the device (new id, history lost), changing the router instead, "fixing" a healthy device |
 | `librenms-netbox-sync` | advanced | Add to LibreNMS every device NetBox lists as active (random names, real addresses), by primary IPv4 | Adding the planned device, re-adding the one already monitored, using NetBox names LibreNMS can't resolve, changing NetBox |
+| `librenms-link-down-alert` | expert | Add the router LibreNMS is missing, and one alert rule that fires for an enabled router link that is down, and for nothing else | A spare port that is up in config but leads nowhere; a planned link port that is disabled; a rule missing one of its three conditions alerts on srl1 too; forgetting the device the alert should be on |
 
 Requirements: the lab and LibreNMS (`uv run stick env up`, `uv run stick svc up librenms`); `librenms-netbox-sync`
 also needs NetBox. Every attempt starts from an empty LibreNMS (`reset_services: [librenms]`, about a second),
@@ -186,6 +192,7 @@ reaches the host, and which hosts it puts in maintenance. The grader forces the 
 | `zabbix-query-host` | basic | Find the host with a given tag value among three; report its name and the address of its SNMP interface | No tag filter in the tool: the hosts' tags have to be asked for and read; a host whose tag value merely starts the same, no interface in the answer, changing anything |
 | `zabbix-add-host` | intermediate | Add srl1 over SNMPv2c with this run's community, in a given group and with a given template, so that Zabbix really polls it | A wrong interface (`details`), names where ids are wanted, a wrong community (Zabbix takes it; the host is listed and never reached), touching frr1 |
 | `zabbix-netbox-maintenance` | advanced | A 2-hour maintenance for exactly the Zabbix hosts of one NetBox tenant's devices; the names differ, the addresses match (uses NetBox's server too) | Joining on names, the tenant whose name starts the same, times that aren't epoch seconds or 2 hours apart, a host group instead of the two hosts, two maintenances |
+| `zabbix-port-down-problem` | expert | One router-to-router link failed: add one High trigger on the operational status of the ports at both ends, in problem state now | Hosts under random names; a spare port that is down and cabled to nothing; item keys to look up from discovery; a trigger on one end only, or on more items |
 
 Requirements: the lab and Zabbix; `zabbix-netbox-maintenance` needs NetBox instead of the lab. Every attempt starts
 from a Zabbix with no hosts (`reset_services: [zabbix]`, about 10 s), and `zabbix_unchanged` fails attempts
@@ -198,7 +205,7 @@ srl1 and srl2 stream the state and counters of their ports and BGP sessions over
 them ([Services](services.md#telemetry)). The model has **no shell**: it reads them through Grafana's MCP
 server (5 of its tools: finding the datasource, metric names, label names and values, PromQL queries). Each
 setup waits until Prometheus has a starting point, makes real events on the routers, and waits until
-Prometheus has them. In two of the three tasks everything is up again when the model starts: the answer is
+Prometheus has them. In three of the four tasks everything is up again when the model starts: the answer is
 only in the history.
 
 | Task | Tier | What the agent must do | What can go wrong (and is detected) |
@@ -206,6 +213,7 @@ only in the history.
 | `telemetry-idle-ports` | basic | On srl2: how many ports are enabled and up, and how many are enabled but down | Counting every port that is down (most are disabled); counting srl1's enabled port too; a result with all 68 ports, which is cut off; an answer in the reply instead of `submit_answer` |
 | `telemetry-port-flaps` | intermediate | One port kept going down: the router, the port, how often it went down, and the neighbour of the BGP session that dropped with it | Another port that went down once; a session reset with no port down; counting every change of state (down and up) instead of every fall; a range query whose result is cut off |
 | `telemetry-session-drops` | advanced | Three sessions dropped for three reasons (the port was disabled, the link failed, the session alone was reset): which is which, and how often the reset one came back | Taking a failed link for a disabled port (only the admin state tells them apart); matching sessions to ports by guessing instead of by time; counting the resets from `session_state`, which misses those that were over between two scrapes |
+| `telemetry-traffic-path` | expert | A burst of traffic crossed one SR Linux router: which, the port in and the port out, and the average rate (within 25%) | A ping flood on the other router's port at the same time; reading counters instead of their `rate()`; in and out swapped; a result cut at 4,000 characters |
 
 Requirements: the lab, the `telemetry` service (gNMIc, Prometheus: about 0.1 GB) and the `loki` service for
 its Grafana. Answers go through `submit_answer`; each task has a `script.yaml` with its reference solution
@@ -223,6 +231,7 @@ fixed authors and dates, so a history reads the same every time and only the can
 | `gitea-blame-change` | basic | A BGP neighbour is gone from a file: the ticket and author of the commit that removed it | The commit whose message says it removes a neighbour removes another one; the right commit's message is about timers; commits to the other router's file with the same wording; answering from messages without reading a diff |
 | `gitea-file-at-ref` | intermediate | A description in one file on `main` and on a named branch, and the files that differ between the two | Reading the default branch twice; another branch with a similar name that changes the same line; listing the files of that other branch; missing the file the branch adds; decoding the file by hand (the server returns it as base64 unless asked for numbered lines) |
 | `gitea-drift-pr` | advanced | Four files record what four routers should run, and one is stale: find it by comparing with the routers, and open a pull request that corrects it | Committing to `main`; merging the pull request; rewriting the file instead of changing its one line; touching another file; a pull request with the stale value still in it; changing the router to match the file |
+| `gitea-backport-pr` | expert | Backport one ticket's changes from `main` to `release/2026.11` as a pull request, keeping the release branch's own changes | The ticket has two commits among five; a decoy change on the line the release branch also changed; a README commit that names the ticket; committing to the release branch or merging |
 
 Requirements: the `gitea` service (about 0.1 GB); only `gitea-drift-pr` needs the lab, and it gets the
 `routers` server as well. Every attempt starts from the repository with one commit
@@ -243,6 +252,7 @@ Each setup creates the zones of its run, with names and addresses that differ ev
 | `powerdns-who-points-here` | basic | Every name that leads to one address: its A records in two zones, and the alias of one of them | Reading one zone only; missing the alias (a search for the address doesn't return it, and a search for its target with the dot at the end finds nothing); the neighbouring address; a TXT record that mentions the address; the alias of another name |
 | `powerdns-add-address` | intermediate | A name has one address: add a second one with the same TTL, and the PTR record of the new address | Replacing the record set with only the new address (the API writes whole record sets); another TTL; the PTR record in the forward zone, with the octets in the wrong order or without the dot at the end of its target; the same name in another zone; a new zone |
 | `powerdns-router-audit` | advanced | One A record per router should hold the service address on the router's loopback: compare the zone with the four routers and correct it | A record with an older address; a record that is right but disabled, so DNS doesn't answer it; a router with no record; taking the router's other loopback address; rewriting the record that was right; changing a router to match the zone |
+| `powerdns-ptr-reconcile` | expert | Make the reverse zones agree with the A records in every forward zone: add, correct and delete PTR records | A name with two addresses; a PTR with an old name; an orphan PTR and a TXT record that mentions its address; a CNAME, which gets no PTR; an address outside both networks; a PTR that is already right |
 
 Requirements: the `powerdns` service (about 50 MB); only `powerdns-router-audit` needs the lab, and it gets
 the `routers` server as well. Every attempt starts from a PowerDNS without zones
@@ -263,6 +273,7 @@ around them, and waits until Loki has the lines.
 | `loki-failed-logins` | basic | Somebody tried an account that doesn't exist: which router, from which address, how many attempts | Counting log lines (`sshd` writes several per attempt); another unknown account tried against the same router and another one; a good login from the same address; a query with no filter (SR Linux's once-a-second warning fills the result) |
 | `loki-link-flap` | intermediate | One link flapped: the port, the router at the other end, how often it went down, both addresses of the BGP session over it | Another port that went down once; a BGP session reset with no link down; the two routers on the link are SR Linux and FRR, with different log formats, and each names only the other's address |
 | `loki-root-cause` | advanced | BGP sessions dropped after a commit: on which router, by which account, from where, what value it set, and which sessions it took down | Another account's harmless commit just before; the same account logging in to another router and only looking; a session that dropped for another reason; the value is only in the logged command of that login session |
+| `loki-compromised-login` | expert | The source with the most failed logins across the routers: its failures per router, the router it got into, the account and the value it changed | Needs counting per router (an aggregate query); another source failing a few times; another account's commit on the same router after the attacker's; SR Linux writing two lines per failure |
 
 Requirements: the lab and the `loki` service (Loki, Alloy, Grafana: about 0.4 GB). Answers go through
 `submit_answer`; each task has a `script.yaml` with its reference solution as MCP calls. A fourth task, one
@@ -272,10 +283,15 @@ that needs an aggregate query, is an open item in `TODO.md`.
 
 Most models tested here run locally, where one attempt can take minutes, so every task has to earn its place.
 Each section (a tool such as `netbox`, or a group such as `cfg-mgmt`; the wider groupings are in
-`sections/README.md`) has **three tasks, one per tier** (basic, intermediate, advanced), and each one must tell
-models apart. Three keeps a full run short (33 tasks), at a price: with one attempt per task a section's result
-moves in thirds, so compare sections only on runs with `--repeat 3` or more. Where the server can write, one
-of the three changes something.
+`sections/README.md`) has **four tasks, one per tier** (basic, intermediate, advanced, expert), and each one must
+tell models apart. Four keeps a full run short (44 tasks), at a price: with one attempt per task a section's result
+moves in quarters, so compare sections only on runs with `--repeat 3` or more. Where the server can write, at
+least one of the four changes something.
+
+- **The expert tier is headroom.** Once the strongest local models passed every basic, intermediate and advanced
+  task (Qwen, on Ollama and on Strata), the benchmark could no longer tell them from anything better. Each expert
+  task chains more steps, joins two sources (or two vendors), and sets more traps than the section's advanced
+  one. Small models are expected to fail it; it is re-checked, like every tier, when stronger models arrive.
 
 - **No obvious tasks.** A task that every model tried passes every time measures nothing. The exception is one
   cheap "floor" task per section, kept on purpose: it shows that a model can use the tool at all, in seconds
