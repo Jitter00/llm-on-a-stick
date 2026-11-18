@@ -20,7 +20,7 @@ from urllib.parse import urlparse
 
 import psutil
 
-from llm_on_a_stick import footprints
+from llm_on_a_stick import footprints, gpulink
 
 Status = Literal["ok", "warn", "fail"]
 Runner = Callable[[list[str], float], "subprocess.CompletedProcess[str]"]
@@ -123,6 +123,8 @@ class Report:
     budget: Budget
     capabilities: dict[str, bool]
     checks: list[Check]
+    # each PCIe GPU's link as it is now; idle links may read low (runs check them under load: gpulink.py)
+    gpu_links: list[gpulink.Link] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -374,6 +376,7 @@ def run_doctor(
     fetch: Fetcher = default_fetch,
     reserve_mb: int = 0,
     host: HostInfo | None = None,
+    sysfs: Path = gpulink.SYSFS,
 ) -> Report:
     host = host or probe_host()
     docker = probe_docker(run)
@@ -391,4 +394,5 @@ def run_doctor(
         budget=budget,
         capabilities=capabilities,
         checks=checks,
+        gpu_links=[link for a in gpulink.find_gpus(sysfs) if (link := gpulink.read(a, sysfs))],
     )

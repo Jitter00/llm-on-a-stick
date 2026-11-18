@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -152,3 +154,21 @@ def test_run_doctor_end_to_end_with_fakes() -> None:
     report = doctor.run_doctor(run=run, fetch=lambda u, t: None, host=host(ram_available_mb=64000))
     assert report.ok
     assert report.to_dict()["ok"] is True
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="a PCI address isn't a valid file name on Windows")
+def test_run_doctor_reads_the_gpu_links(tmp_path: Path) -> None:
+    card = tmp_path / "0000:01:00.0"
+    card.mkdir()
+    files = {"class": "0x030000", "current_link_speed": "2.5 GT/s PCIe", "max_link_speed": "16.0 GT/s PCIe"}
+    for name, text in (files | {"current_link_width": "16", "max_link_width": "16"}).items():
+        (card / name).write_text(text + "\n")
+    info = {"ServerVersion": "29.9.2", "OperatingSystem": "Ubuntu", "MemTotal": 32 * 1024**3, "NCPU": 8}
+    run = fake_run({"docker": (0, json.dumps(info), ""), "containerlab": (0, "0.82.0", "")})
+    report = doctor.run_doctor(
+        run=run, fetch=lambda u, t: None, host=host(ram_available_mb=64000), sysfs=tmp_path
+    )
+    (link,) = report.gpu_links
+    assert (link.address, link.gts, link.expected_gts) == ("0000:01:00.0", 2.5, 16.0)
+    assert report.ok  # an idle link reads low: it is information here, not a failed check
+    assert report.to_dict()["gpu_links"][0]["expected_width"] == 16

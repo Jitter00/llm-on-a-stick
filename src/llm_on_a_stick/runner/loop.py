@@ -26,7 +26,7 @@ from typing import Any
 import psutil
 import yaml
 
-from llm_on_a_stick import services
+from llm_on_a_stick import gpulink, services
 from llm_on_a_stick.grading import grade as grade_mod
 from llm_on_a_stick.grading import run as run_mod
 from llm_on_a_stick.grading import validate as validate_mod
@@ -179,6 +179,9 @@ class Metrics:
     sampling: dict[str, Any] = field(default_factory=dict)  # what was sent, e.g. {"temperature": 0.0}
     sampling_source: str = ""  # data/sampling.yaml: <entry> | default | --temperature
     limits: dict[str, Any] = field(default_factory=dict)
+    # The GPUs' PCIe links while the model worked (gpulink.py); None: not read (a cloud model, a server on
+    # another machine, no PCIe GPU, not Linux). `degraded`: no card reached the speed its link can do.
+    gpu_link: dict[str, Any] | None = None
 
 
 @cache
@@ -392,6 +395,8 @@ def run_task(
     tr = Transcript(info.run_dir / "transcript.jsonl")
     t0 = time.monotonic()
     final_text = ""
+    watch_link = spec.endpoint.local and gpulink.is_this_host(spec.base_url)
+    link = gpulink.Sampler() if watch_link else None
     with contextlib.ExitStack() as stack:
         if servers:
             try:
@@ -455,7 +460,8 @@ def run_task(
                 log(f"  [stopped: {m.error}]")
                 break
             try:
-                turn = session.step()
+                with link.busy() if link else contextlib.nullcontext():
+                    turn = session.step()
             except ModelError as exc:
                 m.stop_reason, m.error = "model_error", str(exc)
                 tr.write("model_error", error=str(exc))
@@ -527,6 +533,9 @@ def run_task(
                 )
                 continue
             session.add_results([_run_tool(c, tools, s, m, tr) for c in turn.tool_calls])
+    if link is not None:
+        link.close()
+        m.gpu_link = link.summary()
     m.wall_s = round(time.monotonic() - t0, 3)
     m.model_s, m.tools_s = round(m.model_s, 3), round(m.tools_s, 3)
     m.cost_usd = cost(spec.spec, spec.endpoint.local, m.tokens_in, m.tokens_out)

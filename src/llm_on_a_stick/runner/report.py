@@ -398,6 +398,8 @@ def _stats(mine: list[AttemptDetail]) -> dict[str, Any]:
         "mean_wall_s": round(mean(float(a.metrics.get("wall_s") or 0) for a in mine), 1),
         "total_wall_s": round(sum(float(a.metrics.get("wall_s") or 0) for a in mine), 1),
         "mean_turns": round(mean(int(a.metrics.get("turns") or 0) for a in mine), 1),
+        # Attempts made while the GPU's PCIe link ran below its speed: their times say nothing (gpulink.py).
+        "gpu_link_degraded": sum(bool((a.metrics.get("gpu_link") or {}).get("degraded")) for a in mine),
         # The judge model's view, apart from the code score: mean over the attempts it scored.
         "judge_score": _mean_or_none(scores),
         "judge_attempts": sum(s is not None for s in scores),
