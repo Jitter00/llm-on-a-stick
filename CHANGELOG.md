@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.30.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.29.1...v0.30.0) (2026-11-20)
+
+
+### Features
+
+* **tasks:** add the suzieq and batfish sections ([#82](https://github.com/Jitter00/llm-on-a-stick/issues/82)) ([4f48e93](https://github.com/Jitter00/llm-on-a-stick/commit/4f48e93cf313cdf5c2be006a6cc35e5896e5fed1))
+
 ## [0.29.1](https://github.com/Jitter00/llm-on-a-stick/compare/v0.29.0...v0.29.1) (2026-11-18)
 
 
