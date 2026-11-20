@@ -35,7 +35,7 @@ from llm_on_a_stick.services.spec import McpServer
 
 IMAGE = os.environ.get("STICK_MCP_IMAGE", "stick-mcp:dev")
 # The `stick.mcp.version` label of images/mcp/Dockerfile.
-MCP_IMAGE_VERSION = "5"
+MCP_IMAGE_VERSION = "7"
 
 # "<server>__<tool>": what the model calls. Both model APIs limit tool names to these characters and 64 long.
 SEPARATOR = "__"

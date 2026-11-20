@@ -1,0 +1,31 @@
+# Batfish for llm-on-a-stick: network configuration analysis. It reads configuration files (a "snapshot"),
+# builds a model of the network from them and answers questions about it: routes, BGP sessions, traceroutes,
+# what a change or a failure would do. It doesn't talk to the routers: the tasks' setup scripts dump the lab's
+# configurations into a snapshot and load it (sections/_lib/common.sh, bf_snapshot).
+# Start it with `stick svc up batfish`.
+name: ${STICK_NAME:-stick}-batfish
+
+services:
+  batfish:
+    # Batfish publishes `latest` and test builds only: this is `latest` of 2026-08-27 (Batfish 2026.08.27.3685).
+    image: docker.io/batfish/batfish@sha256:7909378197c5a3974f2e8180af58cef0ca17b74d1cd9ba39f2d1fddb64737e55
+    hostname: batfish
+    stop_grace_period: 2s
+    # Java takes 80% of the memory it sees for its heap: without a limit, that is 80% of the host's.
+    mem_limit: 1536m
+    ports:
+      - "127.0.0.1:${STICK_BATFISH_PORT:-8093}:9996"
+    networks:
+      default: {}
+      stick-mgmt:
+        ipv4_address: ${STICK_MGMT_PREFIX:-172.30.30}.115
+    volumes:
+      - batfish-data:/data  # networks and snapshots: what a reset empties
+
+networks:
+  stick-mgmt:
+    name: ${STICK_NAME:-stick}-mgmt
+    external: true
+
+volumes:
+  batfish-data:

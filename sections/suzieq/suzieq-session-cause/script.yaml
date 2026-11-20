@@ -1,0 +1,22 @@
+# The task's reference steps as MCP calls: stick run suzieq-session-cause --model script/<this file>
+# (A script can't tell which interface broke the session: it reads eth1's history, which holds the address
+# from before the change first; a model has to find that interface from the session that is down, and tell
+# the address while the session was up from the one in between.)
+steps:
+  - tool: suzieq__query_bgp_api_v2_bgp
+    args: {verb: assert, result: fail}
+    capture:
+      router: '"hostname":\s*"([^"]+)"'
+      peer: '"peer":\s*"([^"]+)"'
+  - tool: suzieq__query_interface_api_v2_interface
+    args: {verb: show, hostname: ["{{ captured.router }}"], ifname: [eth1], view: all}
+    capture:
+      old: '"ipAddressList":\s*\["([^"]+)"\]'
+  - tool: submit_answer
+    args:
+      answer:
+        router: "{{ captured.router }}"
+        peer: "{{ captured.peer }}"
+        interface: eth1
+        old_address: "{{ captured.old }}"
+        new_address: "{{ canaries.addr }}/31"

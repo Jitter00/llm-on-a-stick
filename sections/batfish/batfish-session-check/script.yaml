@@ -1,0 +1,22 @@
+# The task's reference steps as MCP calls: stick run batfish-session-check --model script/<this file>
+# (A script can't tell the causes apart: it reads the compatibility, the leaves' and the spines' neighbours and
+# the addresses, and submits what the lab's design says; a model has to read the causes and the fixes from
+# Batfish.)
+steps:
+  - tool: batfish__get_bgp_session_compatibility
+    args: {network: lab, snapshot: candidate, nodes: "/frr/"}
+  - tool: batfish__get_bgp_peer_configuration
+    args: {network: lab, snapshot: candidate}
+  - tool: batfish__get_ip_owners
+    args: {network: lab, snapshot: candidate}
+  - tool: submit_answer
+    args:
+      answer:
+        broken:
+          - {router: frr1, peer: 10.0.1.0, problem: local_address}
+          - {router: frr1, peer: 10.0.2.0, problem: local_as}
+          - {router: frr2, peer: "{{ canaries.peer }}", problem: peer_address}
+        fixes:
+          - {router: frr1, peer: 10.0.1.0, should_be: 10.0.1.1/31}
+          - {router: frr1, peer: 10.0.2.0, should_be: 65101}
+          - {router: frr2, peer: "{{ canaries.peer }}", should_be: 10.0.1.2}

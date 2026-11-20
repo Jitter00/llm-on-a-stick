@@ -1,0 +1,45 @@
+# SuzieQ for llm-on-a-stick: network observability that polls the routers over SSH and keeps what it reads.
+#   - the poller logs in to frr1 and frr2 from a fixed address on the lab's management network, every 15
+#     seconds, and writes each table (interfaces, routes, BGP, LLDP...) to the parquet store
+#   - the REST server answers queries over that store: current state, history and assertions
+# SuzieQ has no SR Linux support: srl1 and srl2 are not polled (they still show as frr1's and frr2's LLDP
+# neighbours). Start it with `stick svc up suzieq`; it needs the lab to have anything to show.
+name: ${STICK_NAME:-stick}-suzieq
+
+x-suzieq: &suzieq
+  image: docker.io/netenglabs/suzieq:0.25.0
+  stop_grace_period: 2s
+  volumes:
+    - ./suzieq-cfg.yml:/home/suzieq/suzieq-cfg.yml:ro
+    - suzieq-data:/home/suzieq/parquet  # the parquet store: what a reset empties
+
+services:
+  poller:
+    <<: *suzieq
+    hostname: sq-poller
+    entrypoint: [/home/suzieq/start-poller.sh]  # the image's own entrypoint is bash
+    environment:
+      STICK_MGMT_PREFIX: ${STICK_MGMT_PREFIX:-172.30.30}
+    networks:
+      default: {}
+      stick-mgmt:
+        ipv4_address: ${STICK_MGMT_PREFIX:-172.30.30}.114
+    volumes:
+      - ./suzieq-cfg.yml:/home/suzieq/suzieq-cfg.yml:ro
+      - ./start-poller.sh:/home/suzieq/start-poller.sh:ro
+      - suzieq-data:/home/suzieq/parquet
+
+  rest:
+    <<: *suzieq
+    hostname: sq-rest
+    entrypoint: [sq-rest-server, -c, /home/suzieq/suzieq-cfg.yml]
+    ports:
+      - "127.0.0.1:${STICK_SUZIEQ_PORT:-8092}:8000"
+
+networks:
+  stick-mgmt:
+    name: ${STICK_NAME:-stick}-mgmt
+    external: true
+
+volumes:
+  suzieq-data:

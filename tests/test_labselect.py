@@ -122,3 +122,21 @@ def test_the_powerdns_section_and_its_service_select_each_other() -> None:
     assert sel("sections/powerdns/powerdns-router-audit/oracle.sh") == Selection(
         sections={"powerdns"}, services={"powerdns"}
     )
+
+
+def test_the_suzieq_section_and_its_service_select_each_other() -> None:
+    s = sel("services/suzieq/start-poller.sh")
+    assert s == Selection(sections={"suzieq"}, services={"suzieq"}, core=False)
+    assert sel("tests/integration/test_suzieq.py") == s
+    assert sel("sections/suzieq/suzieq-lost-prefix/setup.sh") == Selection(
+        sections={"suzieq"}, services={"suzieq"}
+    )
+
+
+def test_the_batfish_section_and_its_service_select_each_other() -> None:
+    s = sel("services/batfish/compose.yaml")
+    assert s == Selection(sections={"batfish"}, services={"batfish"}, core=False)
+    assert sel("tests/integration/test_batfish.py") == s
+    assert sel("sections/batfish/batfish-change-review/setup.sh") == Selection(
+        sections={"batfish"}, services={"batfish"}
+    )

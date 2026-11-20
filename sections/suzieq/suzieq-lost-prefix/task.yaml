@@ -1,0 +1,59 @@
+id: suzieq-lost-prefix
+section: suzieq
+title: Find the route frr1 lost and where it came from, from SuzieQ's history
+tier: advanced
+tags: [tool:suzieq, vendor:frr, iface:mcp, skill:state-query, skill:history, skill:routing]
+prompt: |
+  SuzieQ polls the lab's two FRR routers, frr1 and frr2, and keeps what it reads, with its history: interfaces,
+  addresses, routes, BGP sessions, LLDP neighbours and more. You reach its REST API through an MCP server; its
+  namespace is "lab". The two SR Linux routers (srl1, srl2) are not polled.
+
+  In the last few minutes several /24 routes in frr1's routing table changed: some went away, some came back,
+  some are new. One network that frr1 had before is still missing now. Find which network it is, which router
+  it came from, and on which interface of that router the network was configured. Submit with submit_answer:
+    {"prefix": "<a.b.c.d/24>", "origin_router": "<frr1 or frr2>", "origin_interface": "<interface name>"}
+requires:
+  devices: [srl1, srl2, frr1, frr2]
+  services: [suzieq]
+tools:
+  mcp: [suzieq]
+reset_services: [suzieq]
+canaries:
+  lost: net24
+  flap: net24
+  gained: net24
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: json_file_matches
+    name: the answer names the network frr1 lost
+    params:
+      path: answer.json
+      expected: {prefix: "{{ canaries.lost }}.0/24"}
+    weight: 2
+  - type: json_file_matches
+    name: the answer names the router and interface it was configured on
+    params:
+      path: answer.json
+      expected: {origin_router: frr2, origin_interface: eth3}
+  - type: no_change_outside
+    name: no router was changed
+    params: {allowed: []}
+  - type: llm_judge
+    name: how it used the history
+    params:
+      artifact: transcript
+      rubric: |
+        Judge how the candidate went about the task, not whether the end result is right (code checks that).
+        5: asked SuzieQ for frr1's route changes (view "changes" or "all", or a time window) and told a route
+           that went away from one that appeared, then found where the network had been configured from the
+           history of the other router's addresses or routes (it is gone from the current state too).
+           It told the network that is still gone from the one that went away and came back.
+        3: got to an answer, but by reading long unfiltered histories, or took the origin from the route's
+           next hop or protocol alone without finding the interface in the data, or needed several failed
+           calls on the way.
+        1: guessed or invented the prefix, the router or the interface instead of reading them, or answered
+           with the route that appeared or the one that came back; or kept repeating calls that had already failed without changing
+           approach.
+        Use 2 and 4 for attempts in between.
+limits: {turns: 25}

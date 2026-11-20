@@ -1,0 +1,22 @@
+# The task's reference steps as MCP calls: stick run batfish-undefined-ref --model script/<this file>
+# (A script can't match a line to a route-map entry or pick a peer out of a table: it takes the route-map
+# from this run's name and the rest from the lab's design; a model has to find them from what Batfish says.)
+steps:
+  - tool: batfish__get_undefined_references
+    args: {network: lab, snapshot: current, nodes: frr2}
+    capture:
+      router: '"File_Name":\s*"configs\\/([^".]+)\.cfg"'
+      missing: '"Ref_Name":\s*"([^"]+)"'
+  - tool: batfish__get_defined_structures
+    args: {network: lab, snapshot: current, nodes: "{{ captured.router }}"}
+  - tool: batfish__get_bgp_peer_configuration
+    args: {network: lab, snapshot: current, nodes: "{{ captured.router }}"}
+  - tool: submit_answer
+    args:
+      answer:
+        router: "{{ captured.router }}"
+        route_map: "{{ canaries.rmap }}"
+        entry: 25
+        missing: "{{ captured.missing }}"
+        peer: 10.0.2.2
+        direction: out

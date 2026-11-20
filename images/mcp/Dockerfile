@@ -7,7 +7,7 @@ FROM python:3.13-slim-bookworm
 # Each server comes from a hash-pinned list: requirements/<server>.in names the server and its version,
 # requirements/<server>.txt is `uv pip compile --generate-hashes --universal --python-version 3.13` of it.
 COPY requirements /tmp/requirements
-RUN for server in netbox aws nautobot librenms zabbix grafana netmiko powerdns; do \
+RUN for server in netbox aws nautobot librenms zabbix grafana netmiko powerdns suzieq batfish; do \
         python -m venv "/opt/mcp/$server" \
         && "/opt/mcp/$server/bin/pip" install --no-cache-dir --require-hashes -r "/tmp/requirements/$server.txt" \
         || exit 1; \
@@ -41,7 +41,7 @@ COPY stick-mcp-entrypoint.sh /usr/local/bin/stick-mcp-entrypoint
 
 # Raise together with MCP_IMAGE_VERSION in src/llm_on_a_stick/runner/mcp.py when a server or its version
 # changes: `stick run` rebuilds an older stick-mcp:dev instead of running tasks against other tools.
-LABEL stick.mcp.version="5"
+LABEL stick.mcp.version="7"
 
 ENV PYTHONUNBUFFERED=1
 WORKDIR /root

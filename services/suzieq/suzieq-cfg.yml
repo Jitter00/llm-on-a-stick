@@ -1,0 +1,17 @@
+# SuzieQ's settings, the same file for the poller and the REST server.
+data-directory: /home/suzieq/parquet
+temp-directory: /tmp/
+# The poller's commands, adapted to the lab's FRR routers by start-poller.sh (see there).
+service-directory: /home/suzieq/services
+logging-level: WARNING
+
+rest:
+  API_KEY: stick-suzieq-key  # sent as the header (or query parameter) access_token
+  address: 0.0.0.0
+  port: 8000
+  no-https: true  # the lab is local; the image's self-signed certificate would only get in the way
+  logging-level: WARNING
+
+poller:
+  logging-level: WARNING
+  period: 15  # seconds between two polls of a router; a change shows in the REST answers within about that

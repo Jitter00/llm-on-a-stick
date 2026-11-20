@@ -1,0 +1,18 @@
+# The task's reference steps as MCP calls: stick run batfish-change-review --model script/<this file>
+# (A script can't take a comparison apart: it compares both leaves' routes and submits this run's networks;
+# a model has to read what is lost, gained and thinner from the comparison, and test the gains.)
+steps:
+  - tool: batfish__compare_routes
+    args: {network: lab, snapshot: candidate, reference_snapshot: current, nodes: "/frr/", protocols: bgp}
+  - tool: batfish__detect_loops
+    args: {network: lab, snapshot: candidate}
+  - tool: submit_answer
+    args:
+      answer:
+        request_met: false
+        frr2_loses: []
+        frr2_gains: ["{{ canaries.new }}.0/24", "{{ canaries.loop }}.0/24"]
+        frr2_loops: ["{{ canaries.loop }}.0/24"]
+        frr2_fewer_paths: ["{{ canaries.test }}.0/24", "{{ canaries.prod }}.0/24"]
+        frr1_loses: ["{{ canaries.far_single }}.0/24"]
+        frr1_fewer_paths: ["{{ canaries.far }}.0/24"]

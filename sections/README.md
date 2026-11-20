@@ -19,6 +19,8 @@ routers), with no shell, except in `terraform`.
 | `powerdns` | 4 | DNS zones in PowerDNS 5.1, through an MCP server made from its API description: every name that leads to an address, a second address for a name with its reverse record, the routers' records against the routers; reverse zones made to agree with the forward zones |
 | `telemetry` | 4 | Streaming telemetry (gNMI) from the SR Linux routers in Prometheus, through Grafana's MCP server: ports that are enabled but down, a port that kept going down and the BGP session it took with it, three reasons sessions dropped; the path and rate of a traffic burst |
 | `gitea` | 4 | A Git repository of router configurations in Gitea 28.3, through Gitea's MCP server: a setting on two branches, the commit that removed a BGP neighbour, a pull request for the file that drifted from its router; backporting one ticket to a release branch |
+| `suzieq` | 4 | The state and history SuzieQ 0.25 keeps of the FRR routers, through an MCP server made from its API description: a BGP session that is down (a wrong AS), where a host's network is attached and which spine leads to it, a route that disappeared among others that came back, and where it came from; the session still down among two drops, and the address change behind it, among other changes |
+| `batfish` | 4 | Batfish (offline analysis of the lab's configurations; the SR Linux spines as EOS stand-ins), through its own MCP server: a route-map that refers to an undefined list, the BGP sessions a proposed change would break and how to fix them, the networks a spine failure would cut off; a change reviewed against its intent |
 | `loki` | 4 | The routers' syslog in Loki, through Grafana's MCP server: failed logins for an account, a flapping link and the BGP session it takes down, the configuration change behind dropped sessions; a brute-force login and the change it made |
 
 ## Groupings
@@ -29,8 +31,8 @@ The wider areas the sections belong to, for orientation only (nothing in `task.y
 |---|---|
 | Lab management | *lab-mgmt* (containerlab, later CML) |
 | Configuration management | `cfg-mgmt`, `gitea` (GitOps) |
-| Source of truth and DDI | `netbox`, `nautobot`, `powerdns`, *kea* |
-| Validation and observability | `librenms`, `zabbix`, `loki`, `telemetry`, *batfish*, *suzieq*, *pyats* (Cisco/CML only) |
+| Source of truth and DDI | `netbox`, `nautobot`, `powerdns` |
+| Validation and observability | `librenms`, `zabbix`, `loki`, `telemetry`, `suzieq`, `batfish`, *pyats* (Cisco/CML only) |
 | Cloud | `aws`, `terraform` (no lab devices: `topology: none`) |
 | Troubleshooting | *troubleshooting*: injected faults, correlating events across tools |
 

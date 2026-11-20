@@ -1,0 +1,14 @@
+# The task's reference steps as MCP calls: stick run suzieq-bgp-down --model script/<this file>
+steps:
+  - tool: suzieq__query_bgp_api_v2_bgp
+    args: {verb: assert, result: fail}
+    capture:
+      router: '"hostname":\s*"([^"]+)"'
+      peer: '"peer":\s*"([^"]+)"'
+      asn: '"peerAsn":\s*(\d+)'
+  - tool: submit_answer
+    args:
+      answer:
+        router: "{{ captured.router }}"
+        peer: "{{ captured.peer }}"
+        peer_asn: "{{ captured.asn }}"

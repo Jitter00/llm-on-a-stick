@@ -5,19 +5,19 @@
 llm-on-a-stick is a free, open-source benchmark that tests how well AI models (LLMs) handle real network engineering
 work: reading configuration off routers from two vendors, keeping NetBox and Nautobot in sync with the network,
 fixing monitoring in LibreNMS and Zabbix, finding a root cause in the routers' logs or their streaming
-telemetry, reading a Git history and opening a pull request in Gitea, keeping DNS records in PowerDNS right, and working
-with AWS and Terraform. You run it on your own machine, against a small virtual network, and compare a local model (for
+telemetry, reading a Git history and opening a pull request in Gitea, keeping DNS records in PowerDNS right, tracing
+the network's state and history in SuzieQ, checking a change with Batfish before it is made, and working with AWS and Terraform. You run it on your own machine, against a small virtual network, and compare a local model (for
 example one running in Ollama) with a paid one. It tells you **why** a model fails (wrong CLI syntax, made-up API
 fields, changing things it shouldn't), not just a score.
 
 **The tests are MCP-first.** The model does the work the way AI agents increasingly reach network tools: through
-a published MCP server for each tool, not a shell. Ten of the eleven sections work this way, including the one on the
+a published MCP server for each tool, not a shell. Twelve of the thirteen sections work this way, including the one on the
 routers themselves. Only Terraform gives the model a shell. More in [MCP-first](#mcp-first).
 
-> **What works today:** the virtual lab; the `stick` command; ten tools around it (NetBox, Nautobot, LibreNMS,
-> Zabbix, Oxidized, Gitea, PowerDNS, Loki with the routers' syslog, Prometheus with their streaming telemetry, and an
+> **What works today:** the virtual lab; the `stick` command; twelve tools around it (NetBox, Nautobot, LibreNMS,
+> Zabbix, Oxidized, Gitea, PowerDNS, SuzieQ, Batfish, Loki with the routers' syslog, Prometheus with their streaming telemetry, and an
 > emulated AWS account for the AWS CLI and Terraform);
-> **44 tasks** in eleven sections (four each: basic, intermediate, advanced, expert; [the list](#the-tasks)),
+> **52 tasks** in thirteen sections (four each: basic, intermediate, advanced, expert; [the list](#the-tasks)),
 > from reading router configs right across two vendors to keeping NetBox in sync and fixing monitoring,
 > **MCP-first**: all but the Terraform ones go through MCP servers instead of a shell; the
 > **grader**, which checks every attempt and explains what went wrong; and the **runner**, which lets AI models
@@ -70,7 +70,8 @@ plus one for handing in its answer:
 | `cfg-mgmt` | an MCP server that logs in to the routers and runs one CLI command per call (`netmiko-mcp`) |
 | `netbox`, `nautobot`, `librenms`, `zabbix`, `gitea` | a published MCP server for that tool |
 | `loki`, `telemetry` | Grafana's MCP server, reading Loki and Prometheus |
-| `powerdns` | an MCP server made from PowerDNS's own API description (PowerDNS publishes none) |
+| `powerdns`, `suzieq` | an MCP server made from the tool's own API description (neither publishes one) |
+| `batfish` | Batfish's own MCP server (pybatfish), over snapshots of the lab's configurations |
 | `aws` | AWS's API MCP server, against the emulated account |
 | `terraform` | a shell: Terraform is a command and files in a directory |
 
@@ -86,7 +87,7 @@ Which servers, which versions and which of their tools:
 
 ## The tasks
 
-**44 tasks in eleven sections**, four per section: one basic, one intermediate, one advanced and one expert. The
+**52 tasks in thirteen sections**, four per section: one basic, one intermediate, one advanced and one expert. The
 expert tier is headroom for models that pass the other three; small models are expected to fail it. Run one section
 with `stick run --section <name>`, one task by its id, or everything with `--all`; `stick task list` prints them.
 
@@ -101,6 +102,8 @@ with `stick run --section <name>`, one task by its id, or everything with `--all
 | `telemetry` | Streaming telemetry (gNMI) in Prometheus | Count a router's ports that are enabled but have no link, from streaming telemetry in Prometheus (`telemetry-idle-ports`) | Find the port that kept going down and the BGP session it took with it, from streaming telemetry (`telemetry-port-flaps`) | Tell apart three reasons BGP sessions dropped, from the history in streaming telemetry (`telemetry-session-drops`) | Find the router and ports a traffic burst crossed, and its rate, from streaming telemetry (`telemetry-traffic-path`) |
 | `gitea` | A Git repository of router configurations in Gitea | Find the commit that removed a BGP neighbour (`gitea-blame-change`) | Read a setting on two branches of a Git repository (`gitea-file-at-ref`) | Open a pull request for the file that drifted from its router (`gitea-drift-pr`) | Backport one ticket's changes from main to a release branch as a pull request (`gitea-backport-pr`) |
 | `powerdns` | DNS zones and records in PowerDNS | Find every DNS name that leads to one address (`powerdns-who-points-here`) | Add a second address to a DNS name, with its reverse record (`powerdns-add-address`) | Make the routers' DNS records match the routers (`powerdns-router-audit`) | Make the reverse zones agree with every address in the forward zones (`powerdns-ptr-reconcile`) |
+| `suzieq` | Network state and history in SuzieQ (FRR routers) | Find the BGP session that is down (`suzieq-bgp-down`) | Find where a host's network is attached and which spine frr1 reaches it through (`suzieq-find-address`) | Find the route frr1 lost and where it came from, from the history (`suzieq-lost-prefix`) | Find which BGP session is still down and the change that caused it (`suzieq-session-cause`) |
+| `batfish` | Checking configurations and changes in Batfish (offline) | Find the route-map entry that refers to a list that doesn't exist, and where it is applied (`batfish-undefined-ref`) | Find which BGP sessions a proposed change would break, the cause of each and the fix (`batfish-session-check`) | Find which networks each leaf could no longer reach in three failures, by simulating them (`batfish-failure-impact`) | Review a proposed routing change against its intent, on both leaves (`batfish-change-review`) |
 | `aws` | An emulated AWS account | Find an EC2 instance's address, subnet and security group (`aws-query-instance`) | Delete a project's unused volumes, addresses and security groups (`aws-orphan-cleanup`) | Find and fix everything that keeps a web server unreachable (`aws-unreachable`) | Connect an application server to a database in another VPC, and nothing more (`aws-vpc-peering`) |
 | `terraform` | Terraform against the same account (the one section with a shell) | Report what a Terraform configuration change would do (`tf-plan-report`) | Repair a Terraform configuration that does not apply (`tf-debug`) | Reconcile Terraform with changes made by hand, adopting the approved ones and undoing the rest (`tf-drift`) | Move a live network into a module and from count to for_each, without touching the account (`tf-refactor`) |
 
@@ -135,7 +138,7 @@ tools such as NetBox and Oxidized, connected to the lab's management network lik
 | | |
 |---|---|
 | **Operating system** | Linux (Ubuntu, Debian, Fedora...) or Windows 11 with WSL2. On a Mac you can bring up the lab but not run models against it yet; the way round is a Linux virtual machine on the Mac (see [docs/platforms.md](docs/platforms.md)). |
-| **Memory (RAM)** | About 6 GB free for one section, about 11 GB to run every section at once (`--all`). The lab uses ~4 GB; each tool adds its own: NetBox ~1.5 GB, Nautobot ~1.3 GB, Zabbix ~1.3 GB, LibreNMS ~0.8 GB, Loki with Grafana ~0.4 GB, the emulated AWS account ~0.2 GB, gNMIc with Prometheus ~0.1 GB, Gitea ~0.1 GB, Oxidized ~50 MB, PowerDNS ~50 MB. A model running on the same machine needs its own memory on top. `stick doctor` shows what fits. |
+| **Memory (RAM)** | About 6 GB free for one section, about 11 GB to run every section at once (`--all`). The lab uses ~4 GB; each tool adds its own: NetBox ~1.5 GB, Nautobot ~1.3 GB, Zabbix ~1.3 GB, LibreNMS ~0.8 GB, Loki with Grafana ~0.4 GB, the emulated AWS account ~0.2 GB, gNMIc with Prometheus ~0.1 GB, Gitea ~0.1 GB, SuzieQ ~0.3 GB, Batfish ~0.7 GB, Oxidized ~50 MB, PowerDNS ~50 MB. A model running on the same machine needs its own memory on top. `stick doctor` shows what fits. |
 | **Disk** | About 10 GB free for the container images. |
 | **Internet** | For the first download of images and tools. |
 
@@ -469,6 +472,8 @@ with its own services (`clab-stick1-base-*`, 172.30.31.x, ports + 100):
 | Prometheus 3.16 (telemetry from gNMIc 0.49) | <http://127.0.0.1:8088> | `http://172.30.30.110:9090` | none |
 | Gitea 28.3 | <http://127.0.0.1:8089> | `http://172.30.30.112:3000` | `stick` / `stick-gitea-admin` |
 | PowerDNS 5.1 (API; DNS on port 8091) | <http://127.0.0.1:8090/api/v1/servers/localhost> | `http://172.30.30.113:8081`, DNS on port 53 | header `X-API-Key: stick-powerdns-key` |
+| SuzieQ 0.25 (REST API; polls frr1 and frr2) | <http://127.0.0.1:8092/api/docs> | poller at `172.30.30.114` | header `access_token: stick-suzieq-key` |
+| Batfish 2026.08 (API for pybatfish: `Session(host="127.0.0.1", port=8093)`) | <http://127.0.0.1:8093/v2/networks> | `http://172.30.30.115:9996` | none |
 
 | Command | What it does |
 |---|---|
@@ -498,7 +503,7 @@ The project checks itself with automated tests. There are two kinds.
 uv run pytest
 ```
 
-These check the code and configuration files. The last line should look like `376 passed, 158 deselected`
+These check the code and configuration files. The last line should look like `380 passed, 183 deselected`
 ("deselected" are the lab tests below, which are skipped by default).
 
 ### Lab tests (several minutes, more the first time)
@@ -512,7 +517,7 @@ stick image build frr     # only needed once, or after updating the code
 uv run pytest -m lab -v
 ```
 
-Each test prints `PASSED` or `FAILED` as it runs; the last line is the summary, for example `158 passed`. The first
+Each test prints `PASSED` or `FAILED` as it runs; the last line is the summary, for example `183 passed`. The first
 run takes longer because of image downloads and each tool's first start.
 
 To test just one area, name its file:
@@ -528,6 +533,8 @@ uv run pytest -m lab -v tests/integration/test_loki.py       # Loki (the routers
 uv run pytest -m lab -v tests/integration/test_telemetry.py  # gNMIc and Prometheus (streaming telemetry)
 uv run pytest -m lab -v tests/integration/test_gitea.py      # Gitea
 uv run pytest -m lab -v tests/integration/test_powerdns.py   # PowerDNS
+uv run pytest -m lab -v tests/integration/test_suzieq.py     # SuzieQ
+uv run pytest -m lab -v tests/integration/test_batfish.py    # Batfish
 uv run pytest -m lab -v tests/integration/test_moto.py       # the emulated AWS account
 uv run pytest -m lab -v tests/integration/test_grading_lab.py # the grader
 uv run pytest -m lab -v tests/integration/test_tasks_lab.py   # every task can be solved, and can't be faked (and, for MCP tasks, through their MCP servers)
@@ -583,7 +590,6 @@ model on my own machine and compare it to a frontier model".
 
 What is still to do:
 
-- **More tools**, each with its own tasks: DHCP (Kea), SuzieQ, Batfish.
 - **More task sections**: lab management and troubleshooting (faults put into the lab for the model to find).
 - **The judge model**: a set of human-graded examples to check it against, and tasks that ask for a written
   explanation.

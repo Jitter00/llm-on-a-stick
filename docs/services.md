@@ -33,7 +33,7 @@ uv run stick --instance 1 env down           # stop that instance; `stick env do
 | Lab and its containers | `stick-base`, `clab-stick-base-srl1` | `stickN-base`, `clab-stickN-base-srl1` |
 | Management network | `stick-mgmt`, 172.30.30.0/24 | `stickN-mgmt`, 172.30.(30+N).0/24, the same host numbers |
 | Compose projects and volumes | `stick-netbox`, ... | `stickN-netbox`, ... |
-| Ports on the host | 8081 to 8091, 8888 | each + 100 x N (NetBox of instance 1: 8181) |
+| Ports on the host | 8081 to 8093, 8888 | each + 100 x N (NetBox of instance 1: 8181) |
 
 - `--instance` goes before the command (`stick --instance 1 svc status`) and applies to every command.
   `stick grade` uses the instance recorded in the attempt's `run.json`.
@@ -84,7 +84,7 @@ errors in the body, so its health check posts a request (`health.post`) and look
 
 ## MCP servers
 
-Seven services also have an **MCP server**: what a model works through in the
+Eleven services also have an **MCP server**: what a model works through in the
 [tasks that work through MCP servers](tasks.md#how-the-model-reaches-the-tools), instead of a shell. They are
 the published servers, pinned, all in one image (`images/mcp`, built as `stick-mcp:dev`; one virtualenv each, from
 hash-pinned requirement files). `stick run` starts one container per server and attempt and talks to it over
@@ -98,6 +98,8 @@ stdio.
 | librenms | [librenms-mcp](https://github.com/mhajder/librenms-mcp) | 1.13.0 | 33 of 113 | yes | Hides SNMP communities in what it returns |
 | zabbix | [zabbix-mcp](https://github.com/mhajder/zabbix-mcp) | 0.8.0 | 16 of 53 | yes | Supports Zabbix up to 7.4: it only talks to 8.0 with `ZABBIX_SKIP_VERSION_CHECK`, and the calls the tasks use work |
 | powerdns | [awslabs.openapi-mcp-server](https://github.com/awslabs/mcp/tree/main/src/openapi-mcp-server) | 1.1.7 | 6 of 43 | yes | PowerDNS publishes no MCP server: this one makes a tool of every operation in an OpenAPI description, here PowerDNS's own (`images/mcp/powerdns-api.yaml`, an unchanged copy of what the server gives at `/api/docs`). Tool names are the API's operation ids (`listZone`, `patchZone`), every call takes `server_id` (`localhost`), and a change answers with an empty text. Not shown: `createZone` (11,000 characters by itself), metadata, DNSSEC and TSIG keys, autoprimaries, views, networks, statistics, the cache |
+| suzieq | [awslabs.openapi-mcp-server](https://github.com/awslabs/mcp/tree/main/src/openapi-mcp-server) | 1.1.7 | 10 of 26 | no (SuzieQ's API only reads) | SuzieQ publishes no MCP server: the same generic server as for PowerDNS, here fetching SuzieQ's description from the running server (`/api/openapi.json`, which needs no key). One tool per table, named after the API's operation ids (`query_bgp_api_v2_bgp`); the verb (`show`, `summarize`, `unique`, `assert`) and the filters are parameters. The key goes in the `access_token` header: as a query parameter the server doesn't send it. Not shown: OSPF, EVPN, MLAG, VLANs, MACs, file systems, device configurations, the poller's status, the inventory, the v1 API |
+| batfish | [pybatfish MCP server](https://github.com/batfish/pybatfish/tree/master/pybatfish/mcp) | 2026.9.17.3748 | 21 of 36 | no (Batfish analyses snapshots; a fork for a what-if is the one thing it makes) | The Batfish project's own server, marked beta (tool names may change: pinned). Every tool takes the network and snapshot names; answers are pandas tables as JSON. Batfish's address comes from a sessions file the entrypoint writes (`BATFISH_HOST` alone can't name a port). It loads snapshots only from paths it can read, and its container has none: the setup scripts load them. Not shown: sessions, networks, loading and deleting snapshots, EVPN, the ACL and filter tools (FRR configurations have no ACLs Batfish models), the generic question runner |
 | loki | [mcp-grafana](https://github.com/grafana/mcp-grafana) | 2.2.0 | 6 of 63 | no (started with `--disable-write`) | Grafana's own server; it reads Loki through Grafana's datasource, so a query names the datasource (`loki`). 10 lines per query unless asked for more, 100 at most; timestamps in nanoseconds. Not shown: dashboards, alerting, incidents, Prometheus, and `grafana_api_request` |
 | gitea | [gitea-mcp](https://gitea.com/gitea/gitea-mcp) | 1.13.0 | 12 of 48 | yes | Gitea's own server, a Go program: the image takes its release archive, checked against the release's checksum. It logs in with the same Basic header as the tasks' scripts (`GITEA_EXTRA_HEADERS`), since Gitea's command line can't create a token with a known value. `get_file_contents` returns base64 unless asked for numbered lines (`with_lines`). Not shown: issues, labels, milestones, releases, tags, wikis, Actions, packages, projects, notifications, time tracking |
 | telemetry | [mcp-grafana](https://github.com/grafana/mcp-grafana) | 2.2.0 | 5 of 63 | no (started with `--disable-write`) | The same server, against the same Grafana (the one the `loki` service runs), shown its Prometheus tools instead of its Loki ones. `query_prometheus` needs `endTime` even for an instant query, and every answer carries a link to Grafana's Explore page |
@@ -431,6 +433,62 @@ An authoritative DNS server with an HTTP API, for the DNS tasks.
     - the generated server checks answers against the description and PowerDNS's search answers don't match
       it, so the server runs with `--no-validate-output`;
     - every change raises the zone's SOA serial, which is why `powerdns_unchanged` leaves SOA records out.
+
+## SuzieQ
+
+| | |
+|---|---|
+| Version | SuzieQ 0.25.0 (`netenglabs/suzieq:0.25.0`): a poller and a REST server, sharing one parquet store |
+| API (host) | `http://127.0.0.1:8092/api/v2` (`STICK_SUZIEQ_PORT`), header (or query parameter) `access_token: stick-suzieq-key`; the description at `/api/docs` |
+| Lab network | the poller at `172.30.30.114`; it logs in to frr1 and frr2 as `netops` / `netops` |
+| First boot | about 2 s; the first poll of both routers a few seconds later (every 15 s after that) |
+| Reset | about 2 s (`snapshot.kind: volumes`): both containers and the store are removed and made again; the history is gone |
+| RAM (measured) | ~300 MiB: poller ~190, REST server ~110 |
+
+- **Only FRR.** SuzieQ supports no SR Linux, so srl1 and srl2 are not in the inventory; they still show as
+  frr1's and frr2's LLDP neighbours. h1 and h2 have no SSH server.
+- **Three commands adapted.** SuzieQ polls a Linux router with `sudo vtysh`, `systemctl status lldpd` and
+  `hostnamectl`, which the Alpine FRR containers don't have; without them the bgp, device and lldp tables stay
+  empty (`Command Not Found` in the `sqPoller` table). `services/suzieq/start-poller.sh` gives the poller a copy of
+  SuzieQ's own command definitions with only those changed (the `service-directory` setting): `netops` runs
+  vtysh and lldpctl without sudo. The FRR image is unchanged.
+- **The inventory is written at start** from `STICK_MGMT_PREFIX`, so every lab instance polls its own routers.
+- **No time and no OSPF data**: there is no `timedatectl` in the containers, and the lab runs no OSPF.
+- Pitfalls:
+    - the image's entrypoint is `bash`: compose sets `entrypoint`, not `command`;
+    - the REST server answers 401 without the key, and the generated MCP server only sends it as a header;
+    - `columns` is a list: `?columns=hostname&columns=state`, not `hostname,state`;
+    - routes learnt over BGP arrive a poll after the sessions are up (`sq_ready` waits for both);
+    - `view=all` or `view=changes` with `start_time` gives the history; the default `latest` gives the present.
+
+## Batfish
+
+| | |
+|---|---|
+| Version | Batfish 2026.08.27.3685 (`batfish/batfish`, `latest` of 2026-08-27 pinned by digest: the project tags only `latest` and test builds); pybatfish 2026.9.17.3748 in the MCP image |
+| API (host) | `http://127.0.0.1:8093/v2` (`STICK_BATFISH_PORT`), for pybatfish: `Session(host="127.0.0.1", port=8093)`; no key (pybatfish sends a default one that isn't checked) |
+| Lab network | `172.30.30.115:9996` (Batfish doesn't talk to the routers) |
+| First boot | under 1 s |
+| Reset | about 1 s (`snapshot.kind: volumes`): the container and its networks and snapshots are removed and made again |
+| RAM (measured) | ~700 MiB after the section's questions; Java takes 80% of the memory it sees, so compose caps it at 1.5 GiB |
+
+- **Snapshots, not polling.** Batfish reads configuration files. `bf_snapshot <name>` (in
+  `sections/_lib/common.sh`) dumps frr1's and frr2's running configurations and loads them, with the spines,
+  into the network `lab`, using the pybatfish of the MCP image; `bf_py` runs pybatfish code (the oracles).
+- **FRR in the Cumulus layout.** Batfish has no plain-FRR format: each FRR router is one file with the hostname,
+  an interfaces section, a `ports.conf` marker and `frr.conf`. FRR's block-closing `exit` lines and
+  `use-underlays-nexthop-weight` are left out (Batfish reports them as unrecognised, nothing else). With that,
+  every file parses (`PASSED`) and the four sessions come up on both sides, as in the lab.
+- **The spines are stand-ins.** Batfish can't read SR Linux (Nokia support is SR OS only), so srl1 and srl2 are
+  Arista EOS configurations with the same interfaces, addresses, AS numbers and neighbours
+  (`sections/_lib/batfish/`). A task can't change the spines; change `configs/srl/` and these together.
+- Pitfalls:
+    - the routes question's `network` filter matches one prefix exactly: `198.19.0.0/16` doesn't return the /24s
+      inside it;
+    - wrong remote AS shows as `HALF_OPEN` in the session compatibility, a local address off the link as
+      `NO_LOCAL_IP`, and the spine's side of either as `HALF_OPEN` or `UNKNOWN_REMOTE`;
+    - undefined references give the file and line, not the structure that refers: the defined structures give each
+      route-map's lines.
 
 ## Oxidized
 

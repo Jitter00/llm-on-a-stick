@@ -1,0 +1,65 @@
+id: batfish-undefined-ref
+section: batfish
+title: Find the route-map entry that refers to a list that doesn't exist, and where it is applied, from Batfish
+tier: basic
+floor: true  # the section's cheap floor task: CI validates it on every shared-code change
+tags: [tool:batfish, vendor:frr, iface:mcp, skill:config-analysis]
+prompt: |
+  Batfish analyses network configurations without touching the devices. It has a snapshot of the lab's
+  configurations: network "lab", snapshot "current". In it are the leaves frr1 and frr2 (FRR) and the spines
+  srl1 and srl2 (SR Linux, which Batfish can't read: they are in the snapshot as Arista EOS configurations with
+  the same interfaces, addresses, AS numbers and BGP neighbours). You reach Batfish through an MCP server.
+
+  One entry of a route-map on one of the leaves matches on a prefix-list that isn't defined on that router.
+  Find it, and the BGP session the route-map is applied to. Submit with submit_answer:
+    {"router": "<the router>", "route_map": "<the route-map's name>",
+     "entry": <the sequence number of the entry that refers to the list>,
+     "missing": "<the undefined prefix-list's name>",
+     "peer": "<the address of the BGP neighbour the route-map is applied to>", "direction": "<in or out>"}
+requires:
+  devices: [srl1, srl2, frr1, frr2]
+  services: [batfish]
+tools:
+  mcp: [batfish]
+reset_services: [batfish]
+canaries:
+  rmap: hostname
+  plist: description
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: json_file_matches
+    name: the answer names the router and the undefined list
+    params:
+      path: answer.json
+      expected: {router: frr2, missing: "{{ canaries.plist }}"}
+  - type: json_file_matches
+    name: the answer names the route-map and the entry that refers to it
+    params:
+      path: answer.json
+      expected: {route_map: "{{ canaries.rmap }}", entry: 25}
+  - type: json_file_matches
+    name: the answer names the session the route-map is applied to, and the direction
+    params:
+      path: answer.json
+      expected: {peer: 10.0.2.2, direction: out}
+  - type: no_change_outside
+    name: no router was changed
+    params: {allowed: []}
+  - type: llm_judge
+    name: how it used Batfish
+    params:
+      artifact: transcript
+      rubric: |
+        Judge how the candidate went about the task, not whether the end result is right (code checks that).
+        5: asked Batfish for the undefined references, picked the prefix-list one (the other is an AS-path
+           list, on the other leaf), tied its line to the route-map entry with data it read (the defined
+           structures and their lines), and read the session and direction from the BGP peer configuration,
+           in a few calls.
+        3: got to an answer, but by reading everything Batfish has, or took the route-map, the entry or the
+           session from a guess (the same router has another route-map on the same neighbour, and the list
+           exists on the other leaf), or needed several failed calls.
+        1: guessed or invented the router, the route-map or the list instead of reading them; or kept repeating
+           calls that had already failed without changing approach.
+        Use 2 and 4 for attempts in between.
+limits: {turns: 12}

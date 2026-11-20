@@ -26,6 +26,8 @@ WITH_MCP = [
     "telemetry",
     "gitea",
     "powerdns",
+    "suzieq",
+    "batfish",
     "routers",
 ]
 

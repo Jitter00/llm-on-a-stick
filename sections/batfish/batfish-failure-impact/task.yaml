@@ -1,0 +1,90 @@
+id: batfish-failure-impact
+section: batfish
+title: Find which networks each leaf could no longer reach in three failures, by simulating them in Batfish
+tier: advanced
+tags: [tool:batfish, vendor:frr, iface:mcp, skill:config-analysis, skill:what-if, skill:routing]
+prompt: |
+  Batfish analyses network configurations without touching the devices. It has a snapshot of the lab's
+  configurations: network "lab", snapshot "current". In it are the leaves frr1 and frr2 (FRR) and the spines
+  srl1 and srl2 (SR Linux, which Batfish can't read: they are in the snapshot as Arista EOS configurations with
+  the same interfaces, addresses, AS numbers and BGP neighbours). You reach Batfish through an MCP server.
+
+  Both leaves have test networks on their loopbacks, all /24s in 198.19.0.0/16, each with the address .1 on
+  the loopback. Route-maps on the leaves' sessions to the spines decide which routes go where, and there are
+  static routes too. A leaf reaches a network when a packet it sends to the network's .1 address is delivered
+  to that address. Three maintenance windows are planned:
+    "srl1_down":  srl1 is powered off
+    "srl2_down":  srl2 is powered off
+    "links_cut":  both spines stay up, but two links are unplugged at the same time: frr1's link to srl1
+                  and frr2's link to srl2
+  For each window, find which of the other leaf's test networks each leaf reaches now and would not reach
+  during the window. Submit with submit_answer:
+    {"srl1_down": {"frr1_loses": ["<a.b.c.0/24 of frr2's>", ...], "frr2_loses": ["<a.b.c.0/24 of frr1's>", ...]},
+     "srl2_down": {"frr1_loses": [...], "frr2_loses": [...]},
+     "links_cut": {"frr1_loses": [...], "frr2_loses": [...]}}
+  (an empty list where a leaf would lose none)
+requires:
+  devices: [srl1, srl2, frr1, frr2]
+  services: [batfish]
+tools:
+  mcp: [batfish]
+reset_services: [batfish]
+canaries:
+  both: net24
+  only_srl2: net24
+  only_srl1: net24
+  never: net24
+  decoy: net24
+  back_srl2: net24
+  back_both: net24
+  back_hole: net24
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: json_file_matches
+    name: the answer names what each leaf would lose with srl1 down
+    params:
+      path: answer.json
+      expected:
+        srl1_down: {frr1_loses: [], frr2_loses: ["{{ canaries.only_srl1 }}.0/24", "{{ canaries.never }}.0/24"]}
+  - type: json_file_matches
+    name: the answer names what each leaf would lose with srl2 down
+    params:
+      path: answer.json
+      expected:
+        srl2_down: {frr1_loses: ["{{ canaries.back_srl2 }}.0/24"], frr2_loses: []}
+  - type: json_file_matches
+    name: the answer names what each leaf would lose with the two links cut
+    params:
+      path: answer.json
+      expected:
+        links_cut:
+          frr1_loses: ["{{ canaries.back_srl2 }}.0/24", "{{ canaries.back_both }}.0/24"]
+          frr2_loses:
+            - "{{ canaries.both }}.0/24"
+            - "{{ canaries.only_srl2 }}.0/24"
+            - "{{ canaries.only_srl1 }}.0/24"
+            - "{{ canaries.never }}.0/24"
+            - "{{ canaries.decoy }}.0/24"
+  - type: no_change_outside
+    name: no router was changed
+    params: {allowed: []}
+  - type: llm_judge
+    name: how it found the impact
+    params:
+      artifact: transcript
+      rubric: |
+        Judge how the candidate went about the task, not whether the end result is right (code checks that).
+        5: simulated each of the three failures (a fork of the snapshot with the spine, or the two
+           interfaces, deactivated) and tested delivery itself (a traceroute or reachability check to each
+           network's .1 address, today and in each fork), or read the routes with the longest match in mind:
+           it saw that a missing /24 route doesn't cut a network off while the /16 still leads there, that a
+           network with a /24 route can be unreachable today already (a more specific blackhole), and it
+           simulated the two cut links rather than adding up the two spine failures.
+        3: got to an answer, but from comparing /24 routes alone, or reasoned from the route-maps or from one
+           side's announcements instead of simulating, or skipped the simulation of the cut links, or needed
+           several failed calls on the way.
+        1: guessed or invented the networks instead of reading them; or kept repeating calls that had already
+           failed without changing approach.
+        Use 2 and 4 for attempts in between.
+limits: {turns: 40}

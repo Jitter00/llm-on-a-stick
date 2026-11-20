@@ -30,10 +30,9 @@ services:
   zabbix: {ram_mb: 1536, measured: true}  # 1.25 GiB with 4 hosts: mariadb 1140 (mostly cache) + web 53 + server 47
   oxidized: {ram_mb: 96, measured: true}     # 47 MiB idle, 4 devices
   moto: {ram_mb: 256, measured: true}        # 178 MiB after EC2, IAM and S3 use (one container, in memory)
-  batfish: {ram_mb: 2048, measured: false}
-  suzieq: {ram_mb: 512, measured: false}
+  batfish: {ram_mb: 1024, measured: true}  # 690 MiB after the section's questions (Java, capped at 1.5 GiB)
+  suzieq: {ram_mb: 384, measured: true}  # 300 MiB polling frr1 and frr2: poller 192 + REST server 110
   gitea: {ram_mb: 192, measured: true}  # 100 MiB idle, one container (SQLite inside)
   telemetry: {ram_mb: 128, measured: true}  # 77 MiB with 2 routers streaming: gnmic 40 + prometheus 37
   loki: {ram_mb: 448, measured: true}  # 358 MiB with 4 routers logging: grafana 267 + loki 47 + alloy 44
   powerdns: {ram_mb: 96, measured: true}  # 48 MiB idle, one container (SQLite inside)
-  kea: {ram_mb: 256, measured: false}

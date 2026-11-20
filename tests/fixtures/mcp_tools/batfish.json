@@ -1,0 +1,637 @@
+[
+ {
+  "name": "batfish__list_snapshots",
+  "description": "List all snapshots within a network.\n\n:param network: Name of the network.\n:param session: Named session to use (default: 'default').\n:return: JSON array of snapshot names.",
+  "parameters": {
+   "properties": {
+    "network": {
+     "type": "string"
+    },
+    "session": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "network"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "batfish__fork_snapshot",
+  "description": "Fork an existing snapshot, optionally deactivating or restoring nodes/interfaces.\n\nUse this to simulate failure scenarios (e.g. deactivate a node or link) or\nto restore previously deactivated elements.\n\n:param network: Name of the network containing the base snapshot.\n:param base_snapshot: Name of the snapshot to fork from.\n:param new_snapshot: Name for the new forked snapshot. Auto-generated if empty.\n:param deactivate_nodes: Comma-separated list of node names to deactivate.\n:param deactivate_interfaces: Comma-separated list of 'node[interface]' pairs to deactivate.\n:param restore_nodes: Comma-separated list of node names to restore.\n:param restore_interfaces: Comma-separated list of 'node[interface]' pairs to restore.\n:param overwrite: Whether to overwrite an existing snapshot with the same name.\n:param session: Named session to use (default: 'default').\n:return: JSON object with the forked snapshot name.",
+  "parameters": {
+   "properties": {
+    "network": {
+     "type": "string"
+    },
+    "base_snapshot": {
+     "type": "string"
+    },
+    "new_snapshot": {
+     "type": "string"
+    },
+    "deactivate_nodes": {
+     "type": "string"
+    },
+    "deactivate_interfaces": {
+     "type": "string"
+    },
+    "restore_nodes": {
+     "type": "string"
+    },
+    "restore_interfaces": {
+     "type": "string"
+    },
+    "overwrite": {
+     "type": "boolean"
+    },
+    "session": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "network",
+    "base_snapshot"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "batfish__get_parse_warnings",
+  "description": "Get warnings from parsing the snapshot configurations.\n\nReports lines that Batfish failed to recognize or features that are\nnot yet supported, helping identify configuration parsing gaps.\n\n:param network: Name of the network.\n:param snapshot: Name of the snapshot.\n:param aggregate_duplicates: Whether to aggregate duplicate warnings.\n:param session: Named session to use (default: 'default').\n:return: JSON array of parse warning rows.",
+  "parameters": {
+   "properties": {
+    "network": {
+     "type": "string"
+    },
+    "snapshot": {
+     "type": "string"
+    },
+    "aggregate_duplicates": {
+     "type": "boolean"
+    },
+    "session": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "network",
+    "snapshot"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "batfish__get_init_issues",
+  "description": "Get issues encountered when processing the snapshot.\n\nReports errors and issues found during snapshot initialization,\nincluding parse failures and vendor-independent model conversion errors.\n\n:param network: Name of the network.\n:param snapshot: Name of the snapshot.\n:param session: Named session to use (default: 'default').\n:return: JSON array of initialization issue rows.",
+  "parameters": {
+   "properties": {
+    "network": {
+     "type": "string"
+    },
+    "snapshot": {
+     "type": "string"
+    },
+    "session": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "network",
+    "snapshot"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "batfish__get_file_parse_status",
+  "description": "Get the parse status of each file in the snapshot.\n\nFor each configuration file, returns the host(s) produced and the\nparse status: pass, fail, or partially parsed.\n\n:param network: Name of the network.\n:param snapshot: Name of the snapshot.\n:param session: Named session to use (default: 'default').\n:return: JSON array of file parse status rows.",
+  "parameters": {
+   "properties": {
+    "network": {
+     "type": "string"
+    },
+    "snapshot": {
+     "type": "string"
+    },
+    "session": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "network",
+    "snapshot"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "batfish__run_traceroute",
+  "description": "Simulate a traceroute from a location to a destination IP address.\n\nReturns the forwarding path(s) a packet would take through the network,\nincluding all hops, interfaces, and any access-list hits.\n\n:param network: Name of the network.\n:param snapshot: Name of the snapshot.\n:param start_location: Source location specifier (e.g. node name, interface).\n:param dst_ips: Destination IP address or prefix (e.g. '10.0.0.1').\n:param src_ips: Source IP address or prefix (optional).\n:param applications: Application specifier, e.g. 'ssh', 'HTTP' (optional).\n:param ip_protocols: IP protocol(s) e.g. 'TCP' (optional).\n:param src_ports: Source port(s) e.g. '1024-65535' (optional).\n:param dst_ports: Destination port(s) e.g. '22' (optional).\n:param session: Named session to use (default: 'default').\n:return: JSON array of traceroute result rows.",
+  "parameters": {
+   "properties": {
+    "network": {
+     "type": "string"
+    },
+    "snapshot": {
+     "type": "string"
+    },
+    "start_location": {
+     "type": "string"
+    },
+    "dst_ips": {
+     "type": "string"
+    },
+    "src_ips": {
+     "type": "string"
+    },
+    "applications": {
+     "type": "string"
+    },
+    "ip_protocols": {
+     "type": "string"
+    },
+    "src_ports": {
+     "type": "string"
+    },
+    "dst_ports": {
+     "type": "string"
+    },
+    "session": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "network",
+    "snapshot",
+    "start_location",
+    "dst_ips"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "batfish__check_reachability",
+  "description": "Check reachability between network locations.\n\nDetermines which flows can successfully reach the destination, and which\nare dropped, denied, or otherwise blocked.\n\n:param network: Name of the network.\n:param snapshot: Name of the snapshot.\n:param src_locations: Source location specifier (optional).\n:param dst_ips: Destination IP address or prefix (optional).\n:param src_ips: Source IP address or prefix (optional).\n:param applications: Application specifier (optional).\n:param ip_protocols: IP protocol(s) (optional).\n:param src_ports: Source port(s) (optional).\n:param dst_ports: Destination port(s) (optional).\n:param actions: Disposition filter, e.g. 'DENIED_IN,DENIED_OUT,DROP' (optional).\n:param session: Named session to use (default: 'default').\n:return: JSON array of reachability result rows.",
+  "parameters": {
+   "properties": {
+    "network": {
+     "type": "string"
+    },
+    "snapshot": {
+     "type": "string"
+    },
+    "src_locations": {
+     "type": "string"
+    },
+    "dst_ips": {
+     "type": "string"
+    },
+    "src_ips": {
+     "type": "string"
+    },
+    "applications": {
+     "type": "string"
+    },
+    "ip_protocols": {
+     "type": "string"
+    },
+    "src_ports": {
+     "type": "string"
+    },
+    "dst_ports": {
+     "type": "string"
+    },
+    "actions": {
+     "type": "string"
+    },
+    "session": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "network",
+    "snapshot"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "batfish__get_routes",
+  "description": "Retrieve the routing table (RIB) from one or more devices.\n\nLegacy next-hop columns (Next_Hop_IP, Next_Hop_Interface)\nare omitted from the results; use the structured Next_Hop column instead.\n\n:param network: Name of the Batfish network.\n:param snapshot: Name of the snapshot.\n:param nodes: Node specifier to restrict results (optional).\n:param vrfs: VRF specifier to restrict results (optional).\n:param network_prefix: Prefix to filter routes by (optional).\n:param protocols: Routing protocol(s) to filter by, e.g. 'bgp,ospf' (optional).\n:param session: Named session to use (default: 'default').\n:return: JSON array of routing table rows.",
+  "parameters": {
+   "properties": {
+    "network": {
+     "type": "string"
+    },
+    "snapshot": {
+     "type": "string"
+    },
+    "nodes": {
+     "type": "string"
+    },
+    "vrfs": {
+     "type": "string"
+    },
+    "network_prefix": {
+     "type": "string"
+    },
+    "protocols": {
+     "type": "string"
+    },
+    "session": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "network",
+    "snapshot"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "batfish__compare_routes",
+  "description": "Compare routing tables between two snapshots to identify route changes.\n\nUseful for validating that a configuration change produces the expected\nrouting changes (and no unintended ones).\n\nLegacy next-hop columns (Next_Hop_IP, Next_Hop_Interface)\nare omitted from the results; use the structured Next_Hop column instead.\n\n:param network: Name of the Batfish network.\n:param snapshot: Name of the candidate (new) snapshot.\n:param reference_snapshot: Name of the reference (baseline) snapshot.\n:param nodes: Node specifier to restrict results (optional).\n:param vrfs: VRF specifier to restrict results (optional).\n:param network_prefix: Prefix to filter routes by (optional).\n:param protocols: Routing protocol(s) to filter by (optional).\n:param session: Named session to use (default: 'default').\n:return: JSON array showing route differences (added/removed routes).",
+  "parameters": {
+   "properties": {
+    "network": {
+     "type": "string"
+    },
+    "snapshot": {
+     "type": "string"
+    },
+    "reference_snapshot": {
+     "type": "string"
+    },
+    "nodes": {
+     "type": "string"
+    },
+    "vrfs": {
+     "type": "string"
+    },
+    "network_prefix": {
+     "type": "string"
+    },
+    "protocols": {
+     "type": "string"
+    },
+    "session": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "network",
+    "snapshot",
+    "reference_snapshot"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "batfish__get_bgp_rib",
+  "description": "Retrieve the BGP RIB (Routing Information Base) from devices.\n\nReturns BGP-learned routes, including both best and non-best paths.\nLegacy next-hop columns are omitted; use the structured Next_Hop\ncolumn instead.\n\n:param network: Name of the Batfish network.\n:param snapshot: Name of the snapshot.\n:param nodes: Node specifier to restrict results (optional).\n:param vrfs: VRF specifier to restrict results (optional).\n:param network_prefix: Prefix to filter routes by (optional).\n:param prefix_match_type: Prefix matching criterion: EXACT,\n    LONGEST_PREFIX_MATCH, LONGER_PREFIXES, or SHORTER_PREFIXES (optional).\n:param status: BGP route status specifier to filter by (optional).\n:param session: Named session to use (default: 'default').\n:return: JSON array of BGP RIB rows.",
+  "parameters": {
+   "properties": {
+    "network": {
+     "type": "string"
+    },
+    "snapshot": {
+     "type": "string"
+    },
+    "nodes": {
+     "type": "string"
+    },
+    "vrfs": {
+     "type": "string"
+    },
+    "network_prefix": {
+     "type": "string"
+    },
+    "prefix_match_type": {
+     "type": "string"
+    },
+    "status": {
+     "type": "string"
+    },
+    "session": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "network",
+    "snapshot"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "batfish__get_bgp_session_status",
+  "description": "Get the status of BGP sessions in a snapshot.\n\nReports which BGP sessions are established, incompatible, or missing.\n\n:param network: Name of the network.\n:param snapshot: Name of the snapshot.\n:param nodes: Node specifier for local BGP speakers (optional).\n:param remote_nodes: Node specifier for remote BGP speakers (optional).\n:param status: BGP session status specifier to filter by (optional).\n:param session: Named session to use (default: 'default').\n:return: JSON array of BGP session status rows.",
+  "parameters": {
+   "properties": {
+    "network": {
+     "type": "string"
+    },
+    "snapshot": {
+     "type": "string"
+    },
+    "nodes": {
+     "type": "string"
+    },
+    "remote_nodes": {
+     "type": "string"
+    },
+    "status": {
+     "type": "string"
+    },
+    "session": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "network",
+    "snapshot"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "batfish__get_bgp_session_compatibility",
+  "description": "Check BGP session compatibility between peers.\n\nReturns the full BGP session compatibility table for the snapshot.\nEach row represents a BGP session and includes its compatibility status\n(e.g., UNIQUE_MATCH, NO_MATCH, DYNAMIC_MATCH) along with details about\naddress families, authentication, and other parameters.  Use the\n*status* parameter to filter results to a specific compatibility status,\nsuch as ``NO_MATCH`` or ``NO_LOCAL_AS``, when you are interested in only\nmis-configured or incompatible sessions.\n\n:param network: Name of the network.\n:param snapshot: Name of the snapshot.\n:param nodes: Node specifier for local BGP speakers (optional).\n:param remote_nodes: Node specifier for remote BGP speakers (optional).\n:param status: BGP compatibility status specifier to filter by (optional).\n:param session: Named session to use (default: 'default').\n:return: JSON array of BGP compatibility rows.",
+  "parameters": {
+   "properties": {
+    "network": {
+     "type": "string"
+    },
+    "snapshot": {
+     "type": "string"
+    },
+    "nodes": {
+     "type": "string"
+    },
+    "remote_nodes": {
+     "type": "string"
+    },
+    "status": {
+     "type": "string"
+    },
+    "session": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "network",
+    "snapshot"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "batfish__get_bgp_peer_configuration",
+  "description": "Get configuration settings for BGP peerings.\n\nReports per-peer configuration settings for each configured BGP\npeering. For process-wide settings, use get_bgp_process_configuration.\n\n:param network: Name of the network.\n:param snapshot: Name of the snapshot.\n:param nodes: Node specifier to restrict results (optional).\n:param properties: Regex to filter properties to include (optional).\n:param session: Named session to use (default: 'default').\n:return: JSON array of BGP peer configuration rows.",
+  "parameters": {
+   "properties": {
+    "network": {
+     "type": "string"
+    },
+    "snapshot": {
+     "type": "string"
+    },
+    "nodes": {
+     "type": "string"
+    },
+    "properties": {
+     "type": "string"
+    },
+    "session": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "network",
+    "snapshot"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "batfish__get_bgp_process_configuration",
+  "description": "Get configuration settings of BGP processes.\n\nReports process-wide configuration settings for each BGP process\non each node and VRF. For per-peer settings, use\nget_bgp_peer_configuration.\n\n:param network: Name of the network.\n:param snapshot: Name of the snapshot.\n:param nodes: Node specifier to restrict results (optional).\n:param properties: Regex to filter properties to include (optional).\n:param session: Named session to use (default: 'default').\n:return: JSON array of BGP process configuration rows.",
+  "parameters": {
+   "properties": {
+    "network": {
+     "type": "string"
+    },
+    "snapshot": {
+     "type": "string"
+    },
+    "nodes": {
+     "type": "string"
+    },
+    "properties": {
+     "type": "string"
+    },
+    "session": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "network",
+    "snapshot"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "batfish__get_node_properties",
+  "description": "Retrieve configuration properties of network nodes (routers/switches).\n\n:param network: Name of the network.\n:param snapshot: Name of the snapshot.\n:param nodes: Node specifier to restrict results (optional).\n:param properties: Comma-separated list of property names to retrieve (optional).\n:param session: Named session to use (default: 'default').\n:return: JSON array of node property rows.",
+  "parameters": {
+   "properties": {
+    "network": {
+     "type": "string"
+    },
+    "snapshot": {
+     "type": "string"
+    },
+    "nodes": {
+     "type": "string"
+    },
+    "properties": {
+     "type": "string"
+    },
+    "session": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "network",
+    "snapshot"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "batfish__get_interface_properties",
+  "description": "Retrieve configuration properties of network interfaces.\n\n:param network: Name of the network.\n:param snapshot: Name of the snapshot.\n:param nodes: Node specifier to restrict results (optional).\n:param interfaces: Interface specifier to restrict results (optional).\n:param properties: Comma-separated list of property names to retrieve (optional).\n:param session: Named session to use (default: 'default').\n:return: JSON array of interface property rows.",
+  "parameters": {
+   "properties": {
+    "network": {
+     "type": "string"
+    },
+    "snapshot": {
+     "type": "string"
+    },
+    "nodes": {
+     "type": "string"
+    },
+    "interfaces": {
+     "type": "string"
+    },
+    "properties": {
+     "type": "string"
+    },
+    "session": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "network",
+    "snapshot"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "batfish__get_ip_owners",
+  "description": "Get the mapping of IP addresses to network interfaces.\n\n:param network: Name of the network.\n:param snapshot: Name of the snapshot.\n:param duplicates_only: If True, return only IPs assigned to multiple interfaces.\n:param session: Named session to use (default: 'default').\n:return: JSON array of IP ownership rows.",
+  "parameters": {
+   "properties": {
+    "network": {
+     "type": "string"
+    },
+    "snapshot": {
+     "type": "string"
+    },
+    "duplicates_only": {
+     "type": "boolean"
+    },
+    "session": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "network",
+    "snapshot"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "batfish__get_undefined_references",
+  "description": "Find undefined references in device configurations.\n\nReports references to named objects (e.g. ACLs, route-maps, prefix-lists)\nthat are used but never defined, which can indicate configuration errors.\n\n:param network: Name of the network.\n:param snapshot: Name of the snapshot.\n:param nodes: Node specifier to restrict results (optional).\n:param session: Named session to use (default: 'default').\n:return: JSON array of undefined reference rows.",
+  "parameters": {
+   "properties": {
+    "network": {
+     "type": "string"
+    },
+    "snapshot": {
+     "type": "string"
+    },
+    "nodes": {
+     "type": "string"
+    },
+    "session": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "network",
+    "snapshot"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "batfish__get_defined_structures",
+  "description": "List named structures defined in the network configurations.\n\nReturns structures (ACLs, route-maps, prefix-lists, etc.) along\nwith the files and line numbers where they are defined.\n\n:param network: Name of the network.\n:param snapshot: Name of the snapshot.\n:param nodes: Node specifier to restrict results (optional).\n:param names: Regex to filter structure names (optional).\n:param types: Regex to filter vendor-specific structure types (optional).\n:param filename: Include only structures defined in this file (optional).\n:param session: Named session to use (default: 'default').\n:return: JSON array of defined structure rows.",
+  "parameters": {
+   "properties": {
+    "network": {
+     "type": "string"
+    },
+    "snapshot": {
+     "type": "string"
+    },
+    "nodes": {
+     "type": "string"
+    },
+    "names": {
+     "type": "string"
+    },
+    "types": {
+     "type": "string"
+    },
+    "filename": {
+     "type": "string"
+    },
+    "session": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "network",
+    "snapshot"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "batfish__get_unused_structures",
+  "description": "Find structures that are defined but never referenced.\n\nReturns ACLs, route-maps, prefix-lists, and other named structures\nthat exist in the configuration but are not used, which may indicate\nincomplete configuration changes or template artifacts.\n\n:param network: Name of the network.\n:param snapshot: Name of the snapshot.\n:param nodes: Node specifier to restrict results (optional).\n:param session: Named session to use (default: 'default').\n:return: JSON array of unused structure rows.",
+  "parameters": {
+   "properties": {
+    "network": {
+     "type": "string"
+    },
+    "snapshot": {
+     "type": "string"
+    },
+    "nodes": {
+     "type": "string"
+    },
+    "session": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "network",
+    "snapshot"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "batfish__detect_loops",
+  "description": "Detect forwarding loops in the network snapshot.\n\nIdentifies any packet flows that would loop indefinitely through the\nnetwork without being delivered.\n\n:param network: Name of the network.\n:param snapshot: Name of the snapshot.\n:param session: Named session to use (default: 'default').\n:return: JSON array of forwarding loop rows (empty if no loops found).",
+  "parameters": {
+   "properties": {
+    "network": {
+     "type": "string"
+    },
+    "snapshot": {
+     "type": "string"
+    },
+    "session": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "network",
+    "snapshot"
+   ],
+   "type": "object"
+  }
+ }
+]
