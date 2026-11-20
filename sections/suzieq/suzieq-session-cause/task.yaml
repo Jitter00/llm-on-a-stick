@@ -1,0 +1,62 @@
+id: suzieq-session-cause
+section: suzieq
+title: Find which BGP session is still down and the change that caused it, from SuzieQ's history
+tier: expert
+tags: [tool:suzieq, vendor:frr, iface:mcp, skill:state-query, skill:history, skill:root-cause]
+prompt: |
+  SuzieQ polls the lab's two FRR routers, frr1 and frr2, and keeps what it reads, with its history: interfaces,
+  addresses, routes, BGP sessions, LLDP neighbours and more. You reach its REST API through an MCP server; its
+  namespace is "lab". The two SR Linux routers (srl1, srl2) are not polled; nothing was changed on them.
+
+  In the last few minutes there were several changes on the leaves, and BGP sessions went down. Find the
+  session that is still down and the change on frr1 or frr2 that caused it. Submit with submit_answer:
+    {"router": "<frr1 or frr2>", "peer": "<the neighbour's IPv4 address>",
+     "interface": "<the interface that was changed>",
+     "old_address": "<its address while the session was still up, a.b.c.d/len>",
+     "new_address": "<its address now, a.b.c.d/len>"}
+requires:
+  devices: [srl1, srl2, frr1, frr2]
+  services: [suzieq]
+tools:
+  mcp: [suzieq]
+reset_services: [suzieq]
+canaries:
+  interim: ipv4
+  addr: ipv4
+  decoy: net24
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: json_file_matches
+    name: the answer names the session that is still down
+    params:
+      path: answer.json
+      expected: {router: frr1, peer: 10.0.1.0}
+  - type: json_file_matches
+    name: the answer names the interface and its address before and after
+    params:
+      path: answer.json
+      expected: {interface: eth1, old_address: 10.0.1.1/31, new_address: "{{ canaries.addr }}/31"}
+    weight: 2
+  - type: no_change_outside
+    name: no router was changed
+    params: {allowed: []}
+  - type: llm_judge
+    name: how it found the cause
+    params:
+      artifact: transcript
+      rubric: |
+        Judge how the candidate went about the task, not whether the end result is right (code checks that).
+        5: read the BGP sessions' current state and their history, told the session that went down and came
+           back from the one that stays down, then found the cause in the history of the down session's router
+           (its interfaces or addresses), on the interface that faces the neighbour, with the address before
+           and after read from the data; it didn't take the address the interface had in between for the one
+           before, nor the router's other address change for the cause.
+        3: got to the right session and interface, but took the old address from the neighbour's address or a
+           guess at the /31 instead of the history, or read long unfiltered histories, or needed several failed
+           calls on the way.
+        1: picked the session that recovered, or the interface whose change broke nothing, guessed or
+           invented addresses or interfaces instead of reading
+           them; or kept repeating calls that had already failed without changing approach.
+        Use 2 and 4 for attempts in between.
+limits: {turns: 30}

@@ -21,6 +21,62 @@ frr_conf() {
 # Run a command as the `admin` user, exactly what an SSH session returns.
 frr_cli() { docker exec "$1" su -s /bin/sh admin -c "vtysh -c \"$2\""; }
 
+# --- Batfish ---------------------------------------------------------------
+# Batfish reads configuration files, not routers: a task's setup dumps the lab into a snapshot and loads it
+# into the network "lab", where the model finds it by name. pybatfish comes from the MCP image's own virtualenv.
+BATFISH_NETWORK=lab
+# bf_dump <dir>: write a snapshot of the lab as it is now. frr1 and frr2: their running configuration, in the
+# Cumulus layout that Batfish reads FRR in (hostname, interfaces file, ports.conf, frr.conf), without the
+# block-closing `exit` lines and the one BGP setting Batfish doesn't know (both are only parse warnings).
+# srl1 and srl2: their EOS stand-ins (sections/_lib/batfish), as Batfish can't read SR Linux.
+bf_dump() {
+    local dir=$1 node
+    mkdir -p "$dir/configs"
+    for node in frr1 frr2; do
+        local c="STICK_NODE_${node^^}"
+        {
+            echo "$node"
+            echo "# This file describes the network interfaces available on your system"
+            printf 'auto lo\niface lo inet loopback\n'
+            printf 'auto eth%s\niface eth%s\n' 1 1 2 2 3 3
+            echo "# ports.conf --"
+            docker exec "${!c}" vtysh -c "show running-config" | sed -n '/^frr version/,$p' |
+                grep -v -E '^ *exit$|use-underlays-nexthop-weight'
+        } > "$dir/configs/$node.cfg"
+    done
+    cp "$STICK_LIB/batfish/srl1.cfg" "$STICK_LIB/batfish/srl2.cfg" "$dir/configs/"
+}
+# bf_py: run Python (from stdin) with `bf`, a pybatfish Session on the network "lab"; e.g. an oracle's query.
+# Extra arguments are mounted read-only at /in/<name>: bf_py <dir>... <<'PY'
+bf_py() {
+    local mounts=() d
+    for d in "$@"; do mounts+=(-v "$(realpath "$d"):/in/$(basename "$d"):ro"); done
+    docker run --rm -i --network host "${mounts[@]}" --entrypoint /opt/mcp/batfish/bin/python \
+        "${STICK_MCP_IMAGE:-stick-mcp:dev}" -c "
+import sys, warnings, logging
+warnings.filterwarnings('ignore'); logging.disable(logging.WARNING)
+from pybatfish.client.session import Session
+bf = Session(host='127.0.0.1', port=${STICK_BATFISH_URL##*:})
+bf.set_network('$BATFISH_NETWORK')
+exec(sys.stdin.read())"
+}
+# bf_load <dir> <snapshot>: load a snapshot written by bf_dump (and changed, if the task does) under a name.
+bf_load() {
+    local dir=$1 name=$2
+    bf_py "$dir" <<PY >/dev/null
+bf.init_snapshot('/in/$(basename "$dir")', name='$name', overwrite=True)
+assert bf.q.fileParseStatus().answer().frame().Status.isin(['PASSED', 'PARTIALLY_UNRECOGNIZED']).all()
+PY
+}
+# bf_snapshot <snapshot>: dump the lab as it is now and load it.
+bf_snapshot() {
+    local dir
+    dir=$(mktemp -d)
+    bf_dump "$dir/$1"
+    bf_load "$dir/$1" "$1"
+    rm -rf "$dir"
+}
+
 # --- NETCONF ---------------------------------------------------------------
 # netconf_get_config <ip> [filter-xml-file]  -> prints the <rpc-reply> to <get-config> on running.
 # Uses the base:1.0 end-of-message framing; needs `ssh` and `sshpass` on the host.
@@ -465,4 +521,34 @@ pdns_delete() {
 # pdns_records <zone.> <name.> <TYPE>: the record set's enabled contents, one per line.
 pdns_records() {
     pdns_api GET "zones/$1?rrset_name=$2&rrset_type=$3" | jq -r '.rrsets[].records[] | select(.disabled | not) | .content'
+}
+
+# --- SuzieQ ----------------------------------------------------------------
+# $STICK_SUZIEQ_URL comes from `stick task start`; the API key is the one of services/suzieq/suzieq-cfg.yml.
+# sq_api <table> <verb> [filter=value]...   e.g. sq_api bgp show hostname=frr1   (a JSON array)
+sq_api() {
+    local table=$1 verb=$2; shift 2
+    local args=(-fsS -G -H "access_token: stick-suzieq-key")
+    for kv in "$@"; do args+=(--data-urlencode "$kv"); done
+    curl "${args[@]}" "$STICK_SUZIEQ_URL/api/v2/$table/$verb"
+}
+# Wait until a jq test on a SuzieQ answer is true (the poller reads each router every 15 seconds):
+# sq_wait '<jq test>' <table> <verb> [filter=value]...
+#   e.g. sq_wait 'map(select(.state == "Established")) | length == 4' bgp show
+sq_wait() {
+    local test=$1 out=""; shift
+    for _ in $(seq 1 90); do
+        out=$(sq_api "$@" 2>/dev/null || true)
+        [[ -n "$out" ]] && jq -e "$test" >/dev/null 2>&1 <<<"$out" && return 0
+        sleep 1
+    done
+    echo "sq_wait: '$test' never held for $*: $(cut -c1-600 <<<"$out")" >&2
+    return 1
+}
+# The starting point of a SuzieQ task: the store has been emptied, so wait until the poller has read both
+# routers with every BGP session up and their routes in. Changes before that would have no "before".
+sq_ready() {
+    sq_wait 'map(select(.status == "alive")) | length == 2' device show
+    sq_wait 'map(select(.state == "Established")) | length == 4' bgp show
+    sq_wait 'map(select(.prefix == "10.1.2.0/24")) | length == 1' route show hostname=frr1
 }

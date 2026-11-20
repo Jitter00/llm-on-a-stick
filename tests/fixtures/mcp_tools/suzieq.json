@@ -1,0 +1,1025 @@
+[
+ {
+  "name": "suzieq__query_address_api_v2_address",
+  "description": "Query Address\n\n\n**Path Parameters:**\n\n- **verb** (Required): No description.\n\n\n**Query Parameters:**\n\n- **format**: No description.\n\n- **hostname**: No description.\n\n- **start_time**: No description.\n\n- **end_time**: No description.\n\n- **view**: No description.\n\n- **namespace**: No description.\n\n- **columns**: No description.\n\n- **address**: No description.\n\n- **type**: No description.\n\n- **ifname**: No description.\n\n- **prefix**: No description.\n\n- **ipvers**: No description.\n\n- **what**: No description.\n\n- **vrf**: No description.\n\n- **query_str**: No description.\n\n- **count**: No description.\n\n- **reverse**: No description.\n\n\n**Responses:**\n\n- **200** (Success): Successful Response\n  - Content-Type: `application/json`",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "verb": {
+     "type": "string",
+     "enum": [
+      "show",
+      "summarize",
+      "unique",
+      "top"
+     ]
+    },
+    "format": {
+     "type": "string"
+    },
+    "hostname": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "start_time": {
+     "type": "string"
+    },
+    "end_time": {
+     "type": "string"
+    },
+    "view": {
+     "type": "string",
+     "enum": [
+      "latest",
+      "all",
+      "changes"
+     ]
+    },
+    "namespace": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "columns": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "address": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "type": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "ifname": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "prefix": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "ipvers": {
+     "type": "string"
+    },
+    "what": {
+     "type": "string"
+    },
+    "vrf": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "query_str": {
+     "type": "string"
+    },
+    "count": {
+     "type": "string"
+    },
+    "reverse": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "verb"
+   ]
+  }
+ },
+ {
+  "name": "suzieq__query_arpnd_api_v2_arpnd",
+  "description": "Query Arpnd\n\n\n**Path Parameters:**\n\n- **verb** (Required): No description.\n\n\n**Query Parameters:**\n\n- **format**: No description.\n\n- **hostname**: No description.\n\n- **start_time**: No description.\n\n- **end_time**: No description.\n\n- **view**: No description.\n\n- **namespace**: No description.\n\n- **columns**: No description.\n\n- **ipAddress**: No description.\n\n- **macaddr**: No description.\n\n- **prefix**: No description.\n\n- **oif**: No description.\n\n- **query_str**: No description.\n\n- **what**: No description.\n\n- **count**: No description.\n\n- **reverse**: No description.\n\n\n**Responses:**\n\n- **200** (Success): Successful Response\n  - Content-Type: `application/json`",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "verb": {
+     "type": "string",
+     "enum": [
+      "show",
+      "summarize",
+      "unique",
+      "top"
+     ]
+    },
+    "format": {
+     "type": "string"
+    },
+    "hostname": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "start_time": {
+     "type": "string"
+    },
+    "end_time": {
+     "type": "string"
+    },
+    "view": {
+     "type": "string",
+     "enum": [
+      "latest",
+      "all",
+      "changes"
+     ]
+    },
+    "namespace": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "columns": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "ipAddress": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "macaddr": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "prefix": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "oif": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "query_str": {
+     "type": "string"
+    },
+    "what": {
+     "type": "string"
+    },
+    "count": {
+     "type": "string"
+    },
+    "reverse": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "verb"
+   ]
+  }
+ },
+ {
+  "name": "suzieq__query_bgp_api_v2_bgp",
+  "description": "Query Bgp\n\n\n**Path Parameters:**\n\n- **verb** (Required): No description.\n\n\n**Query Parameters:**\n\n- **format**: No description.\n\n- **hostname**: No description.\n\n- **start_time**: No description.\n\n- **end_time**: No description.\n\n- **view**: No description.\n\n- **namespace**: No description.\n\n- **columns**: No description.\n\n- **peer**: No description.\n\n- **state**: No description.\n\n- **vrf**: No description.\n\n- **asn**: No description.\n\n- **result**: No description.\n\n- **afiSafi**: No description.\n\n- **query_str**: No description.\n\n- **what**: No description.\n\n- **count**: No description.\n\n- **reverse**: No description.\n\n\n**Responses:**\n\n- **200** (Success): Successful Response\n  - Content-Type: `application/json`",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "verb": {
+     "type": "string",
+     "enum": [
+      "assert",
+      "show",
+      "summarize",
+      "unique",
+      "top"
+     ]
+    },
+    "format": {
+     "type": "string"
+    },
+    "hostname": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "start_time": {
+     "type": "string"
+    },
+    "end_time": {
+     "type": "string"
+    },
+    "view": {
+     "type": "string",
+     "enum": [
+      "latest",
+      "all",
+      "changes"
+     ]
+    },
+    "namespace": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "columns": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "peer": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "state": {
+     "type": "string",
+     "enum": [
+      "Established",
+      "NotEstd",
+      "dynamic",
+      "!Established",
+      "!NotEstd",
+      "!dynamic"
+     ]
+    },
+    "vrf": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "asn": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "result": {
+     "type": "string",
+     "enum": [
+      "pass",
+      "fail",
+      "all"
+     ]
+    },
+    "afiSafi": {
+     "type": "string"
+    },
+    "query_str": {
+     "type": "string"
+    },
+    "what": {
+     "type": "string"
+    },
+    "count": {
+     "type": "string"
+    },
+    "reverse": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "verb"
+   ]
+  }
+ },
+ {
+  "name": "suzieq__query_device_api_v2_device",
+  "description": "Query Device\n\n\n**Path Parameters:**\n\n- **verb** (Required): No description.\n\n\n**Query Parameters:**\n\n- **format**: No description.\n\n- **hostname**: No description.\n\n- **start_time**: No description.\n\n- **end_time**: No description.\n\n- **view**: No description.\n\n- **namespace**: No description.\n\n- **columns**: No description.\n\n- **query_str**: No description.\n\n- **os**: No description.\n\n- **vendor**: No description.\n\n- **model**: No description.\n\n- **version**: No description.\n\n- **what**: No description.\n\n- **status**: No description.\n\n- **ignore_neverpoll**: No description.\n\n- **count**: No description.\n\n- **reverse**: No description.\n\n- **address**: No description.\n\n\n**Responses:**\n\n- **200** (Success): Successful Response\n  - Content-Type: `application/json`",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "verb": {
+     "type": "string",
+     "enum": [
+      "show",
+      "summarize",
+      "unique",
+      "top"
+     ]
+    },
+    "format": {
+     "type": "string"
+    },
+    "hostname": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "start_time": {
+     "type": "string"
+    },
+    "end_time": {
+     "type": "string"
+    },
+    "view": {
+     "type": "string",
+     "enum": [
+      "latest",
+      "all",
+      "changes"
+     ]
+    },
+    "namespace": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "columns": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "query_str": {
+     "type": "string"
+    },
+    "os": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "vendor": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "model": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "version": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "what": {
+     "type": "string"
+    },
+    "status": {
+     "items": {
+      "type": "string",
+      "enum": [
+       "alive",
+       "dead",
+       "neverpoll",
+       "!alive",
+       "!dead",
+       "!neverpoll"
+      ]
+     },
+     "type": "array"
+    },
+    "ignore_neverpoll": {
+     "type": "boolean"
+    },
+    "count": {
+     "type": "string"
+    },
+    "reverse": {
+     "type": "string"
+    },
+    "address": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    }
+   },
+   "required": [
+    "verb"
+   ]
+  }
+ },
+ {
+  "name": "suzieq__query_interface_api_v2_interface",
+  "description": "Query Interface\n\n\n**Path Parameters:**\n\n- **verb** (Required): No description.\n\n\n**Query Parameters:**\n\n- **format**: No description.\n\n- **hostname**: No description.\n\n- **start_time**: No description.\n\n- **end_time**: No description.\n\n- **view**: No description.\n\n- **namespace**: No description.\n\n- **columns**: No description.\n\n- **ifname**: No description.\n\n- **state**: No description.\n\n- **type**: No description.\n\n- **what**: No description.\n\n- **vrf**: No description.\n\n- **master**: No description.\n\n- **mtu**: No description.\n\n- **ifindex**: No description.\n\n- **value**: No description.\n\n- **result**: No description.\n\n- **ignore_missing_peer**: No description.\n\n- **vlan**: No description.\n\n- **portmode**: No description.\n\n- **macaddr**: No description.\n\n- **bond**: No description.\n\n- **query_str**: No description.\n\n- **count**: No description.\n\n- **reverse**: No description.\n\n\n**Responses:**\n\n- **200** (Success): Successful Response\n  - Content-Type: `application/json`",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "verb": {
+     "type": "string",
+     "enum": [
+      "assert",
+      "show",
+      "summarize",
+      "unique",
+      "top"
+     ]
+    },
+    "format": {
+     "type": "string"
+    },
+    "hostname": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "start_time": {
+     "type": "string"
+    },
+    "end_time": {
+     "type": "string"
+    },
+    "view": {
+     "type": "string",
+     "enum": [
+      "latest",
+      "all",
+      "changes"
+     ]
+    },
+    "namespace": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "columns": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "ifname": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "state": {
+     "type": "string",
+     "enum": [
+      "up",
+      "down",
+      "errDisabled",
+      "notConnected",
+      "!up",
+      "!down",
+      "!errDisabled",
+      "!notConnected"
+     ]
+    },
+    "type": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "what": {
+     "type": "string"
+    },
+    "vrf": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "master": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "mtu": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "ifindex": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "value": {
+     "items": {
+      "type": "integer"
+     },
+     "type": "array"
+    },
+    "result": {
+     "type": "string",
+     "enum": [
+      "pass",
+      "fail",
+      "all"
+     ]
+    },
+    "ignore_missing_peer": {
+     "type": "boolean"
+    },
+    "vlan": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "portmode": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "macaddr": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "bond": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "query_str": {
+     "type": "string"
+    },
+    "count": {
+     "type": "string"
+    },
+    "reverse": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "verb"
+   ]
+  }
+ },
+ {
+  "name": "suzieq__query_lldp_api_v2_lldp",
+  "description": "Query Lldp\n\n\n**Path Parameters:**\n\n- **verb** (Required): No description.\n\n\n**Query Parameters:**\n\n- **format**: No description.\n\n- **hostname**: No description.\n\n- **start_time**: No description.\n\n- **end_time**: No description.\n\n- **view**: No description.\n\n- **namespace**: No description.\n\n- **peerMacaddr**: No description.\n\n- **peerHostname**: No description.\n\n- **columns**: No description.\n\n- **ifname**: No description.\n\n- **use_bond**: No description.\n\n- **query_str**: No description.\n\n- **what**: No description.\n\n- **count**: No description.\n\n- **reverse**: No description.\n\n\n**Responses:**\n\n- **200** (Success): Successful Response\n  - Content-Type: `application/json`",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "verb": {
+     "type": "string",
+     "enum": [
+      "show",
+      "summarize",
+      "unique",
+      "top"
+     ]
+    },
+    "format": {
+     "type": "string"
+    },
+    "hostname": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "start_time": {
+     "type": "string"
+    },
+    "end_time": {
+     "type": "string"
+    },
+    "view": {
+     "type": "string",
+     "enum": [
+      "latest",
+      "all",
+      "changes"
+     ]
+    },
+    "namespace": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "peerMacaddr": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "peerHostname": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "columns": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "ifname": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "use_bond": {
+     "type": "string",
+     "enum": [
+      "True",
+      "False"
+     ]
+    },
+    "query_str": {
+     "type": "string"
+    },
+    "what": {
+     "type": "string"
+    },
+    "count": {
+     "type": "string"
+    },
+    "reverse": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "verb"
+   ]
+  }
+ },
+ {
+  "name": "suzieq__query_network_api_v2_network",
+  "description": "Query Network\n\n\n**Path Parameters:**\n\n- **verb** (Required): No description.\n\n\n**Query Parameters:**\n\n- **format**: No description.\n\n- **columns**: No description.\n\n- **namespace**: No description.\n\n- **hostname**: No description.\n\n- **start_time**: No description.\n\n- **end_time**: No description.\n\n- **view**: No description.\n\n- **address**: No description.\n\n- **vlan**: No description.\n\n- **vrf**: No description.\n\n- **query_str**: No description.\n\n\n**Responses:**\n\n- **200** (Success): Successful Response\n  - Content-Type: `application/json`",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "verb": {
+     "type": "string",
+     "enum": [
+      "find"
+     ]
+    },
+    "format": {
+     "type": "string"
+    },
+    "columns": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "namespace": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "hostname": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "start_time": {
+     "type": "string"
+    },
+    "end_time": {
+     "type": "string"
+    },
+    "view": {
+     "type": "string",
+     "enum": [
+      "latest",
+      "all",
+      "changes"
+     ]
+    },
+    "address": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "vlan": {
+     "type": "string"
+    },
+    "vrf": {
+     "type": "string"
+    },
+    "query_str": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "verb"
+   ]
+  }
+ },
+ {
+  "name": "suzieq__query_path_api_v2_path",
+  "description": "Query Path\n\n\n**Path Parameters:**\n\n- **verb** (Required): No description.\n\n\n**Query Parameters:**\n\n- **format**: No description.\n\n- **hostname**: No description.\n\n- **start_time**: No description.\n\n- **end_time**: No description.\n\n- **view**: No description.\n\n- **namespace**: No description.\n\n- **columns**: No description.\n\n- **vrf**: No description.\n\n- **dest**: No description.\n\n- **src**: No description.\n\n- **query_str**: No description.\n\n- **what**: No description.\n\n- **count**: No description.\n\n- **reverse**: No description.\n\n\n**Responses:**\n\n- **200** (Success): Successful Response\n  - Content-Type: `application/json`",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "verb": {
+     "type": "string",
+     "enum": [
+      "show",
+      "summarize",
+      "unique",
+      "top"
+     ]
+    },
+    "format": {
+     "type": "string"
+    },
+    "hostname": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "start_time": {
+     "type": "string"
+    },
+    "end_time": {
+     "type": "string"
+    },
+    "view": {
+     "type": "string",
+     "enum": [
+      "latest",
+      "all",
+      "changes"
+     ]
+    },
+    "namespace": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "columns": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "vrf": {
+     "type": "string"
+    },
+    "dest": {
+     "type": "string"
+    },
+    "src": {
+     "type": "string"
+    },
+    "query_str": {
+     "type": "string"
+    },
+    "what": {
+     "type": "string"
+    },
+    "count": {
+     "type": "string"
+    },
+    "reverse": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "verb"
+   ]
+  }
+ },
+ {
+  "name": "suzieq__query_route_api_v2_route",
+  "description": "Query Route\n\n\n**Path Parameters:**\n\n- **verb** (Required): No description.\n\n\n**Query Parameters:**\n\n- **format**: No description.\n\n- **hostname**: No description.\n\n- **start_time**: No description.\n\n- **end_time**: No description.\n\n- **view**: No description.\n\n- **namespace**: No description.\n\n- **columns**: No description.\n\n- **prefix**: No description.\n\n- **vrf**: No description.\n\n- **protocol**: No description.\n\n- **prefixlen**: No description.\n\n- **ipvers**: No description.\n\n- **add_filter**: No description.\n\n- **address**: No description.\n\n- **query_str**: No description.\n\n- **what**: No description.\n\n- **count**: No description.\n\n- **reverse**: No description.\n\n\n**Responses:**\n\n- **200** (Success): Successful Response\n  - Content-Type: `application/json`",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "verb": {
+     "type": "string",
+     "enum": [
+      "show",
+      "summarize",
+      "unique",
+      "lpm",
+      "top"
+     ]
+    },
+    "format": {
+     "type": "string"
+    },
+    "hostname": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "start_time": {
+     "type": "string"
+    },
+    "end_time": {
+     "type": "string"
+    },
+    "view": {
+     "type": "string",
+     "enum": [
+      "latest",
+      "all",
+      "changes"
+     ]
+    },
+    "namespace": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "columns": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "prefix": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "vrf": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "protocol": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "prefixlen": {
+     "type": "string"
+    },
+    "ipvers": {
+     "type": "string"
+    },
+    "add_filter": {
+     "type": "string"
+    },
+    "address": {
+     "type": "string"
+    },
+    "query_str": {
+     "type": "string"
+    },
+    "what": {
+     "type": "string"
+    },
+    "count": {
+     "type": "string"
+    },
+    "reverse": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "verb"
+   ]
+  }
+ },
+ {
+  "name": "suzieq__query_topology_api_v2_topology",
+  "description": "Query Topology\n\n\n**Path Parameters:**\n\n- **verb** (Required): No description.\n\n\n**Query Parameters:**\n\n- **format**: No description.\n\n- **hostname**: No description.\n\n- **start_time**: No description.\n\n- **end_time**: No description.\n\n- **view**: No description.\n\n- **namespace**: No description.\n\n- **columns**: No description.\n\n- **polled**: No description.\n\n- **via**: No description.\n\n- **ifname**: No description.\n\n- **peerHostname**: No description.\n\n- **asn**: No description.\n\n- **area**: No description.\n\n- **vrf**: No description.\n\n- **afiSafi**: No description.\n\n- **query_str**: No description.\n\n- **what**: No description.\n\n- **count**: No description.\n\n- **reverse**: No description.\n\n\n**Responses:**\n\n- **200** (Success): Successful Response\n  - Content-Type: `application/json`",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "verb": {
+     "type": "string",
+     "enum": [
+      "show",
+      "summarize",
+      "unique",
+      "top"
+     ]
+    },
+    "format": {
+     "type": "string"
+    },
+    "hostname": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "start_time": {
+     "type": "string"
+    },
+    "end_time": {
+     "type": "string"
+    },
+    "view": {
+     "type": "string",
+     "enum": [
+      "latest",
+      "all",
+      "changes"
+     ]
+    },
+    "namespace": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "columns": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "polled": {
+     "type": "string"
+    },
+    "via": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "ifname": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "peerHostname": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "asn": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "area": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "vrf": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "afiSafi": {
+     "type": "string"
+    },
+    "query_str": {
+     "type": "string"
+    },
+    "what": {
+     "type": "string"
+    },
+    "count": {
+     "type": "string"
+    },
+    "reverse": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "verb"
+   ]
+  }
+ }
+]

@@ -1,0 +1,78 @@
+id: batfish-session-check
+section: batfish
+title: Find which BGP sessions a proposed change would break, the cause of each and the fix, from Batfish
+tier: intermediate
+tags: [tool:batfish, vendor:frr, iface:mcp, skill:config-analysis, skill:change-validation]
+prompt: |
+  Batfish analyses network configurations without touching the devices. It has two snapshots of the lab's
+  configurations in the network "lab": "current" (what runs now) and "candidate" (a proposed change to frr1 and frr2).
+  In them are the leaves frr1 and frr2 (FRR) and the spines srl1 and srl2 (SR Linux, which Batfish can't read:
+  they are in the snapshots as Arista EOS configurations with the same interfaces, addresses, AS numbers and
+  BGP neighbours). The spines are the same in both snapshots. You reach Batfish through an MCP server.
+
+  Find which BGP sessions of frr1 and frr2 would not come up with the candidate. The spines are right, so the
+  mistake is always in the leaf's configuration. For each broken session, name the cause:
+    "local_address": the leaf's own address on the link is wrong
+    "peer_address":  the neighbour address the leaf has configured is wrong
+    "local_as":      the AS the leaf presents to that neighbour is wrong
+    "remote_as":     the AS the leaf expects the neighbour to have is wrong
+  and what the candidate should have in place of the wrong value: an interface address (a.b.c.d/len), a
+  neighbour address (a.b.c.d) or an AS number. Submit with submit_answer:
+    {"broken": [{"router": "<frr1 or frr2>", "peer": "<the neighbour address as the candidate has it>",
+                 "problem": "<one of the four causes>"}, ...],
+     "fixes": [{"router": "<frr1 or frr2>", "peer": "<the same neighbour address>",
+                "should_be": "<the right value>"}, ...]}
+requires:
+  devices: [srl1, srl2, frr1, frr2]
+  services: [batfish]
+tools:
+  mcp: [batfish]
+reset_services: [batfish]
+canaries:
+  addr: ipv4
+  asn: asn
+  peer: ipv4
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: json_file_matches
+    name: the answer names the sessions that would break, and the cause of each
+    params:
+      path: answer.json
+      expected:
+        broken:
+          - {router: frr1, peer: 10.0.1.0, problem: local_address}
+          - {router: frr1, peer: 10.0.2.0, problem: local_as}
+          - {router: frr2, peer: "{{ canaries.peer }}", problem: peer_address}
+    weight: 2
+  - type: json_file_matches
+    name: the answer gives the right value for each
+    params:
+      path: answer.json
+      expected:
+        fixes:
+          - {router: frr1, peer: 10.0.1.0, should_be: 10.0.1.1/31}
+          - {router: frr1, peer: 10.0.2.0, should_be: 65101}
+          - {router: frr2, peer: "{{ canaries.peer }}", should_be: 10.0.1.2}
+  - type: no_change_outside
+    name: no router was changed
+    params: {allowed: []}
+  - type: llm_judge
+    name: how it checked the change
+    params:
+      artifact: transcript
+      rubric: |
+        Judge how the candidate went about the task, not whether the end result is right (code checks that).
+        5: asked Batfish for the candidate's BGP session compatibility (or status) on the leaves, and did not
+           take Batfish's status for the cause: it told a wrong own address from a wrong neighbour address
+           (both show as a session without a local address) and a wrong presented AS from a wrong expected AS
+           (both show as half open) by reading both sides (the leaf's peer and interface settings, and the
+           neighbour the spine has configured for the leaf), took each fix from the spine's side, and left
+           out the session that only has harmless changes, in a few calls.
+        3: got to an answer, but mapped Batfish's statuses straight to causes, or took the fixes from the
+           current snapshot alone or from a guess at the /31 without reading the spine's side, or read
+           everything Batfish has, or needed several failed calls.
+        1: guessed or invented the sessions, the causes or the fixes instead of reading them; or kept
+           repeating calls that had already failed without changing approach.
+        Use 2 and 4 for attempts in between.
+limits: {turns: 20}

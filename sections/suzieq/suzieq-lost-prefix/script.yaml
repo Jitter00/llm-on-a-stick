@@ -1,0 +1,17 @@
+# The task's reference steps as MCP calls: stick run suzieq-lost-prefix --model script/<this file>
+# (A script can't compare a history with the present: it knows the network; a model has to find the route that
+# left frr1's table, not the one that arrived.)
+steps:
+  - tool: suzieq__query_route_api_v2_route
+    args: {verb: show, hostname: [frr1], prefix: ["{{ canaries.lost }}.0/24"], view: all}
+  - tool: suzieq__query_address_api_v2_address
+    args: {verb: show, address: ["{{ canaries.lost }}.1"], view: all}
+    capture:
+      router: '"hostname":\s*"([^"]+)"'
+      ifname: '"ifname":\s*"([^"]+)"'
+  - tool: submit_answer
+    args:
+      answer:
+        prefix: "{{ canaries.lost }}.0/24"
+        origin_router: "{{ captured.router }}"
+        origin_interface: "{{ captured.ifname }}"

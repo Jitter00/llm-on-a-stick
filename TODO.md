@@ -35,10 +35,6 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
 - [x] **DNS (PowerDNS).** One container (SQLite), no zones until a task's setup creates them; a reset empties it. The
       model reaches it through an MCP server generated from PowerDNS's OpenAPI description. The `powerdns` section has
       three tasks, MCP only. Open: a task with a delegation or a wildcard; resolving names from the lab's hosts.
-- [ ] **DHCP (Kea).** Kea DHCP on the host subnets. No MCP server is known to work with it yet.
-      This means h1/h2 switch from static IPs to DHCP (a topology change, so update the integration tests).
-- [ ] **SuzieQ.** Poller against SR Linux and FRR; check which of the two it supports.
-- [ ] **Batfish.** Expected: no SR Linux support, partial FRR. Record the actual result. It becomes fully useful once cEOS or Junos are added.
 - [ ] **Compatibility spike leftovers.** SR Linux SSH CLI, NETCONF and gNMI, LLDP on both OSes
       (cells still ❓ in `docs/compatibility.md`).
 - [ ] **`stick env reset`.** Redeploy the lab and reset every running service, so a whole attempt starts from a known state.
@@ -65,7 +61,7 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
 ## Phase 2: tasks, user tests, variants, scheduler
 
 - [ ] **Four tasks per section (basic, intermediate, advanced, expert), none obvious, through the tool's MCP server**
-      (rules: docs/tasks.md, "Which tasks are kept"; pick the ones local models are likely to get wrong). New sections are per tool (powerdns, kea,
+      (rules: docs/tasks.md, "Which tasks are kept"; pick the ones local models are likely to get wrong). New sections are per tool (powerdns,
       ...); the groupings are in sections/README.md. Also `lab-mgmt` and `troubleshooting` (fault injection:
       MTU mismatch, wrong ASN, ACL blackhole).
 - [ ] **User-defined tasks.** `--tasks-dir` (local path or git URL); `stick task new` (scaffold); `stick task validate`
@@ -85,8 +81,6 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
       The network change affects Linux too, so every section needs re-testing.
 - [ ] CML backend (lab-per-sample via `virl2_client`; CML-Free 5-node limit; Cisco refplat images only inside CML).
 - [ ] BYO vendor images: Arista cEOS, Juniper vJunos/cRPD (vrnetlab), Cisco XRd/Cat8kv. Fetch/build scripts only, never redistributed.
-- [ ] NetClaw's MCP servers (Apache-2.0) as another tool layer (the sections
-      use each tool's own published server); NetClaw itself as an agent under test.
 - [ ] IETF draft-cui-nmrg-llm-benchmark task import.
 - [ ] Public leaderboard (local models broken out by hardware and quantisation).
 

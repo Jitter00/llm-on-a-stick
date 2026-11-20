@@ -1,0 +1,47 @@
+id: suzieq-bgp-down
+section: suzieq
+title: Find the BGP session that is down, from SuzieQ
+tier: basic
+floor: true  # the section's cheap floor task: CI validates it on every shared-code change
+tags: [tool:suzieq, vendor:frr, iface:mcp, skill:state-query]
+prompt: |
+  SuzieQ polls the lab's two FRR routers, frr1 and frr2, and keeps what it reads: interfaces, routes, BGP
+  sessions, LLDP neighbours and more. You reach its REST API through an MCP server; its namespace is "lab".
+  The two SR Linux routers (srl1, srl2) are not polled.
+
+  One of the BGP sessions of frr1 and frr2 is not up. Find it and submit with submit_answer:
+    {"router": "<frr1 or frr2>", "peer": "<the neighbour's IPv4 address>",
+     "peer_asn": <the neighbour's AS number, as that router has it configured>}
+requires:
+  devices: [srl1, srl2, frr1, frr2]
+  services: [suzieq]
+tools:
+  mcp: [suzieq]
+reset_services: [suzieq]
+canaries:
+  asn: asn
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: json_file_matches
+    name: the answer names the router, the neighbour and the AS configured for it
+    params:
+      path: answer.json
+      expected: {router: frr2, peer: 10.0.2.2, peer_asn: "{{ canaries.asn }}"}
+    weight: 2
+  - type: no_change_outside
+    name: no router was changed
+    params: {allowed: []}
+  - type: llm_judge
+    name: how it queried SuzieQ
+    params:
+      artifact: transcript
+      rubric: |
+        Judge how the candidate went about the task, not whether the end result is right (code checks that).
+        5: asked SuzieQ for the BGP sessions (show filtered on the state, or assert) and read the router, the
+           neighbour and its AS from the answer, in a few calls.
+        3: got to an answer, but by reading every table or with several failed calls on the way.
+        1: guessed or invented the router, the neighbour or the AS instead of reading them; or kept repeating
+           calls that had already failed without changing approach.
+        Use 2 and 4 for attempts in between.
+limits: {turns: 10}

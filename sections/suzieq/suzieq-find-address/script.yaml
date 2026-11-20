@@ -1,0 +1,24 @@
+# The task's reference steps as MCP calls: stick run suzieq-find-address --model script/<this file>
+# (A script can't map an interface to a neighbour by itself: it reads frr1's longest match, where that network
+# is connected and frr1's LLDP neighbour on the one outgoing interface; a model has to make those connections.)
+steps:
+  - tool: suzieq__query_route_api_v2_route
+    args: {verb: lpm, hostname: [frr1], address: "{{ canaries.net }}.57"}
+    capture:
+      prefix: '"prefix":\s*"([^"]+)"'
+      oif: '"oifs":\s*\["([^"]+)"\]'
+  - tool: suzieq__query_route_api_v2_route
+    args: {verb: show, prefix: ["{{ captured.prefix }}"], protocol: [kernel]}
+    capture:
+      router: '"hostname":\s*"([^"]+)"'
+      ifname: '"oifs":\s*\["([^"]+)"\]'
+  - tool: suzieq__query_lldp_api_v2_lldp
+    args: {verb: show, hostname: [frr1], ifname: ["{{ captured.oif }}"]}
+    capture:
+      spine: '"peerHostname":\s*"([^"]+)"'
+  - tool: submit_answer
+    args:
+      answer:
+        router: "{{ captured.router }}"
+        interface: "{{ captured.ifname }}"
+        frr1_via: ["{{ captured.spine }}"]

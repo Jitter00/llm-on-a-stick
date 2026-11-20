@@ -37,6 +37,8 @@ SERVICE_HOSTS = {
     "telemetry": 109,  # gNMIc, which subscribes to the SR Linux routers
     "gitea": 112,
     "powerdns": 113,
+    "suzieq": 114,  # the poller, which logs in to frr1 and frr2 over SSH
+    "batfish": 115,
 }
 # Further containers of a service that need the management network (LibreNMS's dispatcher polls from it;
 # Zabbix's server polls from the first address, its web frontend has the API).
@@ -60,6 +62,8 @@ PORTS = {
     "STICK_GITEA_PORT": 8089,
     "STICK_POWERDNS_PORT": 8090,
     "STICK_DNS_PORT": 8091,
+    "STICK_SUZIEQ_PORT": 8092,
+    "STICK_BATFISH_PORT": 8093,
     "STICK_OXIDIZED_PORT": 8888,
 }
 

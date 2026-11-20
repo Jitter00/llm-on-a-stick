@@ -1,0 +1,34 @@
+# The task's reference steps as MCP calls: stick run batfish-failure-impact --model script/<this file>
+# (A script can't take traces apart: it simulates the three failures, shows the two traceroutes that the /24
+# routes alone get wrong, and submits this run's networks; a model has to test every network in every window.)
+steps:
+  - tool: batfish__fork_snapshot
+    args: {network: lab, base_snapshot: current, new_snapshot: no-srl1, deactivate_nodes: srl1, overwrite: true}
+  - tool: batfish__fork_snapshot
+    args: {network: lab, base_snapshot: current, new_snapshot: no-srl2, deactivate_nodes: srl2, overwrite: true}
+  - tool: batfish__fork_snapshot
+    args:
+      network: lab
+      base_snapshot: current
+      new_snapshot: links-cut
+      deactivate_interfaces: "frr1[eth1],frr2[eth2]"
+      overwrite: true
+  - tool: batfish__run_traceroute
+    args: {network: lab, snapshot: no-srl2, start_location: frr2, dst_ips: "{{ canaries.only_srl2 }}.1"}
+  - tool: batfish__run_traceroute
+    args: {network: lab, snapshot: no-srl1, start_location: frr2, dst_ips: "{{ canaries.never }}.1"}
+  - tool: batfish__compare_routes
+    args: {network: lab, snapshot: links-cut, reference_snapshot: current, nodes: "/frr/"}
+  - tool: submit_answer
+    args:
+      answer:
+        srl1_down: {frr1_loses: [], frr2_loses: ["{{ canaries.only_srl1 }}.0/24", "{{ canaries.never }}.0/24"]}
+        srl2_down: {frr1_loses: ["{{ canaries.back_srl2 }}.0/24"], frr2_loses: []}
+        links_cut:
+          frr1_loses: ["{{ canaries.back_srl2 }}.0/24", "{{ canaries.back_both }}.0/24"]
+          frr2_loses:
+            - "{{ canaries.both }}.0/24"
+            - "{{ canaries.only_srl2 }}.0/24"
+            - "{{ canaries.only_srl1 }}.0/24"
+            - "{{ canaries.never }}.0/24"
+            - "{{ canaries.decoy }}.0/24"

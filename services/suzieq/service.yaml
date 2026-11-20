@@ -1,0 +1,58 @@
+# How `stick svc` drives SuzieQ. ${VAR:-default} is expanded from the environment, using the same variables
+# and defaults as compose.yaml. The poller reads frr1 and frr2 over SSH (SuzieQ doesn't support SR Linux).
+name: suzieq
+description: SuzieQ 0.25 network observability (polls frr1 and frr2 over SSH; REST API over current state and history)
+compose: compose.yaml
+project: ${STICK_NAME:-stick}-suzieq
+wait_timeout_s: 120
+
+# The REST server answering: the store may still be empty (the first poll takes about 15 seconds, and only
+# once the lab is up). Task setups wait for the data they need: sq_wait in sections/_lib/common.sh.
+health:
+  url: http://127.0.0.1:${STICK_SUZIEQ_PORT:-8092}/api/v2/device/show
+  headers:
+    access_token: stick-suzieq-key
+
+endpoints:
+  api (host): http://127.0.0.1:${STICK_SUZIEQ_PORT:-8092}/api/v2
+  api description (host): http://127.0.0.1:${STICK_SUZIEQ_PORT:-8092}/api/docs
+  poller (lab mgmt network): ${STICK_MGMT_PREFIX:-172.30.30}.114
+
+credentials:
+  api key (header or query parameter access_token): stick-suzieq-key
+  poller's SSH login to frr1 and frr2: netops / netops
+
+api:
+  base_url: http://127.0.0.1:${STICK_SUZIEQ_PORT:-8092}/api/v2/
+  headers:
+    access_token: stick-suzieq-key
+
+# The baseline is an empty store: reset removes both containers and the volume and starts them again (about
+# 3 seconds); the poller has the current state again after its first poll, the history is gone.
+snapshot:
+  kind: volumes
+  services: [poller, rest]
+  volumes: [suzieq-data]
+
+# SuzieQ publishes no MCP server. This one is awslabs.openapi-mcp-server, which makes a tool of every
+# operation in SuzieQ's own OpenAPI description (26: one per table, the verb is a parameter), fetched from the
+# running server. 10 are offered: the tables the lab's FRR routers fill, and the network-wide ones (path,
+# topology, network find). Not shown: OSPF, EVPN, MLAG, VLANs, MACs, file systems, the device configuration,
+# the poller's own status, the inventory, and the deprecated v1 API.
+mcp:
+  server: suzieq
+  version: 1.1.7
+  env:
+    SUZIEQ_API_URL: http://127.0.0.1:${STICK_SUZIEQ_PORT:-8092}
+    SUZIEQ_API_KEY: stick-suzieq-key
+  allow:
+    - query_device_api_v2_device
+    - query_interface_api_v2_interface
+    - query_address_api_v2_address
+    - query_route_api_v2_route
+    - query_bgp_api_v2_bgp
+    - query_lldp_api_v2_lldp
+    - query_arpnd_api_v2_arpnd
+    - query_path_api_v2_path
+    - query_topology_api_v2_topology
+    - query_network_api_v2_network

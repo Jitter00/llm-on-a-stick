@@ -1,0 +1,95 @@
+id: batfish-change-review
+section: batfish
+title: Review a proposed routing change against its intent, on both leaves, from Batfish
+tier: expert
+tags: [tool:batfish, vendor:frr, iface:mcp, skill:config-analysis, skill:change-validation, skill:routing]
+prompt: |
+  Batfish analyses network configurations without touching the devices. It has two snapshots of the lab's
+  configurations in the network "lab": "current" (what runs now) and "candidate" (a proposed change to frr1).
+  In them are the leaves frr1 and frr2 (FRR) and the spines srl1 and srl2 (SR Linux, which Batfish can't read:
+  they are in the snapshots as Arista EOS configurations with the same interfaces, addresses, AS numbers and
+  BGP neighbours). The spines are the same in both snapshots. You reach Batfish through an MCP server.
+
+  Both leaves have test networks in 198.19.0.0/16 on their loopbacks. The change request says: "Add the
+  network {{ canaries.new }}.0/24 on frr1's loopback, and stop announcing the test network
+  {{ canaries.test }}.0/24 to the spines, with a route-map, STICK-NO-TEST, outbound on frr1's sessions to both
+  spines. Nothing else changes for the rest of the network." Check what the candidate would really do: to
+  frr2's routes to frr1's networks, and to frr1's routes to frr2's networks. Submit with submit_answer:
+    {"request_met": <true if frr2 would have no route left to the test network, else false>,
+     "frr2_loses": ["<frr1's networks frr2 has a route to now and would have no route to>"],
+     "frr2_gains": ["<frr1's networks frr2 has no route to now and would have one>"],
+     "frr2_loops": ["<the networks in frr2_gains that packets from frr2 would never arrive at, because they loop>"],
+     "frr2_fewer_paths": ["<frr1's networks frr2 would still reach, but through fewer spines than now>"],
+     "frr1_loses": ["<frr2's networks frr1 has a route to now and would have no route to>"],
+     "frr1_fewer_paths": ["<frr2's networks frr1 would still reach, but through fewer spines than now>"]}
+  (networks as a.b.c.d/len; an empty list where there are none)
+requires:
+  devices: [srl1, srl2, frr1, frr2]
+  services: [batfish]
+tools:
+  mcp: [batfish]
+reset_services: [batfish]
+canaries:
+  test: net24
+  prod: net24
+  quarter: net24
+  new: net24
+  far: net24
+  far_single: net24
+  loop: net24
+setup: setup.sh
+oracle: oracle.sh
+checks:
+  - type: json_file_matches
+    name: the answer says the request isn't met (frr2 keeps a route to the test network)
+    params:
+      path: answer.json
+      expected: {request_met: false}
+  - type: json_file_matches
+    name: the answer names what frr2 would lose (nothing) and gain (the new network, and one nobody asked for)
+    params:
+      path: answer.json
+      expected: {frr2_loses: [], frr2_gains: ["{{ canaries.new }}.0/24", "{{ canaries.loop }}.0/24"]}
+    weight: 2
+  - type: json_file_matches
+    name: the answer names the gained network whose packets would loop
+    params:
+      path: answer.json
+      expected: {frr2_loops: ["{{ canaries.loop }}.0/24"]}
+    weight: 2
+  - type: json_file_matches
+    name: the answer names the networks frr2 would reach through one spine only
+    params:
+      path: answer.json
+      expected: {frr2_fewer_paths: ["{{ canaries.test }}.0/24", "{{ canaries.prod }}.0/24"]}
+  - type: json_file_matches
+    name: the answer names what frr1 would lose, and what it would reach through one spine only
+    params:
+      path: answer.json
+      expected:
+        frr1_loses: ["{{ canaries.far_single }}.0/24"]
+        frr1_fewer_paths: ["{{ canaries.far }}.0/24"]
+    weight: 2
+  - type: no_change_outside
+    name: no router was changed
+    params: {allowed: []}
+  - type: llm_judge
+    name: how it reviewed the change
+    params:
+      artifact: transcript
+      rubric: |
+        Judge how the candidate went about the task, not whether the end result is right (code checks that).
+        5: compared both leaves' routes between the candidate and the current snapshot, read every change
+           from the data rather than from the change request, told a route that is gone from a network that
+           only lost one of its two next hops, noticed that the test network is still announced through
+           srl2 and that frr1 itself loses routes, found the network that the request never mentions and
+           tested whether packets to the gained networks arrive (loop detection or a traceroute), and named
+           the causes (the route-map is inbound on the session to srl2, its prefix-list is broader than the
+           one network, and a static route on frr1 is redistributed and points back at a spine).
+        3: got to an answer, but took part of it from the change request instead of Batfish (e.g. listed the
+           test network as lost), or looked at frr2 only, or took a route for proof that packets arrive,
+           or read whole routing tables where a comparison would do, or needed several failed calls.
+        1: guessed or invented the networks instead of reading them; or kept repeating calls that had already
+           failed without changing approach.
+        Use 2 and 4 for attempts in between.
+limits: {turns: 40}

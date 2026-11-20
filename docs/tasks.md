@@ -26,7 +26,7 @@ Every attempt starts from the same state. The lab stays up between attempts, tas
    - FRR runs `frr-reload.py` against its startup config, `configs/frr/<node>/frr.conf`;
    - it takes about 2 s for the four routers, and the times are in the run's `restore.log`;
 2. the services the task lists under `reset_services` go back to their baseline (NetBox's seeded snapshot:
-   ~20 s, Nautobot's: ~25 s, LibreNMS's empty database: ~1 s, Zabbix's: ~10 s, Gitea's repository: ~6 s, Loki's empty store: ~5 s, Prometheus's: ~0.2 s, PowerDNS without zones: ~1 s, moto's
+   ~20 s, Nautobot's: ~25 s, LibreNMS's empty database: ~1 s, Zabbix's: ~10 s, Gitea's repository: ~6 s, Loki's empty store: ~5 s, Prometheus's: ~0.2 s, PowerDNS without zones: ~1 s, SuzieQ's empty store: ~2 s, Batfish without snapshots: ~1 s, moto's
    empty account: ~0.2 s), after the routers, so that Loki doesn't keep what the restore itself logged;
 3. the task's `setup.sh` plants this run's canaries (or a fault);
 4. the baseline is taken, for `no_change_outside`, `netbox_unchanged`, `nautobot_unchanged`, `librenms_unchanged`,
@@ -261,6 +261,50 @@ by reading the API back, and `powerdns_unchanged` fails attempts that add, chang
 record set the task didn't ask for. The answer of the read-only task goes through `submit_answer`; each task
 has a `script.yaml` with its reference solution as MCP calls.
 
+## suzieq: the network's state and history
+
+SuzieQ polls frr1 and frr2 over SSH every 15 seconds and keeps what it reads, with its history
+([Services](services.md#suzieq)); it doesn't support SR Linux, so srl1 and srl2 appear only as the leaves'
+LLDP neighbours. It publishes no MCP server, so the model works through one made from SuzieQ's own API
+description (10 tools, one per table: device, interface, address, route, bgp, lldp, arpnd, path, topology,
+network; the verb `show`, `summarize`, `unique` or `assert` and the filters are parameters). The model has
+**no shell and no router access**: everything it knows comes from what SuzieQ read.
+
+| Task | Tier | What the agent must do | What can go wrong (and is detected) |
+|---|---|---|---|
+| `suzieq-bgp-down` | basic | The one BGP session of the leaves that isn't up: router, neighbour, and the AS the router has configured for it | The AS differs every run and is not the neighbour's real one (65002): answering from the lab's design; the router's own AS; nothing on SR Linux is visible |
+| `suzieq-find-address` | intermediate | Where the network of a host is attached, and through which spine frr1 reaches it | The host is no router's address, so a search for it finds nothing: it takes a longest match; frr1 has the /24 around it on its loopback, less specific than the /26 on frr2's host-facing interface; the /26 is announced to one spine only, with every session up: assuming both spines; turning next hops into spine names without reading them |
+| `suzieq-lost-prefix` | advanced | The /24 frr1 lost in the last minutes, the router and the interface it was configured on | It is gone from the present state, on both routers: only the history has it; a second /24 went away at the same time and came back a poll later, and a third one arrived; a secondary address on a host-facing interface, not a loopback |
+| `suzieq-session-cause` | expert | The BGP session still down after two drops, and the change behind it: interface, address before and after | One session went down and came back, the other stays down; the router had another, harmless address change; the link's address changed twice, so the one in between isn't the one from before; the cause is in the history of the router's addresses, not in the session itself; the address before has to be read, not guessed from the /31 |
+
+Requirements: the lab and the `suzieq` service (about 0.3 GB). Every attempt starts from an empty store
+(`reset_services: [suzieq]`, about 2 s), and each setup first waits until SuzieQ has read both routers with every
+session up (`sq_ready`), so the history begins at the restored lab. Answers go through `submit_answer`; each
+task has a `script.yaml` with its reference solution as MCP calls.
+
+## batfish: checking configurations before they run
+
+Batfish reads configuration files and models the network from them, without touching the devices
+([Services](services.md#batfish)). Each setup changes the lab if the task needs it, then dumps the
+running configurations into a Batfish snapshot (`bf_snapshot` in `sections/_lib/common.sh`): frr1 and frr2 as
+they run, in the Cumulus layout Batfish reads FRR in, and srl1 and srl2 as Arista EOS stand-ins with the same
+addresses, AS numbers and BGP neighbours, because Batfish can't read SR Linux. A proposed change is made on the
+routers, dumped as a second snapshot ("candidate") and undone, so the lab keeps running what it ran. The model
+works through Batfish's own MCP server (21 of its tools: snapshots and forks for what-ifs, parse status, routes
+and their comparison, BGP sessions and configuration, traceroute and reachability, defined, undefined and unused
+structures) and has **no shell and no router access**.
+
+| Task | Tier | What the agent must do | What can go wrong (and is detected) |
+|---|---|---|---|
+| `batfish-undefined-ref` | basic | The route-map entry that matches on a prefix-list its router doesn't have: router, route-map, entry, list, and the BGP session and direction the route-map is applied to | Batfish names the list and a line, not the route-map: tying the line to its entry (the middle one of three); the list exists on the other leaf, which also has an undefined AS-path list; the same neighbour has another route-map inbound; names differ every run |
+| `batfish-session-check` | intermediate | Which leaf sessions a proposed change would break, the cause of each (own address, neighbour address, presented AS, expected AS) and the right value | Three broken sessions and one with harmless changes; Batfish gives the same status for a wrong own address and a wrong neighbour address, and for a wrong presented AS (local-as) and a wrong expected AS: mapping the status straight to a cause; the fix is read from the spine's side, not guessed |
+| `batfish-failure-impact` | advanced | For each of three failures (srl1 off, srl2 off, two links cut with both spines up), which of the other leaf's test networks each leaf could no longer reach (a packet to its .1 address is delivered) | The /24 routes alone mislead: frr1 also announces a /16, to srl1 only, so a network whose /24 is gone can still be reached and one with no /24 at all is reached today; a blackhole for a more specific /25 makes a network with a route unreachable already; route-maps on four sessions decide which spine carries each network; a prefix-list names a /24 as a /25 and as `ge 25`, which don't match it; the two cut links take more than the two spine failures added up |
+| `batfish-change-review` | expert | What a change to frr1 would really do to both leaves' routes, against what the change request says: lost, gained, looping, down to one spine, and whether the request is met | The route-map is inbound on one session instead of outbound, and its prefix-list is broader than the one test network: the test network is still announced through srl2, another /24 thins out with it, and frr1 itself loses one of frr2's networks; the candidate also has a redistributed static route the request never mentions, which frr2 gains and whose packets loop through all four routers: a route taken as proof of delivery; a route that lost one of two next hops read as a lost network |
+
+Requirements: the lab and the `batfish` service (about 0.7 GB). Every attempt starts from a Batfish without
+snapshots (`reset_services: [batfish]`, about 1 s). Answers go through `submit_answer`; each task has a
+`script.yaml` with its reference solution as MCP calls.
+
 ## loki: the routers' syslog
 
 The four routers send their syslog to Loki ([Services](services.md#loki)). The model has **no shell**: it
@@ -284,7 +328,7 @@ that needs an aggregate query, is an open item in `TODO.md`.
 Most models tested here run locally, where one attempt can take minutes, so every task has to earn its place.
 Each section (a tool such as `netbox`, or a group such as `cfg-mgmt`; the wider groupings are in
 `sections/README.md`) has **four tasks, one per tier** (basic, intermediate, advanced, expert), and each one must
-tell models apart. Four keeps a full run short (44 tasks), at a price: with one attempt per task a section's result
+tell models apart. Four keeps a full run short (52 tasks), at a price: with one attempt per task a section's result
 moves in quarters, so compare sections only on runs with `--repeat 3` or more. Where the server can write, at
 least one of the four changes something.
 

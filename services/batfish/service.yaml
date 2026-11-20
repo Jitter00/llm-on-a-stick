@@ -1,0 +1,59 @@
+# How `stick svc` drives Batfish. ${VAR:-default} is expanded from the environment, using the same variables
+# and defaults as compose.yaml.
+name: batfish
+description: Batfish 2026.08 network configuration analysis (snapshots of the lab's configurations; routes, BGP, traceroute, what-if)
+compose: compose.yaml
+project: ${STICK_NAME:-stick}-batfish
+wait_timeout_s: 120
+
+health:
+  url: http://127.0.0.1:${STICK_BATFISH_PORT:-8093}/v2/networks
+  headers:
+    X-Batfish-Apikey: "00000000000000000000000000000000"
+
+endpoints:
+  api (host, pybatfish Session(host="127.0.0.1", port=...)): http://127.0.0.1:${STICK_BATFISH_PORT:-8093}/v2
+  api (lab mgmt network): http://${STICK_MGMT_PREFIX:-172.30.30}.115:9996/v2
+
+credentials:
+  api key (X-Batfish-Apikey): "00000000000000000000000000000000 (Batfish's default; it isn't checked)"
+
+# The baseline is a Batfish without networks: reset removes the container and its volume and starts it again
+# (about 1 second). The tasks' setup scripts load the snapshots they need.
+snapshot:
+  kind: volumes
+  services: [batfish]
+  volumes: [batfish-data]
+
+# The Batfish project's own MCP server (pybatfish[mcp], beta). It loads snapshots only from paths it can read
+# itself, and its container has none: the setup scripts load them, and the prompt names them. Not shown:
+# sessions, snapshot loading and deletion, networks, EVPN, ACL and filter tools (FRR configurations have no
+# ACLs Batfish models), the generic question runner.
+mcp:
+  server: batfish
+  version: 2026.9.17.3748
+  env:
+    BATFISH_HOST: 127.0.0.1
+    BATFISH_PORT: ${STICK_BATFISH_PORT:-8093}
+  allow:
+    - list_snapshots
+    - fork_snapshot
+    - get_parse_warnings
+    - get_init_issues
+    - get_file_parse_status
+    - run_traceroute
+    - check_reachability
+    - get_routes
+    - compare_routes
+    - get_bgp_rib
+    - get_bgp_session_status
+    - get_bgp_session_compatibility
+    - get_bgp_peer_configuration
+    - get_bgp_process_configuration
+    - get_node_properties
+    - get_interface_properties
+    - get_ip_owners
+    - get_undefined_references
+    - get_defined_structures
+    - get_unused_structures
+    - detect_loops
