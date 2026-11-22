@@ -590,7 +590,6 @@ model on my own machine and compare it to a frontier model".
 
 What is still to do:
 
-- **More task sections**: lab management and troubleshooting (faults put into the lab for the model to find).
 - **The judge model**: a set of human-graded examples to check it against, and tasks that ask for a written
   explanation.
 - **Your own tasks**: a scaffold command, and tasks loaded from a git address.
@@ -598,7 +597,6 @@ What is still to do:
 - **More parallel runs**: `stick vs` already gives each model its own lab; next is the same for `stick run` with
   several models, and spreading one model's tasks over several labs.
 - **More devices**: Cisco CML as a lab backend, and your own Arista, Juniper or Cisco images.
-- **A public leaderboard.**
 
 The detailed list is in [TODO.md](TODO.md). Supported platforms: [docs/platforms.md](docs/platforms.md). Which tools
 work with which devices: [docs/compatibility.md](docs/compatibility.md).

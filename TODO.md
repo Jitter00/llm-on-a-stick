@@ -24,17 +24,6 @@ seed data, a snapshot/reset, a measured footprint in `src/llm_on_a_stick/data/fo
 `tests/integration/test_<name>.py` (up → seeded → change → reset), a row in `docs/compatibility.md` and a section in `docs/services.md`.
 Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some containers), and time the cold boot and the reset.
 
-- [x] **Gitea.** One container (SQLite), the org `netops` and its repo `lab-configs`; a reset puts the whole data
-      directory back (`snapshot.kind: files`). The `gitea` section has three tasks, MCP only. Open: a task that
-      resolves a conflicting pull request; pairing with Oxidized (its backups pushed to a Gitea repository).
-- [x] **Syslog (Loki, received by Alloy, read through Grafana).** All four routers log to it; the `loki` section has three
-      tasks, MCP only. Open: a fourth task that needs an aggregate query (which router logged the most errors).
-- [x] **Telemetry (gNMIc + Prometheus).** gNMI subscriptions to both SR Linux routers (port and BGP states, counters), read
-      through the Grafana of the `loki` service; the `telemetry` section has three tasks, MCP only. Open: FRR has no gNMI,
-      so the leaves are not in it; a task on traffic counters.
-- [x] **DNS (PowerDNS).** One container (SQLite), no zones until a task's setup creates them; a reset empties it. The
-      model reaches it through an MCP server generated from PowerDNS's OpenAPI description. The `powerdns` section has
-      three tasks, MCP only. Open: a task with a delegation or a wildcard; resolving names from the lab's hosts.
 - [ ] **Compatibility spike leftovers.** SR Linux SSH CLI, NETCONF and gNMI, LLDP on both OSes
       (cells still ❓ in `docs/compatibility.md`).
 - [ ] **`stick env reset`.** Redeploy the lab and reset every running service, so a whole attempt starts from a known state.
@@ -47,31 +36,25 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
 - [ ] **Failure classifier** (`classify.py`): transcript plus device responses → `cli-syntax`, `wrong-dialect` (done as a hint),
       `netconf-rpc-error`, `hallucinated-api`, `hallucinated-value`, `truncated-output`, `incomplete-config`, `wrong-config`,
       `collateral-change`, `no-verification` (done as a hint), `loop`, `gave-up`, `limit-exceeded`, `env-error` (excluded from scores).
-- [ ] Runner follow-ups: scheduler (parallel *lab work* only: **never run several local models at the same time**;
-      local models always go one after another, and API models may run in parallel. Done for `stick vs`: a lab
-      instance per model, `runner/schedule.py`. Left: the same for `stick run` with several models, and packing more
-      than two), publish `stick-toolbox` to GHCR, Inspect-format log export,
+- [ ] Runner follow-ups: publish `stick-toolbox` to GHCR, Inspect-format log export,
       a router MCP server that speaks NETCONF or gNMI and can change SR Linux (none is published; `netmiko-mcp`
       is CLI only and has no configuration tool yet), context-window variants (`--num-ctx`), streaming for
       long Anthropic turns, macOS support for the toolbox.
-- [ ] **Judge model**: built (`--judge-model`, `stick judge`); what is left is under "Next up".
 - [ ] **Report.** `stick report` (table/md/json per model and attempt), the HTML page (`--html`, also written by
       `stick run`) and `stick vs` exist, with totals per section and tier; next: breakdowns by tag and failure class.
 
-## Phase 2: tasks, user tests, variants, scheduler
+## Phase 2: user tests, variants, scheduler
 
-- [ ] **Four tasks per section (basic, intermediate, advanced, expert), none obvious, through the tool's MCP server**
-      (rules: docs/tasks.md, "Which tasks are kept"; pick the ones local models are likely to get wrong). New sections are per tool (powerdns,
-      ...); the groupings are in sections/README.md. Also `lab-mgmt` and `troubleshooting` (fault injection:
-      MTU mismatch, wrong ASN, ACL blackhole).
 - [ ] **User-defined tasks.** `--tasks-dir` (local path or git URL); `stick task new` (scaffold); `stick task validate`
       (oracle must PASS, no-op agent must FAIL); a `@check` plugin interface + entry points; `matrix:` expansion.
 - [ ] **Run variants.** Same model × context window (8k/32k/128k) first, then quantisation, reasoning
       effort, with/without docs.
 - [ ] **Scheduler.** Group tasks by shared services, bin-pack parallel lab instances under the doctor RAM budget
       (minus local model RAM), limit API concurrency per provider; `stick run --dry-run` prints the plan.
-      Lab instances exist (`stick --instance N`, docs/services.md) and `stick vs` picks one per model
-      (`runner/schedule.py::plan`); what is left is doing so for whole batches of tasks.
+      Only lab work runs in parallel: **never run several local models at the same time** (they go one after
+      another; API models may run in parallel). Lab instances exist (`stick --instance N`, docs/services.md) and
+      `stick vs` picks one per model (`runner/schedule.py::plan`); what is left is the same for `stick run` with
+      several models, packing more than two, and whole batches of tasks.
 
 ## Later
 
@@ -82,7 +65,6 @@ Measure RAM with cgroup `memory.current` (`docker stats` shows 0 for some contai
 - [ ] CML backend (lab-per-sample via `virl2_client`; CML-Free 5-node limit; Cisco refplat images only inside CML).
 - [ ] BYO vendor images: Arista cEOS, Juniper vJunos/cRPD (vrnetlab), Cisco XRd/Cat8kv. Fetch/build scripts only, never redistributed.
 - [ ] IETF draft-cui-nmrg-llm-benchmark task import.
-- [ ] Public leaderboard (local models broken out by hardware and quantisation).
 
 ## Known gotchas (learned so far)
 
