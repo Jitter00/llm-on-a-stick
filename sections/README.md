@@ -27,14 +27,12 @@ routers), with no shell, except in `terraform`.
 
 The wider areas the sections belong to, for orientation only (nothing in `task.yaml` refers to them):
 
-| Grouping | Sections (planned ones in italics) |
+| Grouping | Sections |
 |---|---|
-| Lab management | *lab-mgmt* (containerlab, later CML) |
 | Configuration management | `cfg-mgmt`, `gitea` (GitOps) |
 | Source of truth and DDI | `netbox`, `nautobot`, `powerdns` |
-| Validation and observability | `librenms`, `zabbix`, `loki`, `telemetry`, `suzieq`, `batfish`, *pyats* (Cisco/CML only) |
+| Validation and observability | `librenms`, `zabbix`, `loki`, `telemetry`, `suzieq`, `batfish` |
 | Cloud | `aws`, `terraform` (no lab devices: `topology: none`) |
-| Troubleshooting | *troubleshooting*: injected faults, correlating events across tools |
 
 The schema is `src/llm_on_a_stick/data/task.schema.json`. Check tasks with `stick task lint`.
 Your own tasks can live anywhere: `stick task lint ./my-tests`.
