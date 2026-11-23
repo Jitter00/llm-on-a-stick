@@ -179,10 +179,11 @@ open a pull request.
 Claude models don't take a temperature; use `--effort low|medium|high|xhigh|max` instead (default: the model's
 own).
 
-**Thinking is off by default for Claude models.** Recent Claude models think before answering unless told not to;
-`stick run` tells them not to, so every model is compared at its plainest and a task shows whether it is hard
-enough. Add `--thinking` to let the model think (its own default amount). Before the run, `stick` asks the model
-once how it turns thinking off and uses the first way it accepts:
+**Thinking is on by default for Claude models.** Recent Claude models think before answering unless told not to,
+and `stick run` leaves them that way: nothing about thinking is sent, so each model runs as it was made to
+(adaptive thinking at its default effort, `medium` for Claude Haiku 5.5). `--effort` changes how much it thinks.
+Add `--no-thinking` to turn it off. Before such a run, `stick` asks the model once how it turns thinking off and
+uses the first way it accepts:
 
 | What is sent | Models (examples) |
 |---|---|
@@ -191,8 +192,9 @@ once how it turns thinking off and uses the first way it accepts:
 | nothing: thinking stays on | models that can't turn it off, such as Claude Opus 5.5 and Fable; also any model at effort `xhigh` or `max` |
 
 Which one applied is printed before the run (`sampling: thinking disabled`) and recorded with every attempt, so the
-report never shows a run as "thinking off" when the model was thinking. `--thinking` has no effect on other
-providers: local servers each have their own switch for it.
+report never shows a run as "thinking off" when the model was thinking. Runs made before thinking became the default (November 2026) had thinking
+off unless `--thinking` was given; their attempts say which (`sampling.thinking`). The option has no effect on
+other providers: local servers each have their own switch for it.
 
 ## What gets recorded
 

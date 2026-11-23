@@ -142,8 +142,9 @@ def refuse_self(judge: str, tested: str) -> None:
 
 
 def make_judge(spec: str, base_url: str | None = None) -> Client:
-    """The judge's client: temperature 0 where the server takes one (Claude models take none)."""
-    return make_client(spec, base_url, temperature=0.0)
+    """The judge's client: temperature 0 where the server takes one; Claude models take none and judge with
+    thinking off, as they always have, so judge scores stay comparable."""
+    return make_client(spec, base_url, temperature=0.0, thinking=False)
 
 
 # --------------------------------------------------------------------------- what the judge reads

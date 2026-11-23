@@ -365,12 +365,12 @@ port: `--base-url http://127.0.0.1:9000/v1`. Settings you use every time can go 
 (`cp .env.example .env`; it also explains how to keep a real key out of that file). `stick run` starts the lab and the
 tools the chosen tasks need if they aren't running. All options and what's recorded: [docs/runner.md](docs/runner.md).
 
-**Claude models run with thinking off by default**, so every model is compared at its plainest. Add `--thinking` to
-let the model think before it answers:
+**Claude models run with thinking on by default**, the way they are made to run (adaptive thinking at the model's
+default effort). Add `--no-thinking` to turn it off:
 
 ```bash
-stick run --section cfg-mgmt --model anthropic/claude-haiku-5-5              # thinking off
-stick run --section cfg-mgmt --model anthropic/claude-haiku-5-5 --thinking   # thinking on
+stick run --section cfg-mgmt --model anthropic/claude-haiku-5-5                 # thinking on
+stick run --section cfg-mgmt --model anthropic/claude-haiku-5-5 --no-thinking   # thinking off
 ```
 
 A few Claude models can't turn thinking off (Claude Opus 5.5, for example): they run with it on, and the output

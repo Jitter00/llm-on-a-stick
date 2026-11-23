@@ -223,7 +223,7 @@ def make_client(
     temperature: float | None = None,
     effort: str | None = None,
     max_output_tokens: int = MAX_OUTPUT_TOKENS,
-    thinking: bool = False,
+    thinking: bool = True,
 ) -> Client:
     """`temperature` given (e.g. --temperature): sent as is, nothing else. Not given: data/sampling.yaml's
     values for the model, else temperature 0."""
@@ -485,7 +485,7 @@ THINKING_OFF = ("disabled", "between_tools")
 
 class AnthropicClient:
     def __init__(
-        self, spec: ModelSpec, effort: str | None, max_output_tokens: int, thinking: bool = False
+        self, spec: ModelSpec, effort: str | None, max_output_tokens: int, thinking: bool = True
     ) -> None:
         import anthropic  # imported lazily: only needed for Claude models
 
@@ -493,14 +493,14 @@ class AnthropicClient:
         self.context_window: int | None = None
         self.effort = effort
         self.max_output_tokens = max_output_tokens
-        # Thinking is off unless asked for (--thinking), so models are compared at their plainest. Recent
-        # Claude models think by default, so "off" has to be sent, and how depends on the model: check()
-        # settles on the first of THINKING_OFF the model accepts, else on the model's own default (on).
+        # Thinking is on by default: nothing is sent, so the model thinks as it was made to (adaptive, at its
+        # default effort). --no-thinking has to send "off", and how depends on the model: check() settles on
+        # the first of THINKING_OFF the model accepts, else on the model's own default (on).
         self.thinking = thinking
         self.thinking_param: dict[str, str] | None = None if thinking else {"type": THINKING_OFF[0]}
         self.sampling: dict[str, Any] = {"effort": effort}  # Claude models take no temperature
         self.sampling["thinking"] = "on" if thinking else THINKING_OFF[0]
-        flags = [f for f, on in (("--effort", effort), ("--thinking", thinking)) if on]
+        flags = [f for f, on in (("--effort", effort), ("--no-thinking", not thinking)) if on]
         self.sampling_source = " ".join(flags) or "default"
         kwargs: dict[str, Any] = {"max_retries": 3}
         if spec.base_url:
