@@ -142,6 +142,18 @@ class Settings:
     max_output_chars: int = 4000  # ~1000 tokens, kept in the context for the rest of the attempt
     seed: int | None = None
     min_free_ram_mb: int = 2048  # keep this much RAM for the system; 0 turns the guard off
+    # How many attempts each task gets (--repeat) and whether they stop at the first pass (--adaptive):
+    # only recorded in the metrics, so the report can say how the numbers came about.
+    repeat: int = 1
+    adaptive: bool = False
+
+
+def another_attempt(done: int, repeat: int, adaptive: bool, outcome: str | None) -> bool:
+    """After `done` attempts of one task, the last ending in `outcome` (None: it could not run), whether
+    to make another. --adaptive stops at the first pass: only tasks the model got wrong are tried again."""
+    if done >= repeat:
+        return False
+    return not (adaptive and outcome == "pass")
 
 
 @dataclass
@@ -179,6 +191,9 @@ class Metrics:
     sampling: dict[str, Any] = field(default_factory=dict)  # what was sent, e.g. {"temperature": 0.0}
     sampling_source: str = ""  # data/sampling.yaml: <entry> | default | --temperature
     limits: dict[str, Any] = field(default_factory=dict)
+    # {"max": --repeat, "adaptive": --adaptive}: with adaptive, a task stops at its first pass, so tasks
+    # have different numbers of attempts and the report compares pass rates per task.
+    repeats: dict[str, Any] = field(default_factory=dict)
     # The GPUs' PCIe links while the model worked (gpulink.py); None: not read (a cloud model, a server on
     # another machine, no PCIe GPU, not Linux). `degraded`: no card reached the speed its link can do.
     gpu_link: dict[str, Any] | None = None
@@ -388,6 +403,7 @@ def run_task(
             "cmd_timeout_s": s.cmd_timeout_s,
             "max_output_chars": s.max_output_chars,
         },
+        repeats={"max": s.repeat, "adaptive": s.adaptive},
     )
     m.context_window = getattr(client, "context_window", None)
     m.sampling = dict(getattr(client, "sampling", {}))

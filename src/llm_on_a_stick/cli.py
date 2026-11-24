@@ -609,6 +609,14 @@ ModelOpt = Annotated[
 SectionOpt = Annotated[list[str] | None, typer.Option("--section", "-s", help="Run every task in a section.")]
 AllOpt = Annotated[bool, typer.Option("--all", help="Run every task.")]
 RepeatOpt = Annotated[int, typer.Option(min=1, help="Attempts per model and task.")]
+AdaptiveOpt = Annotated[
+    bool,
+    typer.Option(
+        "--adaptive",
+        help="With --repeat: stop a task at its first pass, so only the tasks a model gets wrong are tried "
+        "again (up to --repeat attempts). Much faster; the report then compares the pass rate per task.",
+    ),
+]
 BaseUrlOpt = Annotated[
     str | None,
     typer.Option(
@@ -692,6 +700,7 @@ def run_cmd(
     section: SectionOpt = None,
     all_: AllOpt = False,
     repeat: RepeatOpt = 1,
+    adaptive: AdaptiveOpt = False,
     base_url: BaseUrlOpt = None,
     max_turns: MaxTurnsOpt = None,
     timeout_s: TimeoutOpt = None,
@@ -727,7 +736,7 @@ def run_cmd(
     _run_models(
         model, task_refs, section, all_, repeat, base_url, max_turns, timeout_s, cmd_timeout, temperature,
         effort, thinking, min_free_ram, tasks_dir, runs_dir, seed, no_report,
-        judge_model, judge_base_url, judge_repeats, attempts_file=attempts_file,
+        judge_model, judge_base_url, judge_repeats, attempts_file=attempts_file, adaptive=adaptive,
     )  # fmt: skip
 
 
@@ -743,6 +752,7 @@ def vs_cmd(
     section: SectionOpt = None,
     all_: AllOpt = False,
     repeat: RepeatOpt = 1,
+    adaptive: AdaptiveOpt = False,
     base_url: BaseUrlOpt = None,
     max_turns: MaxTurnsOpt = None,
     timeout_s: TimeoutOpt = None,
@@ -785,7 +795,7 @@ def vs_cmd(
     _run_models(
         [model_a, model_b], task_refs, section, all_, repeat, base_url, max_turns, timeout_s, cmd_timeout,
         temperature, effort, thinking, min_free_ram, tasks_dir, runs_dir, seed, False,
-        judge_model, judge_base_url, judge_repeats, side_by_side=not sequential,
+        judge_model, judge_base_url, judge_repeats, side_by_side=not sequential, adaptive=adaptive,
     )  # fmt: skip
 
 
@@ -812,6 +822,7 @@ def _run_models(
     judge_repeats: int = 3,
     attempts_file: Path | None = None,
     side_by_side: bool | None = None,
+    adaptive: bool = False,
 ) -> None:
     """`stick run` and `stick vs`: every model's whole batch, one model after the other, or (`stick vs`,
     side_by_side not None) each model on its own lab instance at the same time when that is possible."""
@@ -859,6 +870,8 @@ def _run_models(
     if not selected:
         err.print("[red]no tasks matched[/]")
         raise typer.Exit(2)
+    if adaptive and repeat == 1:
+        console.print("[dim]--adaptive changes nothing with one attempt per task: add --repeat 3[/]")
     local = [c.spec.spec for c in clients if c.spec.endpoint.local and c.spec.provider != "script"]
     if side_by_side is not None:
         chosen = _plan_instances([c.spec.spec in local for c in clients], selected, not side_by_side)
@@ -866,7 +879,7 @@ def _run_models(
             common = _run_options(
                 task_refs, section, all_, repeat, base_url, max_turns, timeout_s, cmd_timeout, temperature,
                 effort, thinking, min_free_ram, tasks_dir, runs_dir, seed, judge_model, judge_base_url,
-                judge_repeats,
+                judge_repeats, adaptive,
             )  # fmt: skip
             _run_side_by_side(model, chosen.instances, common, runs_dir, task_refs, section, all_)
         console.print(f"[dim]the models run one after the other: {chosen.reason}[/]", highlight=False)
@@ -892,6 +905,8 @@ def _run_models(
         cmd_timeout_s=cmd_timeout,
         seed=seed,
         min_free_ram_mb=min_free_ram,
+        repeat=repeat,
+        adaptive=adaptive,
     )
     style = _OUTCOME_STYLE
     done: list[Path] = []
@@ -900,8 +915,15 @@ def _run_models(
     for c in clients:  # model by model: one model's whole batch before the next
         for t in selected:
             lab = DockerLabState(t.topology)
-            for i in range(repeat):
-                attempt = f" (attempt {i + 1}/{repeat})" if repeat > 1 else ""
+            made, last = 0, None
+            while loop.another_attempt(made, repeat, adaptive, last):
+                made += 1
+                last = None
+                attempt = ""
+                if repeat > 1:
+                    attempt = (
+                        f" (attempt {made}, up to {repeat})" if adaptive else f" (attempt {made}/{repeat})"
+                    )
                 console.print(f"[bold]{t.id}[/] with {c.spec.spec}{attempt}", highlight=False)
                 try:
                     info, result, m = loop.run_task(t, c, lab, runs_dir, settings, log=console.print)
@@ -909,6 +931,7 @@ def _run_models(
                     err.print(f"  [red]{exc}[/]")
                     errors += 1
                     continue
+                last = result.outcome
                 done.append(info.run_dir)
                 if attempts_file is not None:
                     with attempts_file.open("a", encoding="utf-8") as fh:
@@ -1013,6 +1036,7 @@ def _run_options(
     judge_model: str | None,
     judge_base_url: str | None,
     judge_repeats: int,
+    adaptive: bool = False,
 ) -> list[str]:
     """The `stick run` arguments that give one model the batch this command was asked for."""
     args = [*(task_refs or [])]
@@ -1022,6 +1046,8 @@ def _run_options(
         args.append("--all")
     args += ["--repeat", str(repeat), "--cmd-timeout", str(cmd_timeout), "--min-free-ram", str(min_free_ram)]
     args.append("--thinking" if thinking else "--no-thinking")
+    if adaptive:
+        args.append("--adaptive")
     optional: list[tuple[str, object]] = [
         ("--base-url", base_url), ("--max-turns", max_turns), ("--timeout", timeout_s),
         ("--temperature", temperature), ("--effort", effort), ("--seed", seed),
@@ -1149,13 +1175,14 @@ def _print_report(rows: list[Any]) -> None:
     summaries = report.summarise(rows)
     judged = any(s.judge_score is not None for s in summaries)  # its own column: never part of the score
     table = Table(
-        "model", "sampling", "runs", "passed", "mean score", *(["judge"] if judged else []), "tokens", "cost",
-        "mean time", "most common problems",
+        "model", "sampling", "runs", "passed", "pass rate", "mean score", *(["judge"] if judged else []),
+        "tokens", "cost", "mean time", "most common problems",
     )  # fmt: skip
     for s in summaries:
         cost = "?" if s.cost_usd is None else f"${s.cost_usd:.4f}"
         judge = ["-" if s.judge_score is None else f"{s.judge_score:.2f}"] if judged else []
-        table.add_row(s.model, s.sampling or "-", str(s.runs), str(s.passed), f"{s.mean_score:.2f}", *judge,
+        table.add_row(s.model, s.sampling or "-", str(s.runs), str(s.passed), report.pass_rate(s),
+                      f"{s.mean_score:.2f}", *judge,
                       str(s.tokens), cost, f"{s.mean_wall_s}s", ", ".join(s.common_hints) or "-")  # fmt: skip
     console.print(table)
 
