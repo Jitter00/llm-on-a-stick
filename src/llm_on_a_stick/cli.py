@@ -1187,6 +1187,16 @@ def _print_report(rows: list[Any]) -> None:
     console.print(table)
 
 
+def _report_out(out: Path | None, targets: list[Path]) -> Path:
+    """Where `stick report --html` writes: never loose in the folder it was started from. A bare file name
+    goes in runs/, one run folder gets its report.html, several get a dated report in runs/."""
+    if out is not None:
+        return Path("runs") / out if not out.is_absolute() and out.parent == Path() else out
+    if len(targets) == 1:
+        return targets[0] / "report.html"
+    return Path("runs") / f"report-{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}.html"
+
+
 def _write_html(targets: list[Path], out: Path, title: str | None, task: str | None) -> bool:
     from llm_on_a_stick.runner import html as html_mod
 
@@ -1298,8 +1308,9 @@ def report_cmd(
         typer.Option(
             "--out",
             "-o",
-            help="Where the HTML report goes (default: report.html in the folder given, or here when "
-            "several are given). report.json is written next to it.",
+            help="Where the HTML report goes (default: report.html in the folder given, or "
+            "runs/report-<time>.html when several are given; a bare file name goes in runs/). "
+            "report.json is written next to it.",
         ),
     ] = None,
     title: Annotated[str | None, typer.Option(help="Heading of the HTML report.")] = None,
@@ -1314,7 +1325,7 @@ def report_cmd(
 
     targets = paths_ or [Path("runs")]
     if html or fmt == "html":
-        target = out or (targets[0] if len(targets) == 1 else Path()) / "report.html"
+        target = _report_out(out, targets)
         if not _write_html(targets, target, title, task):
             err.print("[yellow]no model runs found; start some with `stick run`[/]")
             raise typer.Exit(1)

@@ -302,9 +302,13 @@ writes it for runs you already have:
 
 ```bash
 uv run stick report runs/compare --html                    # -> runs/compare/report.html
-uv run stick report runs/haiku runs/gemma --html --out vs.html --title "Zabbix: Haiku vs Gemma"
-uv run stick report runs/haiku runs/gemma runs/strata --html --out three.html    # three models
+uv run stick report runs/haiku runs/gemma --html --out vs.html --title "Zabbix: Haiku vs Gemma"  # -> runs/vs.html
+uv run stick report runs/haiku runs/gemma runs/strata --html    # three models -> runs/report-<time>.html
 ```
+
+Reports never land loose in the folder you start `stick` from: a bare `--out` file name goes in `runs/`, and
+several folders without `--out` get a dated `runs/report-<time>.html`. To put it elsewhere, give `--out` a path
+with a folder in it, e.g. `--out ~/reports/vs.html`.
 
 It is one self-contained file (no network needed, so you can mail it or attach it to an issue) with:
 
