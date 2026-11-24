@@ -32,6 +32,13 @@ models:
     top_p: 0.95  # DeepSeek: 0.95 for agentic use (this benchmark), 1.0 otherwise
     source: "https://unsloth.ai/docs/models/deepseek-v4"
 
+  - name: Inkling 2 Mini
+    match: ["inkling-2*", "inkling2*", "*/inkling-2*", "*/inkling2*"]  # any quantisation (sq-20, ud-q4_k_xl...)
+    temperature: 1.0
+    top_p: 1.0  # plus top_k 0 and min_p 0.0: no truncation at all
+    source: "https://unsloth.ai/docs/models/inkling-2-mini (1.0 / 1.0 / top_k 0 / min_p 0.0); temperature 1.0
+      is also in thinkingmachines/Inkling-2-Mini's generation_config.json (checked 2026-11-23)"
+
   - name: Qwen3.8 Flash Next (thinking mode, its default)
     match: ["qwen3.8*", "qwen-3.8*", "*/qwen3.8*", "*/qwen-3.8*"]
     temperature: 1.0

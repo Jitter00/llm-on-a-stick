@@ -53,6 +53,19 @@ def test_report_html_without_runs(tmp_path: Path) -> None:
     assert not (tmp_path / "report.html").exists()
 
 
+def test_report_out_never_lands_in_the_current_folder(tmp_path: Path) -> None:
+    one, two = tmp_path / "a", tmp_path / "b"
+    assert cli._report_out(None, [one]) == one / "report.html"
+    several = cli._report_out(None, [one, two])
+    assert several.parent == Path("runs")
+    assert several.name.startswith("report-")
+    assert several.suffix == ".html"
+    assert cli._report_out(Path("vs.html"), [one, two]) == Path("runs/vs.html")
+    assert cli._report_out(Path("./vs.html"), [one, two]) == Path("runs/vs.html")
+    assert cli._report_out(Path("out/vs.html"), [one]) == Path("out/vs.html")
+    assert cli._report_out(tmp_path / "vs.html", [one]) == tmp_path / "vs.html"
+
+
 def test_vs_needs_two_different_models() -> None:
     assert runner.invoke(cli.app, ["vs", "ollama/a"]).exit_code == 2
     result = runner.invoke(cli.app, ["vs", "ollama/a", "ollama/a", "--all"])
