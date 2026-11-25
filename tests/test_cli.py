@@ -117,3 +117,12 @@ def test_instance_out_of_range_is_refused(monkeypatch: pytest.MonkeyPatch) -> No
     result = runner.invoke(cli.app, ["version"])
     assert result.exit_code == 2
     assert "must be a number from 0 to 3" in result.output
+
+
+def test_run_and_vs_think_by_default() -> None:
+    import typer
+
+    commands = typer.main.get_command(cli.app).commands  # type: ignore[attr-defined]
+    for name in ("run", "vs"):
+        (opt,) = [p for p in commands[name].params if p.name == "thinking"]
+        assert opt.default is True, name

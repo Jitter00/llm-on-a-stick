@@ -324,12 +324,29 @@ def test_anthropic_missing_credentials_is_a_plain_message() -> None:
         client.check()
 
 
-def test_anthropic_thinking_is_off_by_default() -> None:
+def test_anthropic_thinking_is_on_by_default() -> None:
     assert models.make_client.__kwdefaults__ is None  # positional defaults: thinking is the last one
-    assert models.make_client.__defaults__[-1] is False  # type: ignore[index]
+    assert models.make_client.__defaults__[-1] is True  # type: ignore[index]
+    assert models.AnthropicClient.__init__.__defaults__ == (True,)  # type: ignore[misc]
+
+
+def test_anthropic_thinking_off_tries_disabled_first() -> None:
     client, tried = _anthropic_client({"disabled", "between_tools"})
     assert tried == ["disabled"]
     assert client.thinking_param == {"type": "disabled"} and client.sampling["thinking"] == "disabled"
+
+
+def test_judge_keeps_thinking_off() -> None:
+    from llm_on_a_stick.grading import judge
+
+    seen: dict[str, Any] = {}
+    real = judge.make_client
+    judge.make_client = lambda *a, **kw: seen.update(kw)  # type: ignore[assignment]
+    try:
+        judge.make_judge("anthropic/claude-haiku-5-5")
+    finally:
+        judge.make_client = real
+    assert seen["thinking"] is False
 
 
 def test_anthropic_thinking_off_uses_what_the_model_accepts() -> None:

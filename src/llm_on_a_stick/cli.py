@@ -644,9 +644,9 @@ ThinkingOpt = Annotated[
     bool,
     typer.Option(
         "--thinking/--no-thinking",
-        help="Anthropic models: let the model think before it answers. Off by default, so models are "
-        "compared at their plainest; a model that can't turn thinking off runs with it on, and the "
-        "report says so. No effect on other providers.",
+        help="Anthropic models: let the model think before it answers. On by default, the way the models "
+        "are made to run; --no-thinking turns it off where the model allows it (the report says when it "
+        "doesn't). No effect on other providers.",
     ),
 ]
 MinFreeRamOpt = Annotated[
@@ -707,7 +707,7 @@ def run_cmd(
     cmd_timeout: CmdTimeoutOpt = 60,
     temperature: TemperatureOpt = None,
     effort: EffortOpt = None,
-    thinking: ThinkingOpt = False,
+    thinking: ThinkingOpt = True,
     min_free_ram: MinFreeRamOpt = 2048,
     tasks_dir: TasksDirOpt = None,
     runs_dir: RunsDirOpt = Path("runs"),
@@ -759,7 +759,7 @@ def vs_cmd(
     cmd_timeout: CmdTimeoutOpt = 60,
     temperature: TemperatureOpt = None,
     effort: EffortOpt = None,
-    thinking: ThinkingOpt = False,
+    thinking: ThinkingOpt = True,
     min_free_ram: MinFreeRamOpt = 2048,
     tasks_dir: TasksDirOpt = None,
     runs_dir: Annotated[

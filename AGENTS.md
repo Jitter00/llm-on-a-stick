@@ -41,8 +41,8 @@ stick env down                                             # stop everything whe
 - `--judge-model <provider/model>` on `stick run` or `stick vs` has a second model explain failed attempts
   and score how the tested model worked. It is refused when it is one of the tested models; don't work around
   that. It never changes pass, fail or score.
-- Claude models run with thinking off unless you pass `--thinking`. The line `sampling: thinking ...` printed
-  before the run says what was applied; some models can't turn it off.
+- Claude models run with thinking on (their own default) unless you pass `--no-thinking`. The line
+  `sampling: thinking ...` printed before the run says what was applied; some models can't turn it off.
 
 ### Rules
 
