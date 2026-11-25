@@ -10,6 +10,18 @@ uv run stick run --section cfg-mgmt --model ollama/qwen3:14b --model anthropic/c
 uv run stick report                                   # compare everything in runs/
 ```
 
+### Fewer attempts: `--adaptive`
+
+With `--repeat 3 --adaptive`, every task gets one attempt and a task that didn't pass is tried again, until it
+passes or has had three. A model that passes most tasks at once finishes in a little over a third of the time of
+`--repeat 3`. Each attempt records `repeats: {"max": 3, "adaptive": true}` in its metrics.
+
+Tasks then have different numbers of attempts, and a model that fails more makes more of them, so plain passed /
+attempts would count its failures twice. The report adds `task_pass_rate` to every contender, section and tier:
+the mean over tasks of each task's passed / attempts (1, 1/2, 1/3 or 0 with `--repeat 3`). It equals passed /
+attempts when every task had the same number of attempts. Stopping at the first pass measures whether a model
+gets a task right within three tries more than how reliably it does: compare adaptive runs with adaptive runs.
+
 `stick run` (and `stick vs`) first starts whatever the chosen tasks need and isn't running yet: the lab, and
 services such as Oxidized or NetBox (a first start of NetBox takes a few minutes). After starting the lab it
 waits for the routers' BGP sessions (up to five minutes), so the first attempt meets a working network. It
@@ -302,7 +314,8 @@ It is one self-contained file (no network needed, so you can mail it or attach i
 
 - **What a turn is**, at the top: one reply from the model, in which it asks for commands or says it has
   finished, and how many turns an attempt may use in these runs.
-- **Scores**: per model, attempts passed, mean score, time, turns, tokens, cost and total time. The line under
+- **Scores**: per model, attempts passed, mean score, time, turns, tokens, cost and total time. For a run with
+  `--adaptive` (below), the pass rate per task takes the place of attempts passed. The line under
   the title ends with the total time of all attempts as HH:MM:SS: the time spent in the attempts themselves,
   which is less than first-to-last when there were pauses between them.
 - **Tasks**: one square per attempt (pass, partial, fail, error); select a square to open that attempt.

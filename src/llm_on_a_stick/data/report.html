@@ -211,7 +211,9 @@ function scoreboard() {
     const top = hi ? Math.max(...vals) : Math.min(...vals);
     return vals.filter(v => v === top).length === 1 ? C[vals.indexOf(top)].id : null;
   };
-  const bestPass = many ? (() => { const r = C.map(c => c.passed / c.attempts); const t = Math.max(...r);
+  // Each task counts once (task_pass_rate): with --adaptive, tasks have different numbers of attempts.
+  const rate = c => c.task_pass_rate ?? c.passed / c.attempts;
+  const bestPass = many ? (() => { const r = C.map(rate); const t = Math.max(...r);
     return r.filter(v => v === t).length === 1 ? C[r.indexOf(t)].id : null; })() : null;
   const bestScore = bestOf("mean_score", true);
   const better = () => el("span", {class: "best"}, C.length > 2 ? "highest" : "higher");
@@ -227,11 +229,16 @@ function scoreboard() {
       el("div", {class: "sub meta"},
         [c.sampling || null, c.sampling_source ? `(${c.sampling_source})` : null, c.base_url || c.provider].filter(Boolean).join(" · ")),
       el("div", {class: "tilebox"}, el("div", {class: "tiles"},
-        el("div", {class: "tile hero"}, el("div", {class: "k"}, "Attempts passed"),
-          el("div", {class: "v"}, `${c.passed} / ${c.attempts}`, el("span", {class: "muted", style: "font-size:16px;font-weight:500"},
-            `  ${Math.round(100 * c.passed / c.attempts)}%`), bestPass === c.id ? better() : null),
+        el("div", {class: "tile hero"},
+          el("div", {class: "k"}, c.adaptive ? "Passed per task (adaptive)" : "Attempts passed"),
+          c.adaptive
+            ? el("div", {class: "v"}, `${Math.round(100 * rate(c))}%`, el("span", {class: "muted", style: "font-size:16px;font-weight:500"},
+              `  ${c.passed} / ${c.attempts} attempts`), bestPass === c.id ? better() : null)
+            : el("div", {class: "v"}, `${c.passed} / ${c.attempts}`, el("span", {class: "muted", style: "font-size:16px;font-weight:500"},
+              `  ${Math.round(100 * c.passed / c.attempts)}%`), bestPass === c.id ? better() : null),
           el("div", {class: "meter", role: "img", "aria-label": mix}, seg("pass", "p"), seg("partial", "w"), seg("fail", "f"), seg("error", "e")),
-          el("div", {class: "note", style: "margin-top:4px"}, mix)),
+          el("div", {class: "note", style: "margin-top:4px"}, mix),
+          c.adaptive ? el("div", {class: "note"}, "each task stopped at its first pass and counts once") : null),
         tile("Mean score", c.mean_score.toFixed(2), bestScore === c.id ? better() : null),
         tile("Mean time", secs(c.mean_wall_s), c.gpu_link_degraded
           ? `unreliable: GPU link was slow in ${c.gpu_link_degraded} attempt(s)` : "per attempt"),
@@ -257,8 +264,9 @@ function breakdownTable(title, groups) {
     el("tbody", {}, groups.map(g => el("tr", {}, el("td", {}, g.name), C.map(c => {
       const p = g.per[c.id];
       if (!p) return el("td", {class: "muted"}, "not run");
-      return el("td", {}, el("div", {}, `${p.passed}/${p.attempts}`),
-        el("div", {class: "rate"}, `${p.tasks} ${p.tasks === 1 ? "task" : "tasks"} · score ${p.mean_score.toFixed(2)}`));
+      const adaptive = c.adaptive;
+      return el("td", {}, el("div", {}, adaptive ? `${Math.round(100 * p.task_pass_rate)}% per task` : `${p.passed}/${p.attempts}`),
+        el("div", {class: "rate"}, `${adaptive ? `${p.passed}/${p.attempts} attempts · ` : ""}${p.tasks} ${p.tasks === 1 ? "task" : "tasks"} · score ${p.mean_score.toFixed(2)}`));
     }))))));
 }
 function breakdowns() {

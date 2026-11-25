@@ -106,6 +106,16 @@ def test_run_options_rebuild_the_batch(tmp_path: Path) -> None:
     params = run.make_context("run", ["--model", "ollama/x", *args, "--attempts-file", "x"]).params
     assert (params["repeat"], params["seed"], params["judge_repeats"]) == (3, 7, 2)
     assert params["section"] == ["netbox"] and params["no_report"] is True
+    assert params["adaptive"] is False
+
+    # --adaptive reaches the runs that `stick vs` starts, and `stick run` takes it
+    adaptive = cli._run_options(
+        None, None, True, 3, None, None, None, 60, None, None, False, 2048, None, tmp_path, None, None, None,
+        3, True,
+    )  # fmt: skip
+    assert "--adaptive" in adaptive
+    params = run.make_context("run", ["--model", "ollama/x", *adaptive]).params
+    assert params["adaptive"] is True and params["repeat"] == 3
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
