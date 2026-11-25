@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.31.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.30.0...v0.31.0) (2026-11-25)
+
+
+### ⚠ BREAKING CHANGES
+
+* **run:** claude models think by default, --no-thinking turns it off ([#87](https://github.com/Jitter00/llm-on-a-stick/issues/87))
+
+### Features
+
+* **run:** claude models think by default, --no-thinking turns it off ([#87](https://github.com/Jitter00/llm-on-a-stick/issues/87)) ([91aff22](https://github.com/Jitter00/llm-on-a-stick/commit/91aff227076fbd440cfd6ce1ecfd4e599d4820aa))
+* **runner:** add --adaptive to retry only the tasks a model did not pass ([#86](https://github.com/Jitter00/llm-on-a-stick/issues/86)) ([487bb8a](https://github.com/Jitter00/llm-on-a-stick/commit/487bb8a469ec7e1071c6bdc3d4b3f057ce4e7fdc))
+* **runner:** add Inkling 2 Mini sampling, write html reports under runs/ ([#85](https://github.com/Jitter00/llm-on-a-stick/issues/85)) ([f8c8483](https://github.com/Jitter00/llm-on-a-stick/commit/f8c8483ff9fa7a339f803f579b9fe61a799bd40f))
+
 ## [0.30.0](https://github.com/Jitter00/llm-on-a-stick/compare/v0.29.1...v0.30.0) (2026-11-20)
 
 
