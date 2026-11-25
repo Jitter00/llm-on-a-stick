@@ -420,6 +420,18 @@ stick run --all --model anthropic/claude-haiku-5-5 --repeat 3
 always do the same thing twice, so this shows whether a task is solved reliably or only sometimes; the report then
 says "2/3 passed". It takes three times as long.
 
+`--adaptive` saves most of that time: every task gets one attempt, and only a task that didn't pass is tried again,
+until it passes or has had `--repeat` attempts:
+
+```bash
+stick run --all --model ollama/qwen3.8:27b --repeat 3 --adaptive
+```
+
+Tasks then have different numbers of attempts, so the report compares the **pass rate per task**: each task counts
+once, as the share of its attempts that passed (passed at once: 1, on the second try: 1/2, never: 0). It rewards a
+model that gets there in the end more than plain `--repeat 3` does, so compare adaptive runs with adaptive runs; the
+report marks them.
+
 **Two local models.** They share your GPU and memory, so `stick vs` refuses that pair. Run them one after the other,
 each into its own folder, then make the side-by-side report from the two folders:
 

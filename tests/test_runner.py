@@ -775,7 +775,10 @@ def test_full_report_and_html(demo: Any, tmp_path: Path) -> None:
     # Totals per section and per tier, per contender; two attempts of one task, so not "one attempt each".
     (section,), (tier,) = data["by_section"], data["by_tier"]
     assert section["name"] == "cfg-mgmt" and tier["name"] == attempts[0].tier
-    assert section["per"][a["id"]] == {"tasks": 1, "attempts": 2, "passed": 0, "mean_score": a["mean_score"]}
+    assert section["per"][a["id"]] == {
+        "tasks": 1, "attempts": 2, "passed": 0, "task_pass_rate": 0.0, "mean_score": a["mean_score"]
+    }  # fmt: skip
+    assert a["task_pass_rate"] == 0.0 and a["adaptive"] is False
     assert tier["per"][b["id"]]["attempts"] == 1 and data["max_repeats"] == 2
 
     attempts[2].outcome, attempts[2].score = "pass", 1.0  # as if strata/b had passed
@@ -794,6 +797,57 @@ def test_full_report_and_html(demo: Any, tmp_path: Path) -> None:
     slim = json.loads(out.with_suffix(".json").read_text(encoding="utf-8"))
     assert "events" not in next(iter(slim["attempts"].values()))
     assert html.write([tmp_path / "nothing"], tmp_path / "none.html") is None
+
+
+def test_another_attempt_stops_at_the_first_pass_only_when_adaptive() -> None:
+    assert loop.another_attempt(0, 3, False, None)  # the first attempt always runs
+    assert loop.another_attempt(1, 3, False, "pass")  # plain --repeat: every attempt
+    assert not loop.another_attempt(3, 3, False, "fail")
+    assert not loop.another_attempt(1, 3, True, "pass")  # --adaptive: a pass ends the task
+    assert loop.another_attempt(1, 3, True, "partial") and loop.another_attempt(2, 3, True, "fail")
+    assert loop.another_attempt(1, 3, True, None)  # an attempt that could not run is no pass
+    assert not loop.another_attempt(3, 3, True, "fail")  # never more than --repeat
+    assert not loop.another_attempt(1, 1, True, "fail")
+
+
+def test_task_pass_rate_counts_each_task_once() -> None:
+    # t1 passed at once, t2 on its second attempt, t3 never in three: (1 + 0.5 + 0) / 3
+    results = [("t1", True), ("t2", False), ("t2", True), ("t3", False), ("t3", False), ("t3", False)]
+    assert report.task_pass_rate(results) == 0.5
+    # the same number of attempts per task: the same as passed / attempts
+    assert report.task_pass_rate([("t1", True), ("t1", False), ("t2", True), ("t2", True)]) == 0.75
+    assert report.task_pass_rate([]) == 0.0
+
+
+def test_adaptive_runs_are_marked_in_the_report(demo: Any, tmp_path: Path) -> None:
+    from llm_on_a_stick.runner import html
+
+    task, lab = demo
+    runs = tmp_path / "runs"
+    settings = loop.Settings(repeat=3, adaptive=True)
+    for _ in range(2):  # two failed attempts of one task, as an adaptive run makes them
+        turns = [Turn("no", [], Usage(5, 1), "end")]
+        loop.run_task(task, ListClient(turns, "ollama/a"), lab, runs, settings)
+    attempts = report.collect_attempts([runs])
+    assert attempts[0].metrics["repeats"] == {"max": 3, "adaptive": True}
+    attempts[1].outcome = "pass"  # as if the second attempt had passed
+
+    data = report.build_report(attempts)
+    (a,) = data["contenders"]
+    assert a["adaptive"] is True and a["task_pass_rate"] == 0.5 and a["passed"] == 1
+    assert any(
+        line.startswith("Adaptive repeats") and "50% per task" in line for line in a["struggles"]["summary"]
+    )
+    assert data["by_section"][0]["per"][a["id"]]["task_pass_rate"] == 0.5
+
+    (s,) = report.summarise(report.collect([runs]))
+    assert s.adaptive and report.pass_rate(s) == "0% (adaptive)"  # on disk both attempts failed
+    assert "(adaptive)" in report.to_markdown(report.collect([runs]))
+    out = tmp_path / "report.html"
+    assert html.write([runs], out) is not None
+    assert (
+        json.loads(out.with_suffix(".json").read_text(encoding="utf-8"))["contenders"][0]["adaptive"] is True
+    )
 
 
 def test_report_compares_up_to_three_models(demo: Any, tmp_path: Path) -> None:

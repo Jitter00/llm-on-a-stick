@@ -35,6 +35,7 @@ class Row:
     judge_score: float | None = (
         None  # the judge model's score (0..1), when one judged it; not part of `score`
     )
+    adaptive: bool = False  # run with --adaptive: the task's attempts stopped at its first pass
 
 
 def sampling_label(sampling: dict[str, Any]) -> str:
@@ -53,6 +54,21 @@ class ModelSummary:
     mean_wall_s: float
     common_hints: list[str] = field(default_factory=list)
     judge_score: float | None = None  # mean over the attempts a judge scored; never mixed into mean_score
+    task_pass_rate: float = 0.0  # mean over tasks of each task's passed/attempts (see task_pass_rate)
+    adaptive: bool = False  # some attempts were made with --adaptive
+
+
+def task_pass_rate(results: list[tuple[str, bool]]) -> float:
+    """Mean over tasks of each task's share of passed attempts, from (task id, passed) pairs. Each task
+    counts once however many attempts it got: with --adaptive a task stops at its first pass, so a model
+    that fails more makes more attempts, and the plain passed/attempts would count its failures twice.
+    With the same number of attempts for every task it equals passed/attempts."""
+    by_task: dict[str, list[bool]] = {}
+    for task_id, passed in results:
+        by_task.setdefault(task_id, []).append(passed)
+    if not by_task:
+        return 0.0
+    return round(mean(sum(xs) / len(xs) for xs in by_task.values()), 3)
 
 
 def _result_files(paths: list[Path]) -> list[Path]:
@@ -92,6 +108,7 @@ def collect(paths: list[Path]) -> list[Row]:
                 stop_reason=str(mt.get("stop_reason", "")),
                 sampling=sampling_label(mt.get("sampling") or {}),
                 judge_score=r.judge.score if r.judge else None,
+                adaptive=bool((mt.get("repeats") or {}).get("adaptive")),
             )
         )
     return sorted(rows, key=lambda r: (r.task_id, r.model, r.run_dir))
@@ -120,6 +137,8 @@ def summarise(rows: list[Row]) -> list[ModelSummary]:
                 mean_wall_s=round(mean(r.wall_s for r in mine), 1),
                 common_hints=[f"{h} ({hint_counts[h]})" for h in top],
                 judge_score=_mean_or_none([r.judge_score for r in mine]),
+                task_pass_rate=task_pass_rate([(r.task_id, r.outcome == "pass") for r in mine]),
+                adaptive=any(r.adaptive for r in mine),
             )
         )
     return out
@@ -144,15 +163,21 @@ def _cost(c: float | None) -> str:
     return "?" if c is None else f"${c:.4f}"
 
 
+def pass_rate(s: ModelSummary) -> str:
+    """The per-task pass rate as shown in tables, marked when the attempts stopped at the first pass."""
+    return f"{s.task_pass_rate:.0%}" + (" (adaptive)" if s.adaptive else "")
+
+
 def to_markdown(rows: list[Row]) -> str:
     lines = [
-        "| model | sampling | runs | passed | mean score | judge | tokens | cost | mean time "
+        "| model | sampling | runs | passed | pass rate | mean score | judge | tokens | cost | mean time "
         "| most common problems |",
-        "|---|---|---|---|---|---|---|---|---|---|",
+        "|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for s in summarise(rows):
         lines.append(
-            f"| {s.model} | {s.sampling or '-'} | {s.runs} | {s.passed} | {s.mean_score:.2f} "
+            f"| {s.model} | {s.sampling or '-'} | {s.runs} | {s.passed} | {pass_rate(s)} "
+            f"| {s.mean_score:.2f} "
             f"| {_judge(s.judge_score)} | {s.tokens} "
             f"| {_cost(s.cost_usd)} "
             f"| {s.mean_wall_s}s | {', '.join(s.common_hints) or '-'} |"
@@ -347,6 +372,11 @@ def _struggles(mine: list[AttemptDetail]) -> dict[str, Any]:
         summary.append(f"Passed all {_plural(n, 'attempt')}.")
     else:
         summary.append(f"Passed {passed} of {_plural(n, 'attempt')}.")
+    if any(_adaptive(a) for a in mine):
+        summary.append(
+            f"Adaptive repeats (a task stops at its first pass): passed {_task_rate(mine):.0%} per task, "
+            f"{_plural(len(by_task), 'task')} in {_plural(n, 'attempt')}."
+        )
     if never:
         summary.append(f"Never passed: {', '.join(sorted(never))}.")
     if sometimes:
@@ -384,12 +414,23 @@ def _struggles(mine: list[AttemptDetail]) -> dict[str, Any]:
     }
 
 
+def _adaptive(a: AttemptDetail) -> bool:
+    return bool((a.metrics.get("repeats") or {}).get("adaptive"))
+
+
+def _task_rate(attempts: list[AttemptDetail]) -> float:
+    return task_pass_rate([(a.task_id, a.outcome == "pass") for a in attempts])
+
+
 def _stats(mine: list[AttemptDetail]) -> dict[str, Any]:
     costs: list[float | None] = [a.metrics.get("cost_usd") for a in mine]
     scores: list[float | None] = [(a.judge or {}).get("score") for a in mine]
     return {
         "attempts": len(mine),
         "passed": sum(a.outcome == "pass" for a in mine),
+        # Each task counts once: the number to compare when tasks got different numbers of attempts.
+        "task_pass_rate": _task_rate(mine),
+        "adaptive": any(_adaptive(a) for a in mine),  # --adaptive: tasks stopped at their first pass
         "errors": sum(a.outcome == "error" for a in mine),  # not the model's result
         "mean_score": round(mean(a.score for a in mine), 3),
         "tokens_in": sum(int(a.metrics.get("tokens_in") or 0) for a in mine),
@@ -475,6 +516,7 @@ def _breakdown(attempts: list[AttemptDetail], field_name: str, order: list[str])
                     "tasks": len({a.task_id for a in theirs}),
                     "attempts": len(theirs),
                     "passed": sum(a.outcome == "pass" for a in theirs),
+                    "task_pass_rate": _task_rate(theirs),
                     "mean_score": round(mean(a.score for a in theirs), 3),
                 }
                 for cid, theirs in groups[name].items()

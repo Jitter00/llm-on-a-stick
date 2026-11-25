@@ -28,6 +28,7 @@ stick task list                                            # task ids and their 
 stick run --section cfg-mgmt --model anthropic/claude-haiku-5-5        # one model, one section
 stick run bgp-peering-audit --model anthropic/claude-haiku-5-5         # one task: its id, no --section
 stick run --all --model anthropic/claude-haiku-5-5 --repeat 3          # every task, three attempts each
+stick run --all --model ollama/gemma4:26b --repeat 3 --adaptive        # retry only what failed, up to three
 stick vs anthropic/claude-haiku-5-5 ollama/gemma4:12b --section cfg-mgmt   # two models, side by side
 stick judge runs/<name> --judge-model anthropic/claude-haiku-5-5       # why attempts failed (needs no lab)
 stick env down                                             # stop everything when the user is done
@@ -73,7 +74,9 @@ Don't parse the terminal table. Each run ends by printing two paths:
 
 - `report-<model>-<what>-<time>.html`: the page for the user. Give them the `file://` address as printed.
 - The `.json` file with the same name: the same numbers, for you.
-    - `contenders[]`: one per model and setting, with `attempts`, `passed`, `errors` (attempts with outcome
+    - `contenders[]`: one per model and setting, with `attempts`, `passed`, `task_pass_rate` (mean over tasks of
+      each task's passed/attempts: the number to compare when `adaptive` is true, i.e. the run used `--adaptive`
+      and tasks stopped at their first pass), `errors` (attempts with outcome
       `error`: the lab, the grader or the model server failed), `mean_score`, `tokens_in`, `tokens_out`, `cost_usd`, `mean_wall_s`, `total_wall_s` (seconds, all attempts), `mean_turns`,
       `gpu_link_degraded` (attempts made on a slow GPU link: above 0, don't quote that model's times), and
       `sampling` (what was really sent). With a judge: `judge_score` (0..1, mean over `judge_attempts`),
@@ -83,7 +86,7 @@ Don't parse the terminal table. Each run ends by printing two paths:
       didn't pass) and `judge.checks[]` (`score`, `scale`, `scores` per repeat, `agreement`, `reason`).
     - `judges`: the judge models used, if any.
     - `by_section[]` and `by_tier[]`: `name` and, per contender id, `tasks`, `attempts`, `passed`,
-      `mean_score`. `max_repeats` is the most attempts any task got: at 1, a section moves in quarters.
+      `task_pass_rate`, `mean_score`. `max_repeats` is the most attempts any task got: at 1, a section moves in quarters.
     - `versus`: set only when there are two or three contenders: `wins` (task ids per contender, and `tie`),
       `top` (task ids where the contender was best or joint best), `only_passed_by` and `headline`.
 
